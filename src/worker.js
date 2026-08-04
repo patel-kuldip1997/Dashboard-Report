@@ -72,7 +72,7 @@ self.onmessage = async (e) => {
         expectedColumns = 'DC Month, DC Creation Date';
       }
     } else if (activeReport === 'eta-route') {
-      if (!headers.includes('origin_lat') && !headers.includes('origin_lat_origin_lng') && !headers.includes('destination_lat')) {
+      if (!headers.includes('origin_lat') && !headers.includes('origin lat') && !headers.includes('origin_lat_origin_lng') && !headers.includes('origin lat origin lng') && !headers.includes('destination_lat') && !headers.includes('destination lat')) {
         isValid = false;
         expectedColumns = 'Origin_Lat, Origin_Lng, Destination_Lat, Destination_Lng, Actual_Time_Mins';
       }
@@ -300,60 +300,62 @@ self.onmessage = async (e) => {
            return;
        }
 
-       // Helper to clean coordinates
-       const cleanCoords = (val) => {
-           if (val === undefined || val === null) return null;
-           let s = String(val).replace(/\s+/g, '');
-           if (s === '' || s === 'nan,nan' || s === ',') return null;
-           return s;
-       };
+        // Helper to clean coordinates
+        const cleanCoords = (val) => {
+            if (val === undefined || val === null) return null;
+            let s = String(val).replace(/\s+/g, '').toLowerCase();
+            if (s === '' || s === 'nan,nan' || s === ',' || s === 'undefined,undefined' || s === 'null,null') return null;
+            return s;
+        };
 
-       // Helper to parse transit time
-       const parseTransitTime = (timeStr) => {
-           if (timeStr === undefined || timeStr === null || String(timeStr).trim() === '') return NaN;
-           if (typeof timeStr === 'number') {
-               return Math.round(timeStr * 24 * 60);
-           }
-           if (!isNaN(Number(timeStr))) return Number(timeStr);
-           
-           let t = String(timeStr).toLowerCase();
-           let days = 0, hours = 0, mins = 0;
-           let dMatch = t.match(/(\d+)\s*d/);
-           let hMatch = t.match(/(\d+)\s*h/);
-           let mMatch = t.match(/(\d+)\s*m/);
-           if (dMatch) days = parseInt(dMatch[1], 10);
-           if (hMatch) hours = parseInt(hMatch[1], 10);
-           if (mMatch) mins = parseInt(mMatch[1], 10);
-           
-           let total = days * 1440 + hours * 60 + mins;
-           return total > 0 ? total : NaN;
-       };
+        // Helper to parse transit time
+        const parseTransitTime = (timeStr) => {
+            if (timeStr === undefined || timeStr === null || String(timeStr).trim() === '') return NaN;
+            if (typeof timeStr === 'number') {
+                return Math.round(timeStr * 24 * 60);
+            }
+            if (!isNaN(Number(timeStr))) return Number(timeStr);
+            
+            let t = String(timeStr).toLowerCase();
+            let days = 0, hours = 0, mins = 0;
+            let dMatch = t.match(/(\d+)\s*d/);
+            let hMatch = t.match(/(\d+)\s*h/);
+            let mMatch = t.match(/(\d+)\s*m/);
+            if (dMatch) days = parseInt(dMatch[1], 10);
+            if (hMatch) hours = parseInt(hMatch[1], 10);
+            if (mMatch) mins = parseInt(mMatch[1], 10);
+            
+            let total = days * 1440 + hours * 60 + mins;
+            return total > 0 ? total : NaN;
+        };
 
-       const adjustForTruck = (carMins) => {
-           if (carMins === null) return null;
-           let base = carMins * 1.20;
-           let breaks = Math.floor(base / 300) * 60;
-           return Math.round(base + breaks);
-       };
+        const adjustForTruck = (carMins) => {
+            if (carMins === null) return null;
+            let base = carMins * 1.20;
+            let breaks = Math.floor(base / 300) * 60;
+            return Math.round(base + breaks);
+        };
 
-       // 1. Validate and prepare data
-       let routesData = [];
-       jsonData.forEach(row => {
-           let originLat = getVal(row, 'Origin_Lat');
-           let originLng = getVal(row, 'Origin_Lng');
-           let combinedOrigin = getVal(row, 'Origin_Lat_Origin_Lng');
-           
-           let destLat = getVal(row, 'Destination_Lat');
-           let destLng = getVal(row, 'Destination_Lng');
-           let combinedDest = getVal(row, 'Destination_Lat_Destination_Lng');
-           
-           let orig = cleanCoords(combinedOrigin || (originLat + ',' + originLng));
-           let dest = cleanCoords(combinedDest || (destLat + ',' + destLng));
+        // 1. Validate and prepare data
+        let routesData = [];
+        jsonData.forEach(row => {
+            let routeCode = getVal(row, 'Route Code', 'Route_Code', 'Route');
+            
+            let originLat = getVal(row, 'Origin_Lat', 'Origin Lat');
+            let originLng = getVal(row, 'Origin_Lng', 'Origin Lng');
+            let combinedOrigin = getVal(row, 'Origin_Lat_Origin_Lng', 'Origin Lat Origin Lng');
+            
+            let destLat = getVal(row, 'Destination_Lat', 'Destination Lat');
+            let destLng = getVal(row, 'Destination_Lng', 'Destination Lng');
+            let combinedDest = getVal(row, 'Destination_Lat_Destination_Lng', 'Destination Lat Destination Lng');
+            
+            let orig = cleanCoords(combinedOrigin || ((originLat !== undefined && originLng !== undefined) ? (originLat + ',' + originLng) : null));
+            let dest = cleanCoords(combinedDest || ((destLat !== undefined && destLng !== undefined) ? (destLat + ',' + destLng) : null));
            
            let actualTime = parseTransitTime(getVal(row, 'Actual_Time_Mins', 'Transit Time(hh:mm)', 'Transit Time'));
            
            if (orig && dest) {
-               routesData.push({ orig, dest, actualTime, originalRow: row });
+               routesData.push({ orig, dest, actualTime, routeCode: routeCode || 'N/A', originalRow: row });
            }
        });
 
@@ -415,18 +417,19 @@ self.onmessage = async (e) => {
                }
            }
            
-           processed.push({
-               origin: r.orig,
-               destination: r.dest,
-               actualTime: isNaN(r.actualTime) ? 'N/A' : r.actualTime,
-               googleEta: cache.mins !== null ? cache.mins : 'N/A',
-               distance: cache.km !== null ? cache.km : 'N/A',
-               vehicleType: etaVehicleType,
-               tripStatus: status,
-               isSubtotal: false,
-               sortKey: `${idx}`
-           });
-       });
+            processed.push({
+                routeCode: r.routeCode,
+                origin: r.orig,
+                destination: r.dest,
+                actualTime: isNaN(r.actualTime) ? 'N/A' : r.actualTime,
+                googleEta: cache.mins !== null ? cache.mins : 'N/A',
+                distance: cache.km !== null ? cache.km : 'N/A',
+                vehicleType: etaVehicleType,
+                tripStatus: status,
+                isSubtotal: false,
+                sortKey: `${idx}`
+            });
+        });
 
        self.postMessage({ type: 'success', data: processed });
        return;

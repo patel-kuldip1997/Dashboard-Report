@@ -84,11 +84,12 @@ const DEFAULT_MULTI_TRIP_CONFIG = [
 ];
 
 const DEFAULT_ETA_ROUTE_CONFIG = [
+  { id: 'routeCode', label: 'Route Code', visible: true },
   { id: 'origin', label: 'Origin Lat/Lng', visible: true },
   { id: 'destination', label: 'Destination Lat/Lng', visible: true },
   { id: 'actualTime', label: 'Actual Time (Mins)', visible: true },
   { id: 'googleEta', label: 'Calculated ETA (Mins)', visible: true },
-  { id: 'distance', label: 'Google Distance (Km)', visible: true },
+  { id: 'distance', label: 'Google Distance (KM)', visible: true },
   { id: 'vehicleType', label: 'Vehicle Type', visible: true },
   { id: 'tripStatus', label: 'Trip Status', visible: true }
 ];
@@ -1218,7 +1219,7 @@ function App() {
   const exportPDF = () => {
     if (displayData.length === 0) return;
 
-    const orientation = (activeReport === 'lifting-report' || activeReport === 'vehicle-assigned') ? 'landscape' : 'portrait';
+    const orientation = (activeReport === 'lifting-report' || activeReport === 'vehicle-assigned' || activeReport === 'multi-trip-analysis') ? 'landscape' : 'portrait';
     const doc = new jsPDF({ orientation, format: 'a4' });
     
     const drawHeader = () => {
@@ -1358,7 +1359,7 @@ function App() {
     });
 
     const columnStyles = {};
-    const numericColsList = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', 'vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager', 'epodStatus', 'weighbridgeUsed'];
+    const numericColsList = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', 'vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager', 'epodStatus', 'weighbridgeUsed', 'hrs', 'tripCount', 'netWeight'];
     visibleColumns.forEach((c, index) => {
       if (numericColsList.includes(c.id)) {
          columnStyles[index] = { halign: 'center' };
