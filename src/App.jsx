@@ -332,7 +332,7 @@ function App() {
 
   const toggleColumnVisibility = (index) => {
     const newConfig = [...columnConfig];
-    newConfig[index].visible = !newConfig[index].visible;
+    newConfig[index] = { ...newConfig[index], visible: !newConfig[index].visible };
     saveConfig(newConfig);
   };
 
@@ -1045,7 +1045,6 @@ function App() {
          return String.fromCharCode(64 + index); // 1=A, 2=B
       });
       headConfig = [
-        [ { content: `Transport Contractors - First Mile (FCI to GSCSCL Godown) - ${reportTitle}`, colSpan: visibleColumns.length, styles: { halign: 'center', fillColor: [180, 198, 231], textColor: [0, 0, 0] } } ],
         visibleColumns.map(col => col.label),
         unitsRow,
         lettersRow
@@ -2042,7 +2041,17 @@ function App() {
                 </div>
               </div>
               <div className="modal-footer" style={{ padding: '16px 20px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between' }}>
-                <button className="btn-secondary" onClick={() => saveConfig(activeReport === 'first-mile-epod' ? [...DEFAULT_EPOD_CONFIG] : activeReport === 'miller-to-godown' ? [...DEFAULT_MG_CONFIG] : [...DEFAULT_GM_CONFIG])}>Reset</button>
+                <button className="btn-secondary" onClick={() => {
+                    let defaultConf = DEFAULT_GM_CONFIG;
+                    if (activeReport === 'first-mile-epod') defaultConf = DEFAULT_EPOD_CONFIG;
+                    else if (activeReport === 'last-mile-epod') defaultConf = DEFAULT_LAST_MILE_EPOD_CONFIG;
+                    else if (activeReport === 'miller-to-godown') defaultConf = DEFAULT_MG_CONFIG;
+                    else if (activeReport === 'lifting-report') defaultConf = DEFAULT_LIFTING_CONFIG;
+                    else if (activeReport === 'multi-trip-analysis') defaultConf = DEFAULT_MULTI_TRIP_CONFIG;
+                    else if (activeReport === 'eta-route') defaultConf = DEFAULT_ETA_ROUTE_CONFIG;
+                    else if (activeReport === 'vehicle-assigned') defaultConf = DEFAULT_VEHICLE_ASSIGNED_CONFIG;
+                    saveConfig(defaultConf.map(c => ({...c})));
+                  }}>Reset</button>
                 <button className="btn-primary" onClick={() => setShowConfigModal(false)}>Done</button>
               </div>
             </div>
