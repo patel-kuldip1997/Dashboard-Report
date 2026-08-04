@@ -34,7 +34,7 @@ const formatExcelDate = (dateVal) => {
 };
 
 self.onmessage = async (e) => {
-  const { data, trackingData, activeReport, etaApiKey, etaVehicleType } = e.data;
+  const { data, trackingData, activeReport, etaApiKey, etaVehicleType, weighbridgeVendors } = e.data;
   
   try {
     const wb = XLSX.read(data, { type: 'array' });
@@ -80,6 +80,11 @@ self.onmessage = async (e) => {
       if (!headers.includes('reference number') && !headers.includes('tp date') && !headers.includes('district')) {
         isValid = false;
         expectedColumns = 'Reference Number, District, TP Date';
+      }
+    } else if (activeReport === 'weighbridge-report') {
+      if (!headers.includes('weighbridge id') && !headers.includes('weighbridge_id')) {
+        isValid = false;
+        expectedColumns = 'TP date, District, Destination Godown, EPOD status, Weighbridge ID';
       }
     }
 
@@ -473,6 +478,65 @@ self.onmessage = async (e) => {
            dcMonth: dcMonth,
            dcCreationDate: dcDate,
            epodStatusRaw: statusRaw
+         });
+         return;
+      }
+      
+      if (activeReport === 'weighbridge-report') {
+         const tpDateRaw = getVal(row, 'tp_date', 'tp date', 'tp date ');
+         const tpDate = formatExcelDate(tpDateRaw);
+         if (!tpDate) return;
+         
+         const district = getVal(row, 'district') || '';
+         const destGodown = getVal(row, 'destination_godown', 'destination godown') || '';
+         const weighbridgeId = String(getVal(row, 'weighbridge_id', 'weighbridge id') || '').trim();
+         const grossWeight = String(getVal(row, 'Weigh Bridge Gross Weight') || '').trim();
+         const tareWeight = String(getVal(row, 'Weigh Bridge Tare Weight') || '').trim();
+         
+         let weighbridgeName = getVal(row, 'weighbridge_name', 'vendor name', 'weighbridge vendor') || '';
+         
+         if (weighbridgeId && weighbridgeVendors) {
+             const parts = weighbridgeId.split('_');
+             if (parts.length > 0) {
+                 const vendorCode = parts[parts.length - 1];
+                 const matchedVendor = weighbridgeVendors.find(v => v.id === vendorCode);
+                 if (matchedVendor) weighbridgeName = matchedVendor.name;
+             }
+         }
+         
+         if (!weighbridgeName) weighbridgeName = 'Unknown Vendor';
+         
+         if (tpDate.toLowerCase().includes('cancel') || district.toLowerCase().includes('cancel') || destGodown.toLowerCase().includes('cancel') || weighbridgeName.toLowerCase().includes('cancel') || weighbridgeId.toLowerCase().includes('cancel')) {
+            return;
+         }
+
+         const isWbIdValid = (weighbridgeId !== '' && weighbridgeId !== '0' && weighbridgeId !== 'null' && weighbridgeId !== 'undefined' && weighbridgeId !== 'NaN');
+         const isGrossValid = (grossWeight !== '' && grossWeight !== '0' && grossWeight !== 'null' && grossWeight !== 'undefined' && grossWeight !== 'NaN');
+         const isTareValid = (tareWeight !== '' && tareWeight !== '0' && tareWeight !== 'null' && tareWeight !== 'undefined' && tareWeight !== 'NaN');
+
+         let wbUsed = 0;
+         if (isWbIdValid && (isGrossValid || isTareValid)) {
+            wbUsed = 1;
+         }
+
+         let epodCount = 0;
+         const epodVal = getVal(row, 'EPOD Status');
+         if (typeof epodVal === 'number') {
+            epodCount = epodVal;
+         } else if (typeof epodVal === 'string') {
+            if (epodVal.toLowerCase().includes('deliver')) {
+               epodCount = 1;
+            }
+         }
+
+         processed.push({
+            tpDate: tpDate,
+            district: district,
+            destGodown: destGodown,
+            weighbridgeVendor: weighbridgeName,
+            weighbridgeId: weighbridgeId,
+            epodStatus: epodCount,
+            weighbridgeUsed: wbUsed
          });
          return;
       }

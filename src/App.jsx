@@ -93,6 +93,14 @@ const DEFAULT_ETA_ROUTE_CONFIG = [
   { id: 'tripStatus', label: 'Trip Status', visible: true }
 ];
 
+const DEFAULT_WEIGHBRIDGE_CONFIG = [
+  { id: 'district', label: 'District', visible: true },
+  { id: 'destGodown', label: 'Destination Godown', visible: true },
+  { id: 'weighbridgeVendor', label: 'Weighbridge Vendor', visible: true },
+  { id: 'epodStatus', label: 'Total EPOD', visible: true },
+  { id: 'weighbridgeUsed', label: 'Total Weighbridge Used', visible: true }
+];
+
 const DEFAULT_VEHICLE_ASSIGNED_CONFIG = [
   { id: 'refNo', label: 'Reference Number', visible: true },
   { id: 'district', label: 'District', visible: true },
@@ -212,6 +220,101 @@ const ALL_DISTRICTS = [
   "Surat", "Surendranagar", "Tapi", "Valsad", "VavTharad"
 ];
 
+
+function WeighbridgeVendors({ vendors, setVendors }) {
+  const [newId, setNewId] = useState('');
+  const [newName, setNewName] = useState('');
+  const [editIndex, setEditIndex] = useState(-1);
+  const [editId, setEditId] = useState('');
+  const [editName, setEditName] = useState('');
+
+  const handleAdd = () => {
+    if (!newId || !newName) return;
+    setVendors([...vendors, { id: newId, name: newName }]);
+    setNewId('');
+    setNewName('');
+  };
+
+  const handleDelete = (index) => {
+    const updated = [...vendors];
+    updated.splice(index, 1);
+    setVendors(updated);
+  };
+
+  const startEdit = (index, vendor) => {
+    setEditIndex(index);
+    setEditId(vendor.id);
+    setEditName(vendor.name);
+  };
+
+  const saveEdit = () => {
+    const updated = [...vendors];
+    updated[editIndex] = { id: editId, name: editName };
+    setVendors(updated);
+    setEditIndex(-1);
+  };
+
+  return (
+    <div className="report-container">
+      <div className="report-header">
+        <h2 className="report-title">
+          <Settings size={28} className="logo-icon" />
+          Weighbridge Vendors Configuration
+        </h2>
+      </div>
+      <div style={{ padding: '24px' }}>
+        <p style={{ color: 'var(--text-muted)', marginBottom: '24px' }}>
+          Map the trailing digit of a Weighbridge ID to the Vendor Name.
+        </p>
+
+        <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', flexWrap: 'wrap' }}>
+          <input type="text" placeholder="Vendor Code (e.g. 1)" value={newId} onChange={e => setNewId(e.target.value)} style={{ padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)', outline: 'none', background: 'var(--bg-main)', color: 'var(--text-main)', flex: 1, minWidth: '150px' }} />
+          <input type="text" placeholder="Vendor Name (e.g. APPLE WEIGHINFRA LIMITED)" value={newName} onChange={e => setNewName(e.target.value)} style={{ padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)', outline: 'none', background: 'var(--bg-main)', color: 'var(--text-main)', flex: 3, minWidth: '250px' }} />
+          <button className="btn-primary" onClick={handleAdd}>Add Vendor</button>
+        </div>
+
+        <table className="report-table">
+          <thead>
+            <tr>
+              <th style={{ width: '150px' }}>Vendor Code</th>
+              <th>Vendor Name</th>
+              <th style={{ width: '150px', textAlign: 'center' }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {vendors.map((v, i) => (
+              <tr key={i} className="data-row">
+                {editIndex === i ? (
+                  <>
+                    <td><input type="text" value={editId} onChange={e => setEditId(e.target.value)} style={{ width: '100%', padding: '6px' }} /></td>
+                    <td><input type="text" value={editName} onChange={e => setEditName(e.target.value)} style={{ width: '100%', padding: '6px' }} /></td>
+                    <td style={{ textAlign: 'center' }}>
+                      <button className="btn-primary" onClick={saveEdit} style={{ padding: '6px 12px', marginRight: '8px' }}>Save</button>
+                      <button className="btn-secondary" onClick={() => setEditIndex(-1)} style={{ padding: '6px 12px' }}>Cancel</button>
+                    </td>
+                  </>
+                ) : (
+                  <>
+                    <td style={{ fontWeight: '600' }}>{v.id}</td>
+                    <td>{v.name}</td>
+                    <td style={{ textAlign: 'center' }}>
+                      <button className="btn-secondary" onClick={() => startEdit(i, v)} style={{ padding: '6px 12px', marginRight: '8px' }}>Edit</button>
+                      <button className="btn-secondary" onClick={() => handleDelete(i)} style={{ padding: '6px 12px', color: '#ff4d4f', borderColor: '#ff4d4f' }}>Delete</button>
+                    </td>
+                  </>
+                )}
+              </tr>
+            ))}
+            {vendors.length === 0 && (
+               <tr><td colSpan="3" style={{ textAlign: 'center', padding: '24px' }}>No vendors configured.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const [activeReport, setActiveReport] = useState(() => {
     return localStorage.getItem('activeReportTab') || 'godown-to-miller';
@@ -239,6 +342,22 @@ function App() {
   const [draggedItemIndex, setDraggedItemIndex] = useState(null);
   const [reportTitle, setReportTitle] = useState('');
   
+  const [weighbridgeVendors, setWeighbridgeVendors] = useState(() => {
+    const saved = localStorage.getItem('weighbridge_vendors_list');
+    if (saved) return JSON.parse(saved);
+    return [
+      { id: '1', name: 'APPLE WEIGHINFRA LIMITED' },
+      { id: '2', name: 'EAGLE SCALE MANUFACTURING WORKS' },
+      { id: '3', name: 'ENDEAVOUR INSTRUMENT PVT. LTD' },
+      { id: '4', name: 'LEOTRONIC SCALES PVT. LTD' }
+    ];
+  });
+  
+  const handleSaveVendors = (newVendors) => {
+     setWeighbridgeVendors(newVendors);
+     localStorage.setItem('weighbridge_vendors_list', JSON.stringify(newVendors));
+  };
+  
   // Custom Alert Modal State
   const [alertConfig, setAlertConfig] = useState({ isOpen: false, title: '', message: '', type: 'error', isConfirm: false, onConfirm: null });
 
@@ -251,6 +370,7 @@ function App() {
   const [dcDateFilter, setDcDateFilter] = useState(null);
   const [epodStatusFilter, setEpodStatusFilter] = useState(null);
   const [tpDateFilter, setTpDateFilter] = useState(null);
+  const [wbIdFilter, setWbIdFilter] = useState(null);
   const [remarksFilter, setRemarksFilter] = useState(null);
 
   useEffect(() => {
@@ -274,6 +394,8 @@ function App() {
        setReportTitle("ETA Route Analytics");
     } else if (activeReport === 'vehicle-assigned') {
        setReportTitle("First Mile - Vehicle Assignment Report");
+    } else if (activeReport === 'weighbridge-report') {
+       setReportTitle("Weighbridge Report");
     } else if (activeReport === 'sms-template') {
        setReportTitle("SMS Templates");
     } else {
@@ -289,6 +411,7 @@ function App() {
     else if (activeReport === 'multi-trip-analysis') defaultConf = DEFAULT_MULTI_TRIP_CONFIG;
     else if (activeReport === 'eta-route') defaultConf = DEFAULT_ETA_ROUTE_CONFIG;
     else if (activeReport === 'vehicle-assigned') defaultConf = DEFAULT_VEHICLE_ASSIGNED_CONFIG;
+    else if (activeReport === 'weighbridge-report') defaultConf = DEFAULT_WEIGHBRIDGE_CONFIG;
     
     if (savedConfig && activeReport !== 'history') {
       const parsedConfig = JSON.parse(savedConfig);
@@ -433,7 +556,7 @@ function App() {
         worker.terminate();
       };
 
-      worker.postMessage({ data: arrayBuffer, activeReport, etaApiKey, etaVehicleType });
+      worker.postMessage({ data: arrayBuffer, activeReport, etaApiKey, etaVehicleType, weighbridgeVendors });
     };
     reader.readAsArrayBuffer(file);
   };
@@ -614,28 +737,31 @@ function App() {
   };
 
   // Extract unique filter options for Last Mile EPOD, Lifting Report, and Multi-Trip
-  const { uniqueDcMonths, uniqueDcDates, uniqueEpodStatuses, uniqueTpDates, uniqueRemarks } = useMemo(() => {
-    if (activeReport !== 'last-mile-epod' && activeReport !== 'lifting-report' && activeReport !== 'multi-trip-analysis' && activeReport !== 'vehicle-assigned') {
-        return { uniqueDcMonths: [], uniqueDcDates: [], uniqueEpodStatuses: [], uniqueTpDates: [], uniqueRemarks: [] };
+  const { uniqueDcMonths, uniqueDcDates, uniqueEpodStatuses, uniqueTpDates, uniqueRemarks, uniqueWbIds } = useMemo(() => {
+    if (rawData.length === 0) {
+        return { uniqueDcMonths: [], uniqueDcDates: [], uniqueEpodStatuses: [], uniqueTpDates: [], uniqueRemarks: [], uniqueWbIds: [] };
     }
     const months = new Set();
     const dates = new Set();
     const epodStatuses = new Set();
     const tpDates = new Set();
     const remarks = new Set();
+    const wbIds = new Set();
     rawData.forEach(r => {
       if (r.dcMonth) months.add(r.dcMonth);
       if (r.dcCreationDate) dates.add(r.dcCreationDate);
       if (r.epodStatusRaw) epodStatuses.add(r.epodStatusRaw);
       if (r.tpDate) tpDates.add(r.tpDate);
       if (r.remarks && r.isSubtotal) remarks.add(r.remarks);
+      if (r.weighbridgeId) wbIds.add(r.weighbridgeId);
     });
     return {
       uniqueDcMonths: Array.from(months).sort(),
       uniqueDcDates: Array.from(dates).sort(),
       uniqueEpodStatuses: Array.from(epodStatuses).sort(),
       uniqueTpDates: Array.from(tpDates).sort(),
-      uniqueRemarks: Array.from(remarks).sort()
+      uniqueRemarks: Array.from(remarks).sort(),
+      uniqueWbIds: Array.from(wbIds).sort()
     };
   }, [rawData, activeReport]);
 
@@ -645,6 +771,82 @@ function App() {
     
     let filtered = rawData;
     
+    if (activeReport === 'weighbridge-report') {
+       if (tpDateFilter !== null) {
+          filtered = filtered.filter(row => tpDateFilter.includes(row.tpDate));
+       }
+       if (wbIdFilter !== null) {
+          filtered = filtered.filter(row => wbIdFilter.includes(row.weighbridgeId));
+       }
+       
+       const pivot = {};
+       filtered.forEach(row => {
+          const dist = row.district || 'Unknown';
+          const godown = row.destGodown || 'Unknown';
+          const vendor = row.weighbridgeVendor || 'Unknown';
+          
+          if (!pivot[dist]) pivot[dist] = {};
+          if (!pivot[dist][godown]) pivot[dist][godown] = {};
+          if (!pivot[dist][godown][vendor]) {
+             pivot[dist][godown][vendor] = { epodStatus: 0, weighbridgeUsed: 0 };
+          }
+          
+          pivot[dist][godown][vendor].epodStatus += (row.epodStatus || 0);
+          pivot[dist][godown][vendor].weighbridgeUsed += (row.weighbridgeUsed || 0);
+       });
+
+       const rows = [];
+       let grandTotalEpod = 0;
+       let grandTotalUsed = 0;
+       
+       Object.keys(pivot).sort().forEach(dist => {
+          let distTotalEpod = 0;
+          let distTotalUsed = 0;
+          
+          Object.keys(pivot[dist]).sort().forEach(godown => {
+             Object.keys(pivot[dist][godown]).sort().forEach(vendor => {
+                const stats = pivot[dist][godown][vendor];
+                distTotalEpod += stats.epodStatus;
+                distTotalUsed += stats.weighbridgeUsed;
+                grandTotalEpod += stats.epodStatus;
+                grandTotalUsed += stats.weighbridgeUsed;
+                
+                rows.push({
+                   district: dist,
+                   destGodown: godown,
+                   weighbridgeVendor: vendor,
+                   epodStatus: stats.epodStatus,
+                   weighbridgeUsed: stats.weighbridgeUsed,
+                   isSubtotal: false
+                });
+             });
+          });
+          
+          rows.push({
+             district: dist + ' Total',
+             destGodown: '',
+             weighbridgeVendor: '',
+             epodStatus: distTotalEpod,
+             weighbridgeUsed: distTotalUsed,
+             isSubtotal: true,
+             isGrandTotal: false
+          });
+       });
+       
+       if (rows.length > 0) {
+          rows.push({
+             district: 'Grand Total',
+             destGodown: '',
+             weighbridgeVendor: '',
+             epodStatus: grandTotalEpod,
+             weighbridgeUsed: grandTotalUsed,
+             isSubtotal: true,
+             isGrandTotal: true
+          });
+       }
+       return rows;
+    }
+
     if (activeReport === 'multi-trip-analysis') {
        if (remarksFilter && remarksFilter.length > 0) {
            const validKeys = new Set();
@@ -1019,16 +1221,14 @@ function App() {
     const doc = new jsPDF({ orientation, format: 'a4' });
     
     const drawHeader = () => {
+      if (activeReport === 'weighbridge-report') return; // Skip standard header for weighbridge
+
       const pageWidth = doc.internal.pageSize.getWidth();
-
-
-      // Top Header
       doc.setTextColor(0, 0, 0);
       doc.setFontSize(22);
       doc.setFont("helvetica", "bold");
       doc.text("FarEye Technologies Pvt. Ltd.", pageWidth / 2, 18, { align: 'center' });
 
-      // Report Title Background
       doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
       const titleWidth = doc.getTextWidth(reportTitle);
@@ -1037,22 +1237,46 @@ function App() {
       const boxX = (pageWidth - (titleWidth + padding)) / 2;
       const boxY = 21;
       
-      doc.setFillColor(240, 240, 240); // Normal light gray background
+      doc.setFillColor(240, 240, 240);
       doc.rect(boxX, boxY, titleWidth + padding, boxHeight, 'F');
 
-      // Report Title Text
       doc.setTextColor(0, 0, 0);
       doc.text(reportTitle, pageWidth / 2, 27, { align: 'center' });
       
-      // Horizontal separator line
       doc.setLineWidth(0.5);
       doc.setDrawColor(200, 200, 200);
       doc.line(14, 32, pageWidth - 14, 32);
     };
 
-    drawHeader(); // Draw on the first page
+    drawHeader();
 
     let headConfig = [visibleColumns.map(col => col.label)];
+    if (activeReport === 'weighbridge-report') {
+       let reportDate = '';
+       if (tpDateFilter && tpDateFilter.length > 0) {
+          reportDate = tpDateFilter[0];
+       } else if (rawData.length > 0) {
+          reportDate = rawData[0].tpDate || '';
+       }
+       const titleStr = reportDate ? `Weighbridge Utilization Reports (${reportDate})` : 'Weighbridge Utilization Reports';
+       
+       headConfig = [
+          [
+             {
+                content: titleStr,
+                colSpan: 5,
+                styles: { halign: 'center', fillColor: [252, 213, 180], fontStyle: 'bold', textColor: [0, 0, 0], fontSize: 16 }
+             }
+          ],
+          [
+             { content: 'District', styles: { halign: 'center', fillColor: [180, 198, 231], textColor: [0,0,0], fontStyle: 'bold' } },
+             { content: 'Destination Godown', styles: { halign: 'center', fillColor: [180, 198, 231], textColor: [0,0,0], fontStyle: 'bold' } },
+             { content: 'Weighbridge Vendor', styles: { halign: 'center', fillColor: [180, 198, 231], textColor: [0,0,0], fontStyle: 'bold' } },
+             { content: 'Total EPOD', styles: { halign: 'center', fillColor: [180, 198, 231], textColor: [0,0,0], fontStyle: 'bold' } },
+             { content: 'Total Weighbridge Used', styles: { halign: 'center', fillColor: [180, 198, 231], textColor: [0,0,0], fontStyle: 'bold' } }
+          ]
+       ];
+    }
     if (activeReport === 'lifting-report') {
       const unitsRow = visibleColumns.map(col => {
          if (['srNo', 'district'].includes(col.id)) return '';
@@ -1076,10 +1300,13 @@ function App() {
 
     displayData.forEach(row => {
       if (row.isSubtotal) {
-        const fillColor = row.isGrandTotal ? [252, 213, 180] : [217, 217, 217];
+        let fillColor = row.isGrandTotal ? [252, 213, 180] : [217, 217, 217];
+          if (activeReport === 'weighbridge-report' && row.isGrandTotal) {
+             fillColor = [180, 198, 231]; // Light blue for grand total in weighbridge
+          }
         const fontSize = row.isGrandTotal ? 11 : 9;
         
-        const subtotalCols = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', 'vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager', 'tripCount', 'netWeight', 'remarks'];
+        const subtotalCols = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', 'vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager', 'tripCount', 'netWeight', 'remarks', 'epodStatus', 'weighbridgeUsed'];
         const firstNumericIndex = visibleColumns.findIndex(c => subtotalCols.includes(c.id));
         const subtotalContent = [];
 
@@ -1136,7 +1363,7 @@ function App() {
     });
 
     const columnStyles = {};
-    const numericColsList = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', 'vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager'];
+    const numericColsList = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', 'vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager', 'epodStatus', 'weighbridgeUsed'];
     visibleColumns.forEach((c, index) => {
       if (numericColsList.includes(c.id)) {
          columnStyles[index] = { halign: 'center' };
@@ -1147,7 +1374,7 @@ function App() {
       autoTable(doc, {
             head: headConfig,
             body: tableRows,
-            startY: 35,
+            startY: activeReport === 'weighbridge-report' ? 14 : 35,
             styles: { fontSize: 7.5, cellPadding: 1.5, textColor: [50, 50, 50], lineColor: [0, 0, 0], lineWidth: 0.1 },
             headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
             columnStyles: columnStyles,
@@ -1417,6 +1644,13 @@ function App() {
                   <FileText className="nav-icon" size={16} />
                   <span>Vehicle Assigned</span>
                 </div>
+                <div 
+                  className={`nav-item ${activeReport === 'weighbridge-report' ? 'active' : ''}`}
+                  onClick={() => handleMenuClick('weighbridge-report')}
+                >
+                  <FileText className="nav-icon" size={16} />
+                  <span>Weighbridge Report</span>
+                </div>
               </div>
             )}
           </div>
@@ -1488,13 +1722,13 @@ function App() {
             )}
           </div>
 
-          {/* Section: Templates */}
+          {/* Section: Master Data */}
           <div className="nav-section" style={{ marginTop: '12px' }}>
             <div 
               className="nav-section-header" 
               onClick={() => setTemplatesMenuOpen(!templatesMenuOpen)}
             >
-              <span className="nav-section-title">Templates</span>
+              <span className="nav-section-title">Master Data</span>
               {templatesMenuOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
             </div>
             
@@ -1506,6 +1740,13 @@ function App() {
                 >
                   <FileText className="nav-icon" size={16} />
                   <span>SMS TEMPLATE</span>
+                </div>
+                <div 
+                  className={`nav-item ${activeReport === 'weighbridge-vendors' ? 'active' : ''}`}
+                  onClick={() => handleMenuClick('weighbridge-vendors')}
+                >
+                  <Settings className="nav-icon" size={16} />
+                  <span>Weighbridge Vendors</span>
                 </div>
               </div>
             )}
@@ -1527,7 +1768,7 @@ function App() {
         )}
         
         {/* Render content based on active report */}
-        {(activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown' || activeReport === 'first-mile-epod' || activeReport === 'last-mile-epod' || activeReport === 'lifting-report' || activeReport === 'multi-trip-analysis' || activeReport === 'eta-route' || activeReport === 'vehicle-assigned') && (
+        {(activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown' || activeReport === 'first-mile-epod' || activeReport === 'last-mile-epod' || activeReport === 'lifting-report' || activeReport === 'multi-trip-analysis' || activeReport === 'eta-route' || activeReport === 'vehicle-assigned' || activeReport === 'weighbridge-report') && (
           <>
             <div className="page-header">
               <div style={{ flex: 1, maxWidth: '70%' }}>
@@ -1793,6 +2034,21 @@ function App() {
                            </div>
                         )}
                        </div>
+                    ) : activeReport === 'weighbridge-report' ? (
+                       <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <MultiSelectDropdown 
+                          placeholder="TP Date" 
+                          options={uniqueTpDates} 
+                          selected={tpDateFilter} 
+                          onChange={setTpDateFilter} 
+                        />
+                        <MultiSelectDropdown 
+                          placeholder="Weighbridge ID" 
+                          options={uniqueWbIds || []} 
+                          selected={wbIdFilter} 
+                          onChange={setWbIdFilter} 
+                        />
+                       </div>
                     ) : activeReport === 'multi-trip-analysis' ? (
                       <MultiSelectDropdown 
                         placeholder="Remarks" 
@@ -1916,7 +2172,7 @@ function App() {
                           if (row.isSubtotal) {
                             lastDist = null;
                             lastSource = null;
-                            const subtotalCols = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', 'vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager', 'tripCount', 'netWeight', 'remarks'];
+                            const subtotalCols = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', 'vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager', 'tripCount', 'netWeight', 'remarks', 'epodStatus', 'weighbridgeUsed'];
                             const firstNumericIndex = visibleColumns.findIndex(c => subtotalCols.includes(c.id));
                             const colSpanBeforeNum = firstNumericIndex > 0 ? firstNumericIndex : visibleColumns.length;
                             const sizeStyle = row.isGrandTotal ? '1.15rem' : '1.05rem';
@@ -1930,7 +2186,7 @@ function App() {
                                        return <td key={col.id} style={{ fontSize: sizeStyle, textAlign: 'center' }}><span className={`status-badge ${row.remarks.includes('Greater') ? 'status-error' : 'status-success'}`}>{row.remarks}</span></td>;
                                     }
                                     const val = row[col.id];
-                                    return <td key={col.id} style={{ fontSize: sizeStyle, textAlign: 'center' }}>{val === 0 ? '' : val}</td>;
+                                    return <td key={col.id} style={{ fontSize: sizeStyle, textAlign: 'center' }}>{val === 0 ? 0 : val}</td>;
                                   } else if (i < firstNumericIndex || firstNumericIndex === -1) {
                                     return null; 
                                   } else {
@@ -1998,7 +2254,7 @@ function App() {
                                   case 'epodComplete': 
                                   case 'epodPending': 
                                   case 'epodPendingPercent': 
-                                    content = <div style={{ textAlign: 'center' }}>{row[col.id] === 0 ? '' : row[col.id]}</div>; 
+                                    content = <div style={{ textAlign: 'center' }}>{row[col.id] === 0 ? 0 : row[col.id]}</div>; 
                                     break;
                                   default: 
                                     if (row[col.id] !== undefined) {
@@ -2012,7 +2268,7 @@ function App() {
                                           const b = Math.round(107 + (123 - 107) * ratio);
                                           content = <div style={{ textAlign: 'center', backgroundColor: `rgb(${r},${g},${b})`, color: '#000', fontWeight: '500', padding: '4px', borderRadius: '4px' }}>{val}</div>;
                                       } else {
-                                          content = <div style={{ textAlign: 'center' }}>{val === 0 ? '' : val}</div>;
+                                          content = <div style={{ textAlign: 'center' }}>{val === 0 ? 0 : val}</div>;
                                       }
                                     } else {
                                       content = '';
@@ -2140,6 +2396,7 @@ function App() {
                     else if (activeReport === 'multi-trip-analysis') defaultConf = DEFAULT_MULTI_TRIP_CONFIG;
                     else if (activeReport === 'eta-route') defaultConf = DEFAULT_ETA_ROUTE_CONFIG;
                     else if (activeReport === 'vehicle-assigned') defaultConf = DEFAULT_VEHICLE_ASSIGNED_CONFIG;
+    else if (activeReport === 'weighbridge-report') defaultConf = DEFAULT_WEIGHBRIDGE_CONFIG;
                     saveConfig(defaultConf.map(c => ({...c})));
                   }}>Reset</button>
                 <button className="btn-primary" onClick={() => setShowConfigModal(false)}>Done</button>
@@ -2150,6 +2407,10 @@ function App() {
 
         {activeReport === 'sms-template' && (
           <SmsTemplate />
+        )}
+
+        {activeReport === 'weighbridge-vendors' && (
+          <WeighbridgeVendors vendors={weighbridgeVendors} setVendors={handleSaveVendors} />
         )}
 
       </div>
