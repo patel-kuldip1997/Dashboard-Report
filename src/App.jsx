@@ -205,6 +205,13 @@ function MultiSelectDropdown({ options, selected, onChange, placeholder }) {
   );
 }
 
+const ALL_DISTRICTS = [
+  "Ahmedabad", "AhmedabadCity", "Amreli", "Anand", "Arvalli", "Banaskantha", "Baroda", "Bharuch", "Bhavanagar", "Botad", 
+  "Chottaudepur", "Dahod", "Dang", "DevbhumiDwarka", "Gandhinagar", "GirSomnath", "Jamnagar", "Junagadh", "Kheda", "Kutch", 
+  "Mahisagar", "Mehsana", "Morbi", "Narmada", "Navasari", "Panchmahal", "Patan", "Porbandar", "Rajkot", "Sabarkantha", 
+  "Surat", "Surendranagar", "Tapi", "Valsad", "VavTharad"
+];
+
 function App() {
   const [activeReport, setActiveReport] = useState(() => {
     return localStorage.getItem('activeReportTab') || 'godown-to-miller';
@@ -216,6 +223,9 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [historyList, setHistoryList] = useState([]);
   const fileInputRef = useRef(null);
+  
+  const [vaStartDate, setVaStartDate] = useState('');
+  const [vaEndDate, setVaEndDate] = useState('');
   
   // Lifting Report File States
   const [mainLiftingFile, setMainLiftingFile] = useState(null);
@@ -518,6 +528,8 @@ function App() {
     const pivot = {};
     const datesSet = new Set();
     
+    ALL_DISTRICTS.forEach(d => { pivot[d] = {}; });
+    
     data.forEach(row => {
       if(row.isGrandTotal || row.isSubtotal) return;
       const district = row.district;
@@ -529,15 +541,23 @@ function App() {
       pivot[district][date] = (pivot[district][date] || 0) + 1;
     });
     
-    const sortedDates = Array.from(datesSet).sort();
     let dates = [];
-    if (sortedDates.length > 0) {
-      let current = new Date(sortedDates[0]);
-      const end = new Date(sortedDates[sortedDates.length - 1]);
-      while (current <= end) {
-        const dateStr = current.getFullYear() + '-' + String(current.getMonth() + 1).padStart(2, '0') + '-' + String(current.getDate()).padStart(2, '0');
-        dates.push(dateStr);
-        current.setDate(current.getDate() + 1);
+    if (vaStartDate && vaEndDate) {
+       let current = new Date(vaStartDate);
+       const end = new Date(vaEndDate);
+       while (current <= end) {
+          dates.push(current.toISOString().split('T')[0]);
+          current.setDate(current.getDate() + 1);
+       }
+    } else {
+      const sortedDates = Array.from(datesSet).sort();
+      if (sortedDates.length > 0) {
+        let current = new Date(sortedDates[0]);
+        const end = new Date(sortedDates[sortedDates.length - 1]);
+        while (current <= end) {
+           dates.push(current.toISOString().split('T')[0]);
+           current.setDate(current.getDate() + 1);
+        }
       }
     }
     
@@ -595,7 +615,7 @@ function App() {
 
   // Extract unique filter options for Last Mile EPOD, Lifting Report, and Multi-Trip
   const { uniqueDcMonths, uniqueDcDates, uniqueEpodStatuses, uniqueTpDates, uniqueRemarks } = useMemo(() => {
-    if (activeReport !== 'last-mile-epod' && activeReport !== 'lifting-report' && activeReport !== 'multi-trip-analysis') {
+    if (activeReport !== 'last-mile-epod' && activeReport !== 'lifting-report' && activeReport !== 'multi-trip-analysis' && activeReport !== 'vehicle-assigned') {
         return { uniqueDcMonths: [], uniqueDcDates: [], uniqueEpodStatuses: [], uniqueTpDates: [], uniqueRemarks: [] };
     }
     const months = new Set();
@@ -647,8 +667,8 @@ function App() {
        }
        // We DO NOT filter rawData by epodStatusFilter here. 
        // We want the total counts to remain intact. We will filter the displayed groups later.
-    } else if (activeReport === 'lifting-report') {
-       if (tpDateFilter !== null) {
+    } else if (activeReport === 'lifting-report' || activeReport === 'vehicle-assigned') {
+        if (tpDateFilter !== null) {
           filtered = filtered.filter(row => tpDateFilter.includes(row.tpDate));
        }
     } else {
@@ -947,23 +967,23 @@ function App() {
       const wsData = [
          ["TP date", "(All)"],
          [],
-         ["Count of Reference Number", "Column Labels"],
-         ["Row Labels", ...dates, "Grand Total"]
+         ["", "Count of Reference Number", "Column Labels"],
+         ["Sr. No.", "District", ...dates, "Grand Total"]
       ];
       
-      Object.keys(pivot).filter(d => d !== 'Grand Total').sort().forEach(district => {
-         const row = [district];
+      Object.keys(pivot).filter(d => d !== 'Grand Total').sort().forEach((district, index) => {
+         const row = [index + 1, district];
          let districtTotal = 0;
          dates.forEach(date => {
             const val = pivot[district][date] || 0;
-            row.push(val === 0 ? '' : val);
+            row.push(val === 0 ? 0 : val);
             districtTotal += val;
          });
          row.push(districtTotal);
          wsData.push(row);
       });
       
-      const grandTotalRow = ["Grand Total"];
+      const grandTotalRow = ["", "Grand Total"];
       let absoluteTotal = 0;
       dates.forEach(date => {
          const colTotal = pivot['Grand Total'][date] || 0;
@@ -1123,41 +1143,43 @@ function App() {
       }
     });
 
-    autoTable(doc, {
-      head: headConfig,
-      body: tableRows,
-      startY: 35,
-      styles: { fontSize: 7.5, cellPadding: 1.5, textColor: [50, 50, 50], lineColor: [0, 0, 0], lineWidth: 0.1 },
-      headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
-      columnStyles: columnStyles,
-      margin: { left: 10, right: 10, top: 10, bottom: 15 },
-      didDrawPage: function (data) {
-        // Draw Watermark ON TOP of the table using opacity
-        doc.setGState(new doc.GState({ opacity: 0.15 }));
-        doc.setFontSize(80);
-        doc.setTextColor(150, 150, 150);
-        doc.setFont("helvetica", "bold");
-        
-        const text = "FarEye";
-        const textWidth = doc.getTextWidth(text);
-        const x = (doc.internal.pageSize.getWidth() - textWidth) / 2;
-        const y = doc.internal.pageSize.getHeight() / 2;
-        
-        doc.text(text, x, y);
-        doc.setGState(new doc.GState({ opacity: 1.0 })); // Reset opacity
-        
-        // Footer: Page Number
-        doc.setLineWidth(0.5);
-        doc.setDrawColor(200, 200, 200);
-        doc.line(14, doc.internal.pageSize.getHeight() - 15, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 15);
-        
-        doc.setFontSize(10);
-        doc.setFont("helvetica", "normal");
-        doc.setTextColor(100, 100, 100);
-        const str = "Page " + data.pageNumber;
-        doc.text(str, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-      }
-    });
+    if (activeReport !== 'vehicle-assigned') {
+      autoTable(doc, {
+            head: headConfig,
+            body: tableRows,
+            startY: 35,
+            styles: { fontSize: 7.5, cellPadding: 1.5, textColor: [50, 50, 50], lineColor: [0, 0, 0], lineWidth: 0.1 },
+            headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
+            columnStyles: columnStyles,
+            margin: { left: 10, right: 10, top: 10, bottom: 15 },
+            didDrawPage: function (data) {
+              // Draw Watermark ON TOP of the table using opacity
+              doc.setGState(new doc.GState({ opacity: 0.15 }));
+              doc.setFontSize(80);
+              doc.setTextColor(150, 150, 150);
+              doc.setFont("helvetica", "bold");
+              
+              const text = "FarEye";
+              const textWidth = doc.getTextWidth(text);
+              const x = (doc.internal.pageSize.getWidth() - textWidth) / 2;
+              const y = doc.internal.pageSize.getHeight() / 2;
+              
+              doc.text(text, x, y);
+              doc.setGState(new doc.GState({ opacity: 1.0 })); // Reset opacity
+              
+              // Footer: Page Number
+              doc.setLineWidth(0.5);
+              doc.setDrawColor(200, 200, 200);
+              doc.line(14, doc.internal.pageSize.getHeight() - 15, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 15);
+              
+              doc.setFontSize(10);
+              doc.setFont("helvetica", "normal");
+              doc.setTextColor(100, 100, 100);
+              const str = "Page " + data.pageNumber;
+              doc.text(str, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
+            }
+          });
+    }
 
     if (activeReport === 'lifting-report') {
       const gt = displayData.find(r => r.isGrandTotal);
@@ -1196,24 +1218,24 @@ function App() {
       
       const mainTitleRow = [{
          content: `First Mile - Vehicle Assignment TP Report ${minDate} to ${maxDate}`,
-         colSpan: dates.length + 2,
+         colSpan: dates.length + 3,
          styles: { halign: 'center', fillColor: [218, 238, 243], textColor: [0, 0, 0], fontStyle: 'bold', fontSize: 11 }
       }];
       
-      const pivotHeaders = ["Row Labels", ...dates, "Grand Total"];
-      const pivotBody = Object.keys(pivot).filter(d => d !== 'Grand Total').sort().map(district => {
-         const row = [district];
+      const pivotHeaders = ["Sr. No.", "District", ...dates, "Grand Total"];
+      const pivotBody = Object.keys(pivot).filter(d => d !== 'Grand Total').sort().map((district, index) => {
+         const row = [index + 1, district];
          let districtTotal = 0;
          dates.forEach(date => {
             const val = pivot[district][date] || 0;
-            row.push(val === 0 ? '' : val);
+            row.push(val === 0 ? 0 : val);
             districtTotal += val;
          });
          row.push(districtTotal);
          return row;
       });
       
-      const grandTotalRow = ["Grand Total"];
+      const grandTotalRow = ["", "Grand Total"];
       let absoluteTotal = 0;
       dates.forEach(date => {
          const colTotal = pivot['Grand Total'][date] || 0;
@@ -1755,13 +1777,22 @@ function App() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
                     <Filter size={18} style={{ color: 'var(--text-muted)' }} />
                     
-                    {activeReport === 'lifting-report' ? (
-                      <MultiSelectDropdown 
-                        placeholder="TP Date" 
-                        options={uniqueTpDates} 
-                        selected={tpDateFilter} 
-                        onChange={setTpDateFilter} 
-                      />
+                    {(activeReport === 'lifting-report' || activeReport === 'vehicle-assigned') ? (
+                       <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <MultiSelectDropdown 
+                          placeholder="TP Date" 
+                          options={uniqueTpDates} 
+                          selected={tpDateFilter} 
+                          onChange={setTpDateFilter} 
+                        />
+                        {activeReport === 'vehicle-assigned' && (
+                           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                              <input type="date" value={vaStartDate} onChange={e => setVaStartDate(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none', background: 'var(--bg-main)', color: 'var(--text-main)' }} title="Start Date" />
+                              <span style={{ color: 'var(--text-muted)' }}>to</span>
+                              <input type="date" value={vaEndDate} onChange={e => setVaEndDate(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none', background: 'var(--bg-main)', color: 'var(--text-main)' }} title="End Date" />
+                           </div>
+                        )}
+                       </div>
                     ) : activeReport === 'multi-trip-analysis' ? (
                       <MultiSelectDropdown 
                         placeholder="Remarks" 
@@ -1810,6 +1841,65 @@ function App() {
                   <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
                     <AlertCircle size={48} style={{ opacity: 0.3, margin: '0 auto 16px' }} />
                     <p style={{ fontSize: '1.1rem' }}>No trips found for the selected filter.</p>
+                  </div>
+                ) : activeReport === 'vehicle-assigned' ? (
+                  <div className="table-container" style={{ marginTop: 0 }}>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th style={{ padding: '10px' }}></th>
+                          <th style={{ padding: '10px', textAlign: 'left', fontWeight: 'bold' }}>Count of Reference Number</th>
+                          <th colSpan={(() => { const { dates } = calculateVehicleAssignedPivot(displayData); return Math.max(1, dates.length); })()} style={{ padding: '10px', textAlign: 'center', fontWeight: 'bold' }}>Column Labels</th>
+                          <th></th>
+                        </tr>
+                        <tr style={{ background: 'var(--bg-panel-hover)', borderBottom: '2px solid var(--border-color)' }}>
+                          <th style={{ padding: '10px', textAlign: 'center' }}>Sr. No.</th>
+                          <th style={{ padding: '10px', textAlign: 'left' }}>District</th>
+                          {(() => {
+                             const { dates } = calculateVehicleAssignedPivot(displayData);
+                             return dates.map(d => <th key={d} style={{ padding: '10px', textAlign: 'right' }}>{d}</th>);
+                          })()}
+                          <th style={{ padding: '10px', textAlign: 'right' }}>Grand Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(() => {
+                           const { dates, pivot } = calculateVehicleAssignedPivot(displayData);
+                           const rows = [];
+                           Object.keys(pivot).filter(d => d !== 'Grand Total').sort().forEach((district, index) => {
+                              let districtTotal = 0;
+                              const rowCells = dates.map(date => {
+                                 const val = pivot[district][date] || 0;
+                                 districtTotal += val;
+                                 return <td key={date} style={{ padding: '10px', textAlign: 'right' }}>{val === 0 ? 0 : val}</td>;
+                              });
+                              rows.push(
+                                <tr key={district} className="table-row-hover">
+                                  <td style={{ padding: '10px', textAlign: 'center' }}>{index + 1}</td>
+                                  <td style={{ padding: '10px', textAlign: 'left', fontWeight: '500' }}>{district}</td>
+                                  {rowCells}
+                                  <td style={{ padding: '10px', textAlign: 'right', fontWeight: 'bold' }}>{districtTotal}</td>
+                                </tr>
+                              );
+                           });
+                           
+                           let absoluteTotal = 0;
+                           const gtCells = dates.map(date => {
+                              const colTotal = pivot['Grand Total'][date] || 0;
+                              absoluteTotal += colTotal;
+                              return <td key={'gt-'+date} style={{ padding: '10px', textAlign: 'right', fontWeight: 'bold' }}>{colTotal === 0 ? 0 : colTotal}</td>;
+                           });
+                           rows.push(
+                              <tr key="grand-total" className="subtotal-row grand-total-row">
+                                <td colSpan={2} style={{ padding: '10px', textAlign: 'center', fontWeight: 'bold' }}>Grand Total</td>
+                                {gtCells}
+                                <td style={{ padding: '10px', textAlign: 'right', fontWeight: 'bold' }}>{absoluteTotal}</td>
+                              </tr>
+                           );
+                           return rows;
+                        })()}
+                      </tbody>
+                    </table>
                   </div>
                 ) : (
                   <div className="table-container" style={{ marginTop: 0 }}>
@@ -2067,4 +2157,42 @@ function App() {
   );
 }
 
-export default App;
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null, info: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, info) {
+    console.error("ErrorBoundary caught an error", error, info);
+    this.setState({ info });
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '40px', color: 'red', fontFamily: 'sans-serif' }}>
+          <h2>Something went wrong.</h2>
+          <details style={{ whiteSpace: 'pre-wrap', background: '#f8f8f8', padding: '20px', borderRadius: '8px' }}>
+            {this.state.error && this.state.error.toString()}
+            <br />
+            {this.state.info && this.state.info.componentStack}
+          </details>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+export default function AppWrapper() {
+  return (
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  );
+}
