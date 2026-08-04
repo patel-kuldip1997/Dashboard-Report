@@ -188,6 +188,9 @@ self.onmessage = async (e) => {
        const tripGroups = {};
        
        jsonData.forEach(row => {
+          // Ignore rows containing _cancel
+          if (JSON.stringify(row).toLowerCase().includes('_cancel')) return;
+
           let veh = String(getVal(row, 'Vehicle Number') || '').trim();
           if (!veh) return;
           
