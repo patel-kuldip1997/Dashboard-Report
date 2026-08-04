@@ -1211,7 +1211,8 @@ function App() {
     const wsRaw = XLSX.utils.json_to_sheet(exportData);
     XLSX.utils.book_append_sheet(wb, wsRaw, "Raw Data");
 
-    XLSX.writeFile(wb, `GSCSCL_${activeReport || 'Report'}.xlsx`);
+    const safeTitle = (reportTitle || activeReport || 'Report').replace(/[^a-z0-9]/gi, '_');
+    XLSX.writeFile(wb, `GSCSCL_${safeTitle}.xlsx`);
   };
 
   const exportPDF = () => {
@@ -1252,13 +1253,7 @@ function App() {
 
     let headConfig = [visibleColumns.map(col => col.label)];
     if (activeReport === 'weighbridge-report') {
-       let reportDate = '';
-       if (tpDateFilter && tpDateFilter.length > 0) {
-          reportDate = tpDateFilter[0];
-       } else if (rawData.length > 0) {
-          reportDate = rawData[0].tpDate || '';
-       }
-       const titleStr = reportDate ? `Weighbridge Utilization Reports (${reportDate})` : 'Weighbridge Utilization Reports';
+       const titleStr = reportTitle || 'Weighbridge Utilization Reports';
        
        headConfig = [
           [
