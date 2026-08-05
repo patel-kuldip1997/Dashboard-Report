@@ -120,6 +120,7 @@ self.onmessage = async (e) => {
     const uniqueDcMonths = new Set();
     const uniqueDcDates = new Set();
     const uniqueEpodStatuses = new Set();
+    const uniqueImeiStatuses = new Set();
 
     // Parse the JSON data starting from the actual header row
     const jsonDataRaw = XLSX.utils.sheet_to_json(ws, { range: headerRowIndex });
@@ -531,6 +532,70 @@ self.onmessage = async (e) => {
          return;
       }
       
+      if (activeReport === 'last-mile-imei') {
+         const district = String(getVal(row, 'District', 'TP District', 'Godown District') || '').trim();
+         if (!district) return;
+         
+         const refNo = String(getVal(row, 'Reference Number', 'Delivery Challan Number', 'DC No', 'Reference No') || '').trim();
+         if (refNo.toLowerCase().includes('_cancel')) return; // Ignore cancelled trips
+         const hasRef = refNo.length > 0;
+         if (!hasRef) return;
+         
+         const startIMEI = String(getVal(row, 'IMEI At Start', 'Start IMEI', 'IMEI_Start') || '').trim();
+         const endIMEI = String(getVal(row, 'IMEI At End', 'End IMEI', 'IMEI_End') || '').trim();
+         
+         const rawDcDate = getVal(row, 'DC Creation Date', 'DC Date', 'Creation Date');
+         const dcDate = formatExcelDate(rawDcDate) || '';
+         
+         let statusRaw = String(getVal(row, 'EPOD Status', 'Status') || '').trim();
+         if (!statusRaw || statusRaw.toLowerCase() === '(blank)' || statusRaw.toLowerCase() === 'blank') {
+            statusRaw = 'PENDING';
+         } else if (statusRaw.toLowerCase() === 'delivered') {
+            statusRaw = 'DELIVERED';
+         }
+         uniqueEpodStatuses.add(statusRaw);
+         
+         let imeiStatus = 'Missing Both IMEIs';
+         let matched = 0, mismatched = 0, missing = 0;
+         
+         if (!startIMEI && !endIMEI) {
+            imeiStatus = 'Missing Both IMEIs';
+            missing = 1;
+         } else if (!startIMEI) {
+            imeiStatus = 'Missing Start IMEI';
+            missing = 1;
+         } else if (!endIMEI) {
+            imeiStatus = 'Missing End IMEI';
+            missing = 1;
+         } else if (startIMEI === endIMEI) {
+            imeiStatus = 'IMEI Matched';
+            matched = 1;
+         } else {
+            imeiStatus = 'IMEI Mismatched';
+            mismatched = 1;
+         }
+         
+         uniqueImeiStatuses.add(imeiStatus);
+         
+         processed.push({
+            district,
+            godown: getVal(row, 'GSCSCL Godown', 'Godown') || '',
+            transporter: getVal(row, 'Transporter Name', 'Transporter', 'DSD Transporter Name') || '',
+            vehicleNo: getVal(row, 'Vehicle Number User', 'Vehicle Number', 'Vehicle No') || '',
+            refNo,
+            dcCreationDate: dcDate,
+            epodStatusRaw: statusRaw,
+            startIMEI,
+            endIMEI,
+            imeiStatus,
+            totalTrips: 1,
+            matched,
+            mismatched,
+            missing
+         });
+         return;
+      }
+      
       if (activeReport === 'weighbridge-report') {
          const tpDateRaw = getVal(row, 'tp_date', 'tp date', 'tp date ');
          const tpDate = formatExcelDate(tpDateRaw);
@@ -697,7 +762,8 @@ self.onmessage = async (e) => {
       filters: { 
         uniqueDcMonths: Array.from(uniqueDcMonths), 
         uniqueDcDates: Array.from(uniqueDcDates), 
-        uniqueEpodStatuses: Array.from(uniqueEpodStatuses) 
+        uniqueEpodStatuses: Array.from(uniqueEpodStatuses),
+        uniqueImeiStatuses: Array.from(uniqueImeiStatuses)
       }
     });
   } catch (error) {

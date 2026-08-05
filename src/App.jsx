@@ -111,6 +111,22 @@ const DEFAULT_VEHICLE_ASSIGNED_CONFIG = [
   { id: 'transporter', label: 'Transporter Name', visible: true }
 ];
 
+const DEFAULT_LAST_MILE_IMEI_CONFIG = [
+  { id: 'district', label: 'District', visible: true },
+  { id: 'godown', label: 'GSCSCL Godown', visible: true },
+  { id: 'transporter', label: 'DSD Transporter Name', visible: true },
+  { id: 'vehicleNo', label: 'Vehicle Number', visible: true },
+  { id: 'refNo', label: 'Reference Number', visible: true },
+  { id: 'dcCreationDate', label: 'DC Creation Date', visible: true },
+  { id: 'epodStatusRaw', label: 'EPOD Status', visible: true },
+  { id: 'startIMEI', label: 'IMEI At Start', visible: true },
+  { id: 'endIMEI', label: 'IMEI At End', visible: true },
+  { id: 'imeiStatus', label: 'IMEI Status', visible: true },
+  { id: 'totalTrips', label: 'Total Trips', visible: true },
+  { id: 'matched', label: 'IMEI Matched', visible: true },
+  { id: 'mismatched', label: 'IMEI Mismatched', visible: true },
+  { id: 'missing', label: 'Missing IMEI', visible: true }
+];
 
 // Multi-Select Dropdown Component
 function MultiSelectDropdown({ options, selected, onChange, placeholder }) {
@@ -375,7 +391,12 @@ function App() {
   const [tpDateFilter, setTpDateFilter] = useState(null);
   const [wbIdFilter, setWbIdFilter] = useState(null);
   const [remarksFilter, setRemarksFilter] = useState(null);
+  const [imeiStatusFilter, setImeiStatusFilter] = useState(null);
   const [globalSearchTerm, setGlobalSearchTerm] = useState('');
+  
+  // Pagination State
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(100);
 
   useEffect(() => {
     // Persist active tab
@@ -402,14 +423,18 @@ function App() {
        setReportTitle("Weighbridge Report");
     } else if (activeReport === 'sms-template') {
        setReportTitle("SMS Templates");
+    } else if (activeReport === 'last-mile-imei') {
+       setReportTitle("Last Mile IMEI Report");
     } else {
        setReportTitle("Godown to Miller Trips");
     }
 
-    const savedConfig = localStorage.getItem(`reportConfig_${activeReport}`);
+    const storageKey = activeReport === 'last-mile-imei' ? 'reportConfig_last-mile-imei_v2' : `reportConfig_${activeReport}`;
+    const savedConfig = localStorage.getItem(storageKey);
     let defaultConf = DEFAULT_GM_CONFIG;
     if (activeReport === 'first-mile-epod') defaultConf = DEFAULT_EPOD_CONFIG;
     else if (activeReport === 'last-mile-epod') defaultConf = DEFAULT_LAST_MILE_EPOD_CONFIG;
+    else if (activeReport === 'last-mile-imei') defaultConf = DEFAULT_LAST_MILE_IMEI_CONFIG;
     else if (activeReport === 'miller-to-godown') defaultConf = DEFAULT_MG_CONFIG;
     else if (activeReport === 'lifting-report') defaultConf = DEFAULT_LIFTING_CONFIG;
     else if (activeReport === 'multi-trip-analysis') defaultConf = DEFAULT_MULTI_TRIP_CONFIG;
@@ -429,7 +454,7 @@ function App() {
       });
       setColumnConfig(finalConfig);
       if (modified) {
-         localStorage.setItem(`reportConfig_${activeReport}`, JSON.stringify(finalConfig));
+         localStorage.setItem(storageKey, JSON.stringify(finalConfig));
       }
     } else {
       setColumnConfig([...defaultConf]);
@@ -438,7 +463,8 @@ function App() {
 
   const saveConfig = (newConfig) => {
     setColumnConfig(newConfig);
-    localStorage.setItem(`reportConfig_${activeReport}`, JSON.stringify(newConfig));
+    const storageKey = activeReport === 'last-mile-imei' ? 'reportConfig_last-mile-imei_v2' : `reportConfig_${activeReport}`;
+    localStorage.setItem(storageKey, JSON.stringify(newConfig));
   };
 
   const handleColDragStart = (e, index) => {
@@ -771,9 +797,9 @@ function App() {
   };
 
   // Extract unique filter options for Last Mile EPOD, Lifting Report, and Multi-Trip
-  const { uniqueDcMonths, uniqueDcDates, uniqueEpodStatuses, uniqueTpDates, uniqueRemarks, uniqueWbIds } = useMemo(() => {
+  const { uniqueDcMonths, uniqueDcDates, uniqueEpodStatuses, uniqueTpDates, uniqueRemarks, uniqueWbIds, uniqueImeiStatuses } = useMemo(() => {
     if (rawData.length === 0) {
-        return { uniqueDcMonths: [], uniqueDcDates: [], uniqueEpodStatuses: [], uniqueTpDates: [], uniqueRemarks: [], uniqueWbIds: [] };
+        return { uniqueDcMonths: [], uniqueDcDates: [], uniqueEpodStatuses: [], uniqueTpDates: [], uniqueRemarks: [], uniqueWbIds: [], uniqueImeiStatuses: [] };
     }
     const months = new Set();
     const dates = new Set();
@@ -781,6 +807,7 @@ function App() {
     const tpDates = new Set();
     const remarks = new Set();
     const wbIds = new Set();
+    const imeiStatuses = new Set();
     rawData.forEach(r => {
       if (r.dcMonth) months.add(r.dcMonth);
       if (r.dcCreationDate) dates.add(r.dcCreationDate);
@@ -788,6 +815,7 @@ function App() {
       if (r.tpDate) tpDates.add(r.tpDate);
       if (r.remarks && r.isSubtotal) remarks.add(r.remarks);
       if (r.weighbridgeId) wbIds.add(r.weighbridgeId);
+      if (r.imeiStatus) imeiStatuses.add(r.imeiStatus);
     });
     return {
       uniqueDcMonths: Array.from(months).sort(),
@@ -795,7 +823,8 @@ function App() {
       uniqueEpodStatuses: Array.from(epodStatuses).sort(),
       uniqueTpDates: Array.from(tpDates).sort(),
       uniqueRemarks: Array.from(remarks).sort(),
-      uniqueWbIds: Array.from(wbIds).sort()
+      uniqueWbIds: Array.from(wbIds).sort(),
+      uniqueImeiStatuses: Array.from(imeiStatuses).sort()
     };
   }, [rawData, activeReport]);
 
@@ -917,6 +946,16 @@ function App() {
        if (epodStatusFilter !== null) {
           filtered = filtered.filter(row => epodStatusFilter.includes(row.epodStatusRaw));
        }
+    } else if (activeReport === 'last-mile-imei') {
+       if (imeiStatusFilter !== null) {
+          filtered = filtered.filter(row => imeiStatusFilter.includes(row.imeiStatus));
+       }
+       if (epodStatusFilter !== null) {
+          filtered = filtered.filter(row => epodStatusFilter.includes(row.epodStatusRaw));
+       }
+       if (dcDateFilter !== null) {
+          filtered = filtered.filter(row => dcDateFilter.includes(row.dcCreationDate));
+       }
     } else if (activeReport === 'lifting-report' || activeReport === 'vehicle-assigned') {
         if (tpDateFilter !== null) {
           filtered = filtered.filter(row => tpDateFilter.includes(row.tpDate));
@@ -955,6 +994,7 @@ function App() {
 
     let grandTotalTrips = 0;
     let gtTrips = 0, gtChallan = 0, gtComplete = 0;
+    let gtTotalTrips = 0, gtMatched = 0, gtMismatched = 0, gtMissing = 0;
     
     const liftingNumerics = ['vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager'];
 
@@ -963,10 +1003,10 @@ function App() {
       
       // Pivot Table Style Grouping
       const pivotGroups = {};
-      const numericColumns = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', ...liftingNumerics];
+      const numericColumns = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', 'totalTrips', 'matched', 'mismatched', 'missing', ...liftingNumerics];
       const pivotKeys = visibleColumns.filter(c => !numericColumns.includes(c.id)).map(c => c.id);
       
-      const distTotals = { trips: 0, deliveryChallan: 0, epodComplete: 0, epodPending: 0 };
+      const distTotals = { trips: 0, deliveryChallan: 0, epodComplete: 0, epodPending: 0, totalTrips: 0, matched: 0, mismatched: 0, missing: 0 };
       
       if (activeReport === 'lifting-report' && distRows.length === 0) {
          const dummyRow = { district: dist };
@@ -986,18 +1026,8 @@ function App() {
         
         if (!pivotGroups[groupKey]) {
           pivotGroups[groupKey] = {
+             ...row,
              refNo: getVal('refNo'),
-             district: getVal('district'),
-             sourceLoc: getVal('sourceLoc'),
-             destLoc: getVal('destLoc'),
-             godown: getVal('godown'),
-             transporter: getVal('transporter'),
-             tpDate: getVal('tpDate'),
-             createdAt: getVal('createdAt'),
-             startDate: getVal('startDate'),
-             endDate: getVal('endDate'),
-             pendingDays: getVal('pendingDays'),
-             status: getVal('status'),
              vehicleSet: new Set()
           };
           numericColumns.forEach(metric => {
@@ -1049,6 +1079,10 @@ function App() {
          distTotals.deliveryChallan += group.deliveryChallan || 0;
          distTotals.epodComplete += group.epodComplete || 0;
          distTotals.epodPending += group.epodPending || 0;
+         distTotals.totalTrips += group.totalTrips || 0;
+         distTotals.matched += group.matched || 0;
+         distTotals.mismatched += group.mismatched || 0;
+         distTotals.missing += group.missing || 0;
         groupedData.push(group);
       });
 
@@ -1075,7 +1109,11 @@ function App() {
           deliveryChallan: distTotals.deliveryChallan,
           epodComplete: distTotals.epodComplete,
           epodPending: distTotals.epodPending,
-          epodPendingPercent: percent
+          epodPendingPercent: percent,
+          totalTrips: distTotals.totalTrips,
+          matched: distTotals.matched,
+          mismatched: distTotals.mismatched,
+          missing: distTotals.missing
         });
       }
     });
@@ -1107,6 +1145,10 @@ function App() {
           gtTrips += (r.trips || 0);
           gtChallan += (r.deliveryChallan || 0);
           gtComplete += (r.epodComplete || 0);
+          gtTotalTrips += (r.totalTrips || 0);
+          gtMatched += (r.matched || 0);
+          gtMismatched += (r.mismatched || 0);
+          gtMissing += (r.missing || 0);
        });
     }
 
@@ -1136,7 +1178,11 @@ function App() {
         deliveryChallan: gtChallan,
         epodComplete: gtComplete,
         epodPending: gtPending,
-        epodPendingPercent: gtPercent
+        epodPendingPercent: gtPercent,
+        totalTrips: gtTotalTrips,
+        matched: gtMatched,
+        mismatched: gtMismatched,
+        missing: gtMissing
       };
       
       if (activeReport === 'lifting-report') {
@@ -1157,8 +1203,12 @@ function App() {
     }
 
     return groupedData;
-  }, [rawData, filterStatus, activeReport, dcMonthFilter, dcDateFilter, epodStatusFilter, visibleColumns, globalSearchTerm, tpDateFilter, wbIdFilter, remarksFilter]);
+  }, [rawData, filterStatus, activeReport, dcMonthFilter, dcDateFilter, epodStatusFilter, visibleColumns, globalSearchTerm, tpDateFilter, wbIdFilter, remarksFilter, imeiStatusFilter]);
 
+  // Reset pagination when data or filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [displayData.length, itemsPerPage, activeReport]);
 
   const handleDragOver = (e) => {
     e.preventDefault();
@@ -1214,6 +1264,19 @@ function App() {
       wsData.push(grandTotalRow);
 
       const wsPivot = XLSX.utils.aoa_to_sheet(wsData);
+      
+      const pivotColWidths = [];
+      wsData.forEach(row => {
+         row.forEach((cell, i) => {
+             const len = cell ? String(cell).length : 0;
+             if (!pivotColWidths[i]) pivotColWidths[i] = { wch: 10 };
+             if (len > pivotColWidths[i].wch) {
+                 pivotColWidths[i].wch = Math.min(len + 2, 30);
+             }
+         });
+      });
+      wsPivot['!cols'] = pivotColWidths;
+
       XLSX.utils.book_append_sheet(wb, wsPivot, "Pivot Summary");
     }
 
@@ -1227,6 +1290,21 @@ function App() {
     });
 
     const wsRaw = XLSX.utils.json_to_sheet(exportData);
+    
+    const colWidths = [];
+    visibleColumns.forEach((col, i) => {
+       let maxLen = col.label.length;
+       exportData.forEach(row => {
+          const val = row[col.label];
+          if (val) {
+             const len = String(val).length;
+             if (len > maxLen) maxLen = len;
+          }
+       });
+       colWidths[i] = { wch: Math.min(maxLen + 2, 50) };
+    });
+    wsRaw['!cols'] = colWidths;
+
     XLSX.utils.book_append_sheet(wb, wsRaw, "Raw Data");
 
     const safeTitle = (reportTitle || activeReport || 'Report').replace(/[^a-z0-9]/gi, '_');
@@ -1236,7 +1314,7 @@ function App() {
   const exportPDF = () => {
     if (displayData.length === 0) return;
 
-    const orientation = (activeReport === 'lifting-report' || activeReport === 'vehicle-assigned' || activeReport === 'multi-trip-analysis') ? 'landscape' : 'portrait';
+    const orientation = (activeReport === 'lifting-report' || activeReport === 'vehicle-assigned' || activeReport === 'multi-trip-analysis' || activeReport === 'last-mile-imei') ? 'landscape' : 'portrait';
     const doc = new jsPDF({ orientation, format: 'a4' });
     
     const drawHeader = () => {
@@ -1319,7 +1397,7 @@ function App() {
           }
         const fontSize = row.isGrandTotal ? 11 : 9;
         
-        const subtotalCols = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', 'vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager', 'tripCount', 'netWeight', 'remarks', 'epodStatus', 'weighbridgeUsed'];
+        const subtotalCols = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', 'vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager', 'tripCount', 'netWeight', 'remarks', 'epodStatus', 'weighbridgeUsed', 'totalTrips', 'matched', 'mismatched', 'missing'];
         const firstNumericIndex = visibleColumns.findIndex(c => subtotalCols.includes(c.id));
         const subtotalContent = [];
 
@@ -1521,6 +1599,9 @@ function App() {
   let lastDist = null;
   let lastSource = null;
 
+  const totalPages = Math.max(1, Math.ceil(displayData.length / itemsPerPage));
+  const paginatedData = displayData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
   return (
     <div className="app-container">
       
@@ -1687,6 +1768,13 @@ function App() {
                   <FileText className="nav-icon" size={16} />
                   <span>Last Mile EPOD</span>
                 </div>
+                <div 
+                  className={`nav-item ${activeReport === 'last-mile-imei' ? 'active' : ''}`}
+                  onClick={() => handleMenuClick('last-mile-imei')}
+                >
+                  <FileText className="nav-icon" size={16} />
+                  <span>Last Mile IMEI Report</span>
+                </div>
               </div>
             )}
           </div>
@@ -1781,7 +1869,7 @@ function App() {
         )}
         
         {/* Render content based on active report */}
-        {(activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown' || activeReport === 'first-mile-epod' || activeReport === 'last-mile-epod' || activeReport === 'lifting-report' || activeReport === 'multi-trip-analysis' || activeReport === 'eta-route' || activeReport === 'vehicle-assigned' || activeReport === 'weighbridge-report') && (
+        {(activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown' || activeReport === 'first-mile-epod' || activeReport === 'last-mile-epod' || activeReport === 'last-mile-imei' || activeReport === 'lifting-report' || activeReport === 'multi-trip-analysis' || activeReport === 'eta-route' || activeReport === 'vehicle-assigned' || activeReport === 'weighbridge-report') && (
           <>
             <div className="page-header">
               <div style={{ flex: 1, maxWidth: '70%' }}>
@@ -1811,8 +1899,9 @@ function App() {
               </div>
               {rawData.length > 0 && (
                 <div style={{ display: 'flex', gap: '12px' }}>
-                  <button className="btn-secondary" onClick={handleClearData} title="Clear Data for this report" style={{ color: '#ff6b6b', borderColor: 'rgba(255,107,107,0.3)' }}>
+                  <button className="btn-secondary" onClick={handleClearData} title="Clear Data for this report" style={{ color: '#ff6b6b', borderColor: 'rgba(255,107,107,0.3)', fontWeight: '600' }}>
                     <Trash2 size={18} />
+                    Clear Data
                   </button>
                   <button className="btn-secondary" onClick={() => setShowConfigModal(true)} title="Configure Columns">
                     <Settings size={18} />
@@ -2173,6 +2262,27 @@ function App() {
                           onChange={setEpodStatusFilter} 
                         />
                       </>
+                    ) : activeReport === 'last-mile-imei' ? (
+                      <>
+                        <MultiSelectDropdown 
+                          placeholder="DC Date" 
+                          options={uniqueDcDates} 
+                          selected={dcDateFilter} 
+                          onChange={setDcDateFilter} 
+                        />
+                        <MultiSelectDropdown 
+                          placeholder="EPOD Status" 
+                          options={uniqueEpodStatuses} 
+                          selected={epodStatusFilter} 
+                          onChange={setEpodStatusFilter} 
+                        />
+                        <MultiSelectDropdown 
+                            placeholder="IMEI Status" 
+                            options={uniqueImeiStatuses} 
+                            selected={imeiStatusFilter} 
+                            onChange={setImeiStatusFilter} 
+                          />
+                      </>
                     ) : (activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown') ? (
                       <select 
                         className="btn-secondary" 
@@ -2188,6 +2298,40 @@ function App() {
                     ) : null}
                   </div>
                 </div>
+
+                {activeReport === 'last-mile-imei' && displayData.length > 0 && (
+                  (() => {
+                    const totalTrips = displayData.filter(d => !d.isSubtotal).reduce((sum, row) => sum + (Number(row.totalTrips) || 0), 0);
+                    const matched = displayData.filter(d => !d.isSubtotal).reduce((sum, row) => sum + (Number(row.matched) || 0), 0);
+                    const mismatched = displayData.filter(d => !d.isSubtotal).reduce((sum, row) => sum + (Number(row.mismatched) || 0), 0);
+                    const missing = displayData.filter(d => !d.isSubtotal).reduce((sum, row) => sum + (Number(row.missing) || 0), 0);
+                    const rate = totalTrips > 0 ? ((matched / totalTrips) * 100).toFixed(1) : '0.0';
+                    return (
+                      <div className="dashboard-grid">
+                        <div className="kpi-card total">
+                          <div className="kpi-title">Total Trips Analyzed</div>
+                          <div className="kpi-value">{totalTrips}</div>
+                        </div>
+                        <div className="kpi-card matched">
+                          <div className="kpi-title">IMEI Matched</div>
+                          <div className="kpi-value">{matched}</div>
+                        </div>
+                        <div className="kpi-card mismatched">
+                          <div className="kpi-title">IMEI Mismatched</div>
+                          <div className="kpi-value">{mismatched}</div>
+                        </div>
+                        <div className="kpi-card missing">
+                          <div className="kpi-title">Missing IMEI</div>
+                          <div className="kpi-value">{missing}</div>
+                        </div>
+                        <div className="kpi-card rate">
+                          <div className="kpi-title">Match Rate</div>
+                          <div className="kpi-value">{rate}%</div>
+                        </div>
+                      </div>
+                    );
+                  })()
+                )}
 
                 {displayData.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
@@ -2254,130 +2398,181 @@ function App() {
                     </table>
                   </div>
                 ) : (
-                  <div className="table-container" style={{ marginTop: 0 }}>
-                    <table>
-                      <thead>
-                        <tr>
-                          {visibleColumns.map(col => (
-                            <th key={col.id}>{col.label}</th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {displayData.map((row, index) => {
-                          if (row.isSubtotal) {
-                            lastDist = null;
-                            lastSource = null;
-                            const subtotalCols = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', 'vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager', 'tripCount', 'netWeight', 'remarks', 'epodStatus', 'weighbridgeUsed'];
-                            const firstNumericIndex = visibleColumns.findIndex(c => subtotalCols.includes(c.id));
-                            const colSpanBeforeNum = firstNumericIndex > 0 ? firstNumericIndex : visibleColumns.length;
-                            const sizeStyle = row.isGrandTotal ? '1.15rem' : '1.05rem';
-                            return (
-                              <tr key={index} className={row.isGrandTotal ? "subtotal-row grand-total-row" : "subtotal-row"}>
-                                {visibleColumns.map((col, i) => {
-                                  if (col.id === 'district') {
-                                    return <td key={col.id} colSpan={colSpanBeforeNum} style={{ fontSize: sizeStyle }}>{row.district}</td>;
-                                  } else if (subtotalCols.includes(col.id)) {
-                                    if (col.id === 'remarks') {
-                                       return <td key={col.id} style={{ fontSize: sizeStyle, textAlign: 'center' }}><span className={`status-badge ${row.remarks.includes('Greater') ? 'status-error' : 'status-success'}`}>{row.remarks}</span></td>;
+                  <>
+                    <div className="table-container" style={{ marginTop: 0 }}>
+                      <table>
+                        <thead>
+                          <tr>
+                            {visibleColumns.map(col => (
+                              <th key={col.id}>{col.label}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {paginatedData.map((row, index) => {
+                            if (row.isSubtotal) {
+                              lastDist = null;
+                              lastSource = null;
+                              const subtotalCols = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', 'vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager', 'tripCount', 'netWeight', 'remarks', 'epodStatus', 'weighbridgeUsed', 'totalTrips', 'matched', 'mismatched', 'missing'];
+                              const firstNumericIndex = visibleColumns.findIndex(c => subtotalCols.includes(c.id));
+                              const colSpanBeforeNum = firstNumericIndex > 0 ? firstNumericIndex : visibleColumns.length;
+                              const sizeStyle = row.isGrandTotal ? '1.15rem' : '1.05rem';
+                              return (
+                                <tr key={index} className={row.isGrandTotal ? "subtotal-row grand-total-row" : "subtotal-row"}>
+                                  {visibleColumns.map((col, i) => {
+                                    if (col.id === 'district') {
+                                      return <td key={col.id} colSpan={colSpanBeforeNum} style={{ fontSize: sizeStyle }}>{row.district}</td>;
+                                    } else if (subtotalCols.includes(col.id)) {
+                                      if (col.id === 'remarks') {
+                                         return <td key={col.id} style={{ fontSize: sizeStyle, textAlign: 'center' }}><span className={`status-badge ${row.remarks.includes('Greater') ? 'status-error' : 'status-success'}`}>{row.remarks}</span></td>;
+                                      }
+                                      const val = row[col.id];
+                                      return <td key={col.id} style={{ fontSize: sizeStyle, textAlign: 'center' }}>{val === 0 ? 0 : val}</td>;
+                                    } else if (i < firstNumericIndex || firstNumericIndex === -1) {
+                                      return null; 
+                                    } else {
+                                      return <td key={col.id}></td>;
                                     }
-                                    const val = row[col.id];
-                                    return <td key={col.id} style={{ fontSize: sizeStyle, textAlign: 'center' }}>{val === 0 ? 0 : val}</td>;
-                                  } else if (i < firstNumericIndex || firstNumericIndex === -1) {
-                                    return null; 
-                                  } else {
-                                    return <td key={col.id}></td>;
+                                  })}
+                                </tr>
+                              );
+                            }
+                            
+                            const isDistSame = lastDist === row.district;
+                            const isSourceSame = lastDist === row.district && lastSource === row.sourceLoc;
+                            
+                            lastDist = row.district;
+                            lastSource = row.sourceLoc;
+
+                            let statusClass = 'status-pending';
+                            if (row.status === 'Completed') statusClass = 'status-success';
+                            else if (row.status === 'End Trip Pending') statusClass = 'status-warning';
+                            else if (row.status === 'Start Trip Pending') statusClass = 'status-error';
+
+                            const displayDist = !isDistSame ? row.district : '';
+                            const displaySource = !isSourceSame ? row.sourceLoc : '';
+
+                            return (
+                              <tr key={index} className="data-row">
+                                {visibleColumns.map(col => {
+                                  let content;
+                                  switch(col.id) {
+                                    case 'refNo': 
+                                      content = <span style={{ fontWeight: '500', color: 'var(--accent)' }}>{row.refNo}</span>; 
+                                      break;
+                                    case 'district': 
+                                      content = <span style={{ fontWeight: displayDist ? '700' : 'normal', color: displayDist ? 'var(--text-main)' : 'inherit' }}>{displayDist}</span>; 
+                                      break;
+                                    case 'sourceLoc': 
+                                      content = <span style={{ fontWeight: displaySource ? '500' : 'normal' }}>{displaySource}</span>; 
+                                      break;
+                                    case 'destLoc': content = row.destLoc; break;
+                                    case 'transporter': content = row.transporter; break;
+                                    case 'godown': content = row.godown; break;
+                                    case 'tpDate': content = row.tpDate; break;
+                                    case 'createdAt': content = row.createdAt; break;
+                                    case 'startDate': 
+                                      content = row.startDate === 'PENDING' ? <span className="status-badge status-error">PENDING</span> : row.startDate; 
+                                      break;
+                                    case 'endDate': 
+                                      content = row.endDate === 'PENDING' ? <span className="status-badge status-warning">PENDING</span> : row.endDate; 
+                                      break;
+                                    case 'pendingDays': content = row.pendingDays; break;
+                                    case 'status': 
+                                      content = <span className={`status-badge ${statusClass}`}>{row.status}</span>; 
+                                      break;
+                                    case 'remarks':
+                                      content = <span className={`status-badge ${row.remarks.includes('Greater') ? 'status-error' : 'status-success'}`}>{row.remarks}</span>;
+                                      break;
+                                    case 'vehicle': content = row.vehicle; break;
+                                    case 'source': content = row.source; break;
+                                    case 'dest': content = row.dest; break;
+                                    case 'hrs': 
+                                    case 'tripCount':
+                                    case 'netWeight':
+                                    case 'trips': 
+                                    case 'deliveryChallan': 
+                                    case 'epodComplete': 
+                                    case 'epodPending': 
+                                    case 'epodPendingPercent': 
+                                    case 'totalTrips':
+                                    case 'matched':
+                                    case 'mismatched':
+                                    case 'missing': 
+                                      content = <div style={{ textAlign: 'center' }}>{row[col.id] === 0 ? 0 : row[col.id]}</div>; 
+                                      break;
+                                    default: 
+                                      if (row[col.id] !== undefined) {
+                                        let val = row[col.id];
+                                        if (col.id === 'liftedQty' && typeof val === 'number') {
+                                            val = val.toFixed(2);
+                                            const maxVal = Math.max(...displayData.filter(r => !r.isSubtotal).map(r => r.liftedQty || 0), 1);
+                                            const ratio = row.liftedQty / maxVal;
+                                            const r = Math.round(248 + (99 - 248) * ratio);
+                                            const g = Math.round(105 + (190 - 105) * ratio);
+                                            const b = Math.round(107 + (123 - 107) * ratio);
+                                            content = <div style={{ textAlign: 'center', backgroundColor: `rgb(${r},${g},${b})`, color: '#000', fontWeight: '500', padding: '4px', borderRadius: '4px' }}>{val}</div>;
+                                        } else {
+                                            content = <div style={{ textAlign: 'center' }}>{val === 0 ? 0 : val}</div>;
+                                        }
+                                      } else {
+                                        content = '';
+                                      }
                                   }
+                                  return <td key={col.id}>{content}</td>;
                                 })}
                               </tr>
                             );
-                          }
-                          
-                          const isDistSame = lastDist === row.district;
-                          const isSourceSame = lastDist === row.district && lastSource === row.sourceLoc;
-                          
-                          lastDist = row.district;
-                          lastSource = row.sourceLoc;
+                          })}
+                        </tbody>
+                      </table>
+                    </div>
 
-                          let statusClass = 'status-pending';
-                          if (row.status === 'Completed') statusClass = 'status-success';
-                          else if (row.status === 'End Trip Pending') statusClass = 'status-warning';
-                          else if (row.status === 'Start Trip Pending') statusClass = 'status-error';
-
-                          const displayDist = !isDistSame ? row.district : '';
-                          const displaySource = !isSourceSame ? row.sourceLoc : '';
-
-                          return (
-                            <tr key={index} className="data-row">
-                              {visibleColumns.map(col => {
-                                let content;
-                                switch(col.id) {
-                                  case 'refNo': 
-                                    content = <span style={{ fontWeight: '500', color: 'var(--accent)' }}>{row.refNo}</span>; 
-                                    break;
-                                  case 'district': 
-                                    content = <span style={{ fontWeight: displayDist ? '700' : 'normal', color: displayDist ? 'var(--text-main)' : 'inherit' }}>{displayDist}</span>; 
-                                    break;
-                                  case 'sourceLoc': 
-                                    content = <span style={{ fontWeight: displaySource ? '500' : 'normal' }}>{displaySource}</span>; 
-                                    break;
-                                  case 'destLoc': content = row.destLoc; break;
-                                  case 'transporter': content = row.transporter; break;
-                                  case 'godown': content = row.godown; break;
-                                  case 'tpDate': content = row.tpDate; break;
-                                  case 'createdAt': content = row.createdAt; break;
-                                  case 'startDate': 
-                                    content = row.startDate === 'PENDING' ? <span className="status-badge status-error">PENDING</span> : row.startDate; 
-                                    break;
-                                  case 'endDate': 
-                                    content = row.endDate === 'PENDING' ? <span className="status-badge status-warning">PENDING</span> : row.endDate; 
-                                    break;
-                                  case 'pendingDays': content = row.pendingDays; break;
-                                  case 'status': 
-                                    content = <span className={`status-badge ${statusClass}`}>{row.status}</span>; 
-                                    break;
-                                  case 'remarks':
-                                    content = <span className={`status-badge ${row.remarks.includes('Greater') ? 'status-error' : 'status-success'}`}>{row.remarks}</span>;
-                                    break;
-                                  case 'vehicle': content = row.vehicle; break;
-                                  case 'source': content = row.source; break;
-                                  case 'dest': content = row.dest; break;
-                                  case 'hrs': 
-                                  case 'tripCount':
-                                  case 'netWeight':
-                                  case 'trips': 
-                                  case 'deliveryChallan': 
-                                  case 'epodComplete': 
-                                  case 'epodPending': 
-                                  case 'epodPendingPercent': 
-                                    content = <div style={{ textAlign: 'center' }}>{row[col.id] === 0 ? 0 : row[col.id]}</div>; 
-                                    break;
-                                  default: 
-                                    if (row[col.id] !== undefined) {
-                                      let val = row[col.id];
-                                      if (col.id === 'liftedQty' && typeof val === 'number') {
-                                          val = val.toFixed(2);
-                                          const maxVal = Math.max(...displayData.filter(r => !r.isSubtotal).map(r => r.liftedQty || 0), 1);
-                                          const ratio = row.liftedQty / maxVal;
-                                          const r = Math.round(248 + (99 - 248) * ratio);
-                                          const g = Math.round(105 + (190 - 105) * ratio);
-                                          const b = Math.round(107 + (123 - 107) * ratio);
-                                          content = <div style={{ textAlign: 'center', backgroundColor: `rgb(${r},${g},${b})`, color: '#000', fontWeight: '500', padding: '4px', borderRadius: '4px' }}>{val}</div>;
-                                      } else {
-                                          content = <div style={{ textAlign: 'center' }}>{val === 0 ? 0 : val}</div>;
-                                      }
-                                    } else {
-                                      content = '';
-                                    }
-                                }
-                                return <td key={col.id}>{content}</td>;
-                              })}
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
+                    {/* Pagination Controls */}
+                    {displayData.length > 0 && (
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', padding: '12px 16px', background: 'var(--bg-panel)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                               Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, displayData.length)} of {displayData.length} rows ({displayData.filter(d => !d.isSubtotal).length} actual trips)
+                            </span>
+                            <select 
+                               value={itemsPerPage} 
+                               onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                               style={{ padding: '6px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }}
+                            >
+                               <option value={50}>50 per page</option>
+                               <option value={100}>100 per page</option>
+                               <option value={500}>500 per page</option>
+                               <option value={1000}>1000 per page</option>
+                            </select>
+                         </div>
+                         
+                         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            <button 
+                               className="btn-secondary" 
+                               disabled={currentPage === 1}
+                               onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                               style={{ padding: '6px 12px', opacity: currentPage === 1 ? 0.5 : 1 }}
+                            >
+                               Previous
+                            </button>
+                            
+                            <span style={{ margin: '0 8px', color: 'var(--text-main)', fontSize: '0.95rem', fontWeight: '500' }}>
+                               Page {currentPage} of {totalPages}
+                            </span>
+                            
+                            <button 
+                               className="btn-secondary" 
+                               disabled={currentPage === totalPages}
+                               onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                               style={{ padding: '6px 12px', opacity: currentPage === totalPages ? 0.5 : 1 }}
+                            >
+                               Next
+                            </button>
+                         </div>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
               </>
