@@ -37,11 +37,32 @@ self.onmessage = async (e) => {
   const { data, trackingData, activeReport, etaApiKey, etaVehicleType, weighbridgeVendors } = e.data;
   
   try {
-    const wb = XLSX.read(data, { type: 'array' });
+    self.postMessage({ type: 'progress', percent: 20, message: 'Reading Excel File (This may take a minute for large files)...' });
+    const wb = XLSX.read(data, { 
+      type: 'array', 
+      dense: true, 
+      cellFormula: false, 
+      cellHTML: false, 
+      cellText: false 
+    });
+    
+    self.postMessage({ type: 'progress', percent: 40, message: 'Extracting Data...' });
     const wsname = wb.SheetNames[0];
     const ws = wb.Sheets[wsname];
     
-    const headersRaw = XLSX.utils.sheet_to_json(ws, { header: 1 })[0] || [];
+    const allRows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+    let headersRaw = [];
+    let headerRowIndex = 0;
+    for (let i = 0; i < allRows.length; i++) {
+        const rowData = allRows[i] || [];
+        // Check if row has at least 3 valid string headers (to avoid picking up random empty/merged formatting rows)
+        const validHeaders = rowData.filter(cell => cell && String(cell).trim().length > 0);
+        if (validHeaders.length >= 3) {
+            headersRaw = rowData;
+            headerRowIndex = i;
+            break;
+        }
+    }
     const headers = headersRaw.map(h => String(h).trim().toLowerCase());
     let isValid = true;
     let expectedColumns = '';
@@ -93,12 +114,15 @@ self.onmessage = async (e) => {
       return;
     }
 
+    self.postMessage({ type: 'progress', percent: 60, message: 'Processing ' + allRows.length + ' rows...' });
+    
     const processed = [];
     const uniqueDcMonths = new Set();
     const uniqueDcDates = new Set();
     const uniqueEpodStatuses = new Set();
 
-    const jsonDataRaw = XLSX.utils.sheet_to_json(ws);
+    // Parse the JSON data starting from the actual header row
+    const jsonDataRaw = XLSX.utils.sheet_to_json(ws, { range: headerRowIndex });
     
     // Helper to get value case-insensitively and trim keys
     const getVal = (row, ...keys) => {
@@ -479,6 +503,7 @@ self.onmessage = async (e) => {
          if (!district) return;
 
          const refNo = String(getVal(row, 'Reference Number') || getVal(row, 'Reference No') || getVal(row, 'Ref No') || '').trim();
+         if (refNo.toLowerCase().includes('_cancel')) return;
          const hasRef = refNo.length > 0;
 
          const epodStatus = String(getVal(row, 'EPOD Status') || '').toUpperCase().trim();
@@ -663,6 +688,8 @@ self.onmessage = async (e) => {
       self.postMessage({ type: 'error', message: 'Data Not Match or no valid records found for this report.' });
       return;
     }
+
+    self.postMessage({ type: 'progress', percent: 90, message: 'Finalizing ' + processed.length + ' records...' });
 
     self.postMessage({ 
       type: 'success', 

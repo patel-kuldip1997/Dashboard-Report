@@ -581,6 +581,12 @@ function App() {
     setIsLoading(true);
     setProgress({ percent: 0, message: 'Reading Files...' });
     
+    setDcMonthFilter(null);
+    setDcDateFilter(null);
+    setEpodStatusFilter(null);
+    setTpDateFilter(null);
+    setFilterStatus('All');
+    
     const readAsArrayBuffer = (file) => new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = e => resolve(e.target.result);
@@ -908,8 +914,9 @@ function App() {
        if (dcDateFilter !== null) {
           filtered = filtered.filter(row => dcDateFilter.includes(row.dcCreationDate));
        }
-       // We DO NOT filter rawData by epodStatusFilter here. 
-       // We want the total counts to remain intact. We will filter the displayed groups later.
+       if (epodStatusFilter !== null) {
+          filtered = filtered.filter(row => epodStatusFilter.includes(row.epodStatusRaw));
+       }
     } else if (activeReport === 'lifting-report' || activeReport === 'vehicle-assigned') {
         if (tpDateFilter !== null) {
           filtered = filtered.filter(row => tpDateFilter.includes(row.tpDate));
@@ -961,14 +968,11 @@ function App() {
       
       const distTotals = { trips: 0, deliveryChallan: 0, epodComplete: 0, epodPending: 0 };
       
-      const validGroupKeys = new Set();
-      
       if (activeReport === 'lifting-report' && distRows.length === 0) {
          const dummyRow = { district: dist };
          const getVal = (key) => dummyRow[key] || '';
          const groupKey = pivotKeys.map(key => getVal(key)).join('|||');
          
-         validGroupKeys.add(groupKey);
          pivotGroups[groupKey] = {
              district: dist,
              vehicleSet: new Set()
@@ -979,11 +983,6 @@ function App() {
       distRows.forEach(row => {
         const getVal = (key) => key === 'refNo' ? (row._ref || row.refNo || '') : (row[key] || '');
         const groupKey = pivotKeys.map(key => getVal(key)).join('|||');
-        
-        // Track if this group matches the EPOD Status filter
-        if (activeReport !== 'last-mile-epod' || epodStatusFilter === null || epodStatusFilter.includes(row.epodStatusRaw)) {
-            validGroupKeys.add(groupKey);
-        }
         
         if (!pivotGroups[groupKey]) {
           pivotGroups[groupKey] = {
@@ -1026,15 +1025,6 @@ function App() {
       // Explicitly apply user formulas for Pivot Groups
       Object.keys(pivotGroups).forEach(groupKey => {
         const group = pivotGroups[groupKey];
-        
-        if (activeReport === 'last-mile-epod') {
-           gtTrips += (group.trips || 0);
-           gtChallan += (group.deliveryChallan || 0);
-           gtComplete += (group.epodComplete || 0);
-        }
-
-        if (!validGroupKeys.has(groupKey)) return; // Skip groups that don't match the EPOD Status filter
-        
         group.epodPending = group.deliveryChallan - group.epodComplete;
         if (group.deliveryChallan > 0) {
            group.epodPendingPercent = ((group.epodPending / group.deliveryChallan) * 100).toFixed(0) + '%';
@@ -1058,6 +1048,7 @@ function App() {
          distTotals.trips += group.trips || 0;
          distTotals.deliveryChallan += group.deliveryChallan || 0;
          distTotals.epodComplete += group.epodComplete || 0;
+         distTotals.epodPending += group.epodPending || 0;
         groupedData.push(group);
       });
 
@@ -1110,20 +1101,6 @@ function App() {
                 }
              });
           }
-       });
-    } else if (activeReport === 'last-mile-epod') {
-       let baseData = rawData;
-       if (dcMonthFilter && dcMonthFilter.length > 0) {
-          baseData = baseData.filter(r => dcMonthFilter.includes(r.dcMonth));
-       }
-       if (dcDateFilter && dcDateFilter.length > 0) {
-          baseData = baseData.filter(r => dcDateFilter.includes(r.dcCreationDate));
-       }
-          
-       baseData.forEach(r => {
-          gtTrips += (r.trips || 0);
-          gtChallan += (r.deliveryChallan || 0);
-          gtComplete += (r.epodComplete || 0);
        });
     } else {
        groupedData.filter(r => r.isSubtotal && !r.isGrandTotal).forEach(r => {
@@ -1857,12 +1834,68 @@ function App() {
             </div>
 
             {isLoading && (
-              <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-main)', fontSize: '1.1rem', maxWidth: '500px', margin: '0 auto' }}>
-                <div style={{ fontWeight: '600', marginBottom: '16px', color: 'var(--accent-primary)' }}>{progress.message || 'Processing...'}</div>
-                <div style={{ width: '100%', height: '8px', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden', marginBottom: '10px' }}>
-                  <div style={{ width: `${progress.percent}%`, height: '100%', backgroundColor: 'var(--accent-primary)', transition: 'width 0.3s ease' }}></div>
+              <div style={{ textAlign: 'center', marginTop: '2.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <div style={{ 
+                    fontWeight: '600', 
+                    marginBottom: '1rem', 
+                    color: 'var(--accent-primary)',
+                    fontSize: '1.1rem',
+                    letterSpacing: '0.5px'
+                }}>
+                    {progress.message || 'Processing Data...'}
                 </div>
-                <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>{progress.percent}% Completed</div>
+                
+                <div style={{ 
+                    width: '100%', 
+                    maxWidth: '350px', 
+                    height: '8px', 
+                    background: 'rgba(255, 90, 31, 0.1)', 
+                    borderRadius: '10px', 
+                    overflow: 'hidden', 
+                    marginBottom: '1rem',
+                    boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.05)',
+                    position: 'relative'
+                }}>
+                  <div style={{ 
+                      width: `${progress.percent}%`, 
+                      height: '100%', 
+                      background: 'linear-gradient(90deg, var(--accent-primary), #ff8a5c)', 
+                      borderRadius: '10px',
+                      transition: 'width 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
+                      boxShadow: '0 0 10px rgba(255, 90, 31, 0.4)',
+                      position: 'relative',
+                      overflow: 'hidden'
+                  }}>
+                      <div className="progress-shimmer" style={{
+                          position: 'absolute',
+                          top: 0, left: 0, right: 0, bottom: 0,
+                          background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)',
+                          transform: 'translateX(-100%)',
+                          animation: 'shimmer 1.5s infinite'
+                      }}></div>
+                  </div>
+                </div>
+                
+                <div style={{ 
+                    fontSize: '0.95rem', 
+                    color: 'var(--text-muted)',
+                    fontWeight: '500',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 2s linear infinite' }}>
+                        <line x1="12" y1="2" x2="12" y2="6"></line>
+                        <line x1="12" y1="18" x2="12" y2="22"></line>
+                        <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
+                        <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
+                        <line x1="2" y1="12" x2="6" y2="12"></line>
+                        <line x1="18" y1="12" x2="22" y2="12"></line>
+                        <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
+                        <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
+                    </svg>
+                    {progress.percent}% Completed
+                </div>
               </div>
             )}
 
