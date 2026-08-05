@@ -312,8 +312,20 @@ self.onmessage = async (e) => {
         const parseTransitTime = (timeStr) => {
             if (timeStr === undefined || timeStr === null || String(timeStr).trim() === '') return NaN;
             if (typeof timeStr === 'number') {
-                return Math.round(timeStr * 24 * 60);
+                // If it's a small decimal (typical Excel time fraction), convert to minutes.
+                // If it's a large number, it might be raw minutes already.
+                if (timeStr < 10) return Math.round(timeStr * 24 * 60);
+                return timeStr;
             }
+            
+            // Check for HH:MM or HH:MM:SS format
+            let colonMatch = String(timeStr).trim().match(/^(\d+):(\d+)(?::(\d+))?$/);
+            if (colonMatch) {
+                let h = parseInt(colonMatch[1], 10);
+                let m = parseInt(colonMatch[2], 10);
+                return h * 60 + m;
+            }
+
             if (!isNaN(Number(timeStr))) return Number(timeStr);
             
             let t = String(timeStr).toLowerCase();
@@ -373,6 +385,7 @@ self.onmessage = async (e) => {
        
        // 3. Fetch ETAs sequentially
        try {
+           let processedCount = 0;
            for (const routeKey of uniqueRoutes) {
                const [orig, dest] = routeKey.split('|||');
                const url = `${self.location.origin}/google-maps/maps/api/distancematrix/json?origins=${orig}&destinations=${dest}&mode=driving&departure_time=now&key=${etaApiKey}`;
@@ -393,6 +406,11 @@ self.onmessage = async (e) => {
                }
                
                etaCache[routeKey] = { mins, km };
+               
+               processedCount++;
+               let percent = 10 + Math.round((processedCount / totalUnique) * 85);
+               self.postMessage({ type: 'progress', percent, message: `Fetching Route Data (${processedCount} of ${totalUnique})...` });
+               
                // small delay to prevent rate limit issues
                await new Promise(r => setTimeout(r, 50));
            }

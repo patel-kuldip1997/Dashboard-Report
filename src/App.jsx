@@ -325,6 +325,8 @@ function App() {
   const [filterStatus, setFilterStatus] = useState('All');
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [progress, setProgress] = useState({ percent: 0, message: '' });
+  const [toastConfig, setToastConfig] = useState({ isOpen: false, message: '' });
   const [historyList, setHistoryList] = useState([]);
   const fileInputRef = useRef(null);
   
@@ -373,6 +375,7 @@ function App() {
   const [tpDateFilter, setTpDateFilter] = useState(null);
   const [wbIdFilter, setWbIdFilter] = useState(null);
   const [remarksFilter, setRemarksFilter] = useState(null);
+  const [globalSearchTerm, setGlobalSearchTerm] = useState('');
 
   useEffect(() => {
     // Persist active tab
@@ -528,30 +531,41 @@ function App() {
 
   const processFile = (file) => {
     setIsLoading(true);
+    setProgress({ percent: 0, message: 'Reading File...' });
+    
     const reader = new FileReader();
     reader.onload = (evt) => {
+      setToastConfig({ isOpen: true, message: 'Raw Data Uploaded Successfully' });
+      setTimeout(() => setToastConfig({ isOpen: false, message: '' }), 3000);
+      
+      setProgress({ percent: 10, message: 'Parsing Data...' });
       const arrayBuffer = evt.target.result;
       
       const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
       
       worker.onmessage = (e) => {
+        if (e.data.type === 'progress') {
+            setProgress({ percent: e.data.percent, message: e.data.message });
+            return;
+        }
+        
         setIsLoading(false);
+        setProgress({ percent: 100, message: 'Complete' });
         if (e.data.type === 'error' || e.data.error) {
-          setAlertConfig({ isOpen: true, title: 'Error Processing File', message: e.data.message || e.data.error, type: 'error' });
+          setToastConfig({ isOpen: true, message: e.data.message || 'Error Processing File', type: 'error' });
+          setTimeout(() => setToastConfig({ isOpen: false, message: '', type: 'success' }), 4000);
           if (fileInputRef.current) fileInputRef.current.value = '';
           setReportData(prev => ({ ...prev, [activeReport]: [] }));
         } else if (e.data.type === 'success' || !e.data.error) {
           if (e.data.data.length === 0) {
-            setAlertConfig({ 
-              isOpen: true, 
-              title: 'Data Not Match', 
-              message: 'No valid data found for this report type. Please ensure you uploaded the correct Excel file.', 
-              type: 'error' 
-            });
+            setToastConfig({ isOpen: true, message: 'No valid data found for this report type. Please check your Excel file.', type: 'error' });
+            setTimeout(() => setToastConfig({ isOpen: false, message: '', type: 'success' }), 4000);
             if (fileInputRef.current) fileInputRef.current.value = '';
             setReportData(prev => ({ ...prev, [activeReport]: [] }));
           } else {
             setReportData(prev => ({ ...prev, [activeReport]: e.data.data }));
+            setToastConfig({ isOpen: true, message: 'Data Uploaded Successfully!', type: 'success' });
+            setTimeout(() => setToastConfig({ isOpen: false, message: '', type: 'success' }), 3000);
           }
         }
         worker.terminate();
@@ -565,6 +579,7 @@ function App() {
   const handleProcessLiftingFiles = () => {
     if (!mainLiftingFile) return;
     setIsLoading(true);
+    setProgress({ percent: 0, message: 'Reading Files...' });
     
     const readAsArrayBuffer = (file) => new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -577,24 +592,33 @@ function App() {
       readAsArrayBuffer(mainLiftingFile),
       trackLiftingFile ? readAsArrayBuffer(trackLiftingFile) : Promise.resolve(null)
     ]).then(([mainBuffer, trackBuffer]) => {
+      setToastConfig({ isOpen: true, message: 'Raw Data Uploaded Successfully' });
+      setTimeout(() => setToastConfig({ isOpen: false, message: '' }), 3000);
+      
+      setProgress({ percent: 10, message: 'Parsing Data...' });
       const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
       
       worker.onmessage = (e) => {
+        if (e.data.type === 'progress') {
+            setProgress({ percent: e.data.percent, message: e.data.message });
+            return;
+        }
+        
         setIsLoading(false);
+        setProgress({ percent: 100, message: 'Complete' });
         if (e.data.type === 'error' || e.data.error) {
-          setAlertConfig({ isOpen: true, title: 'Error Processing Files', message: e.data.message || e.data.error, type: 'error' });
+          setToastConfig({ isOpen: true, message: e.data.message || 'Error Processing Files', type: 'error' });
+          setTimeout(() => setToastConfig({ isOpen: false, message: '', type: 'success' }), 4000);
           setReportData(prev => ({ ...prev, [activeReport]: [] }));
         } else if (e.data.type === 'success' || !e.data.error) {
           if (e.data.data.length === 0) {
-            setAlertConfig({ 
-              isOpen: true, 
-              title: 'Data Not Match', 
-              message: 'No valid data found for this report type. Please ensure you uploaded the correct Excel file.', 
-              type: 'error' 
-            });
+            setToastConfig({ isOpen: true, message: 'No valid data found for this report type. Please check your Excel file.', type: 'error' });
+            setTimeout(() => setToastConfig({ isOpen: false, message: '', type: 'success' }), 4000);
             setReportData(prev => ({ ...prev, [activeReport]: [] }));
           } else {
             setReportData(prev => ({ ...prev, [activeReport]: e.data.data }));
+            setToastConfig({ isOpen: true, message: 'Data Uploaded Successfully!', type: 'success' });
+            setTimeout(() => setToastConfig({ isOpen: false, message: '', type: 'success' }), 3000);
           }
         }
         worker.terminate();
@@ -603,7 +627,8 @@ function App() {
       worker.postMessage({ data: mainBuffer, trackingData: trackBuffer, activeReport });
     }).catch(err => {
       setIsLoading(false);
-      setAlertConfig({ isOpen: true, title: 'Error Reading Files', message: 'Failed to read uploaded files.', type: 'error' });
+      setToastConfig({ isOpen: true, message: 'Failed to read uploaded files.', type: 'error' });
+      setTimeout(() => setToastConfig({ isOpen: false, message: '', type: 'success' }), 4000);
     });
   };
 
@@ -615,9 +640,11 @@ function App() {
         type: activeReport,
         rawData: rawData
       });
-      setAlertConfig({ isOpen: true, title: 'Success', message: 'Report saved to History successfully!', type: 'success' });
+      setToastConfig({ isOpen: true, message: 'Report saved to History successfully!', type: 'success' });
+      setTimeout(() => setToastConfig({ isOpen: false, message: '', type: 'success' }), 3000);
     } catch (e) {
-      setAlertConfig({ isOpen: true, title: 'Error', message: 'Error saving to history: ' + e.message, type: 'error' });
+      setToastConfig({ isOpen: true, message: 'Error saving to history: ' + e.message, type: 'error' });
+      setTimeout(() => setToastConfig({ isOpen: false, message: '', type: 'success' }), 4000);
     }
   };
 
@@ -772,6 +799,15 @@ function App() {
     
     let filtered = rawData;
     
+    if (globalSearchTerm) {
+      const lowerSearch = globalSearchTerm.toLowerCase();
+      filtered = filtered.filter(row => 
+         Object.values(row).some(val => 
+            String(val).toLowerCase().includes(lowerSearch)
+         )
+      );
+    }
+    
     if (activeReport === 'weighbridge-report') {
        if (tpDateFilter !== null) {
           filtered = filtered.filter(row => tpDateFilter.includes(row.tpDate));
@@ -858,6 +894,10 @@ function App() {
            });
            filtered = rawData.filter(row => validKeys.has(row.sortKey));
        }
+       return filtered;
+    }
+
+    if (activeReport === 'eta-route') {
        return filtered;
     }
 
@@ -1140,7 +1180,7 @@ function App() {
     }
 
     return groupedData;
-  }, [rawData, filterStatus, activeReport, dcMonthFilter, dcDateFilter, epodStatusFilter, visibleColumns]);
+  }, [rawData, filterStatus, activeReport, dcMonthFilter, dcDateFilter, epodStatusFilter, visibleColumns, globalSearchTerm, tpDateFilter, wbIdFilter, remarksFilter]);
 
 
   const handleDragOver = (e) => {
@@ -1817,10 +1857,12 @@ function App() {
             </div>
 
             {isLoading && (
-              <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-main)', fontSize: '1.2rem' }}>
-                <div className="spinner" style={{ border: '4px solid rgba(255,255,255,0.1)', borderTopColor: 'var(--accent-primary)', borderRadius: '50%', width: '40px', height: '40px', animation: 'spin 1s linear infinite', margin: '0 auto 20px' }}></div>
-                <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
-                Processing Large File... Please wait.
+              <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-main)', fontSize: '1.1rem', maxWidth: '500px', margin: '0 auto' }}>
+                <div style={{ fontWeight: '600', marginBottom: '16px', color: 'var(--accent-primary)' }}>{progress.message || 'Processing...'}</div>
+                <div style={{ width: '100%', height: '8px', backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden', marginBottom: '10px' }}>
+                  <div style={{ width: `${progress.percent}%`, height: '100%', backgroundColor: 'var(--accent-primary)', transition: 'width 0.3s ease' }}></div>
+                </div>
+                <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>{progress.percent}% Completed</div>
               </div>
             )}
 
@@ -2012,6 +2054,31 @@ function App() {
                   </h3>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', width: isMobile ? '100%' : 'auto' }}>
+                    
+                    {/* Global Search Bar */}
+                    <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                      <Search size={16} style={{ position: 'absolute', left: '10px', color: 'var(--text-muted)' }} />
+                      <input 
+                        type="text" 
+                        placeholder="Search records..." 
+                        value={globalSearchTerm}
+                        onChange={(e) => setGlobalSearchTerm(e.target.value)}
+                        style={{ 
+                          padding: '8px 12px 8px 34px', 
+                          borderRadius: '6px', 
+                          border: '1px solid var(--border-color)', 
+                          outline: 'none',
+                          background: 'var(--bg-panel)',
+                          color: 'var(--text-main)',
+                          fontSize: '0.9rem',
+                          width: isMobile ? '100%' : '200px',
+                          transition: 'border-color 0.2s, box-shadow 0.2s'
+                        }} 
+                        onFocus={(e) => e.target.style.borderColor = 'var(--accent-primary)'}
+                        onBlur={(e) => e.target.style.borderColor = 'var(--border-color)'}
+                      />
+                    </div>
+
                     <Filter size={18} style={{ color: 'var(--text-muted)' }} />
                     
                     {(activeReport === 'lifting-report' || activeReport === 'vehicle-assigned') ? (
@@ -2410,6 +2477,28 @@ function App() {
         )}
 
       </div>
+      
+      {toastConfig.isOpen && (
+        <div style={{
+          position: 'fixed',
+          bottom: '20px',
+          right: '20px',
+          backgroundColor: toastConfig.type === 'error' ? '#ef4444' : '#10b981',
+          color: '#fff',
+          padding: '16px 24px',
+          borderRadius: '12px',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          zIndex: 9999,
+          animation: 'butterflyIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1)'
+        }}>
+          {toastConfig.type === 'error' ? <AlertCircle size={24} /> : <CheckCircle size={24} />}
+          <span style={{ fontWeight: '600', fontSize: '1.05rem', letterSpacing: '0.3px' }}>{toastConfig.message}</span>
+          <style>{`@keyframes butterflyIn { 0% { transform: translateY(100px) scale(0.8) rotate(5deg); opacity: 0; } 100% { transform: translateY(0) scale(1) rotate(0deg); opacity: 1; } }`}</style>
+        </div>
+      )}
     </div>
   );
 }
