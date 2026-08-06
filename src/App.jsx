@@ -429,7 +429,7 @@ function App() {
        setReportTitle("Godown to Miller Trips");
     }
 
-    const storageKey = activeReport === 'last-mile-imei' ? 'reportConfig_last-mile-imei_v2' : `reportConfig_${activeReport}`;
+    const storageKey = `reportConfig_${activeReport}_v3`;
     const savedConfig = localStorage.getItem(storageKey);
     let defaultConf = DEFAULT_GM_CONFIG;
     if (activeReport === 'first-mile-epod') defaultConf = DEFAULT_EPOD_CONFIG;
@@ -448,13 +448,16 @@ function App() {
       let modified = false;
       defaultConf.forEach(dc => {
          if (!finalConfig.find(c => c.id === dc.id)) {
-            finalConfig.splice(0, 0, dc); // Add at the beginning
+            finalConfig.push(dc); // Add at the end instead of reverse-prepending
             modified = true;
          }
       });
-      setColumnConfig(finalConfig);
+      const cleanConfig = finalConfig.filter(c => defaultConf.find(dc => dc.id === c.id));
+      if (cleanConfig.length !== finalConfig.length) modified = true;
+      
+      setColumnConfig(cleanConfig);
       if (modified) {
-         localStorage.setItem(storageKey, JSON.stringify(finalConfig));
+         localStorage.setItem(storageKey, JSON.stringify(cleanConfig));
       }
     } else {
       setColumnConfig([...defaultConf]);
@@ -463,7 +466,7 @@ function App() {
 
   const saveConfig = (newConfig) => {
     setColumnConfig(newConfig);
-    const storageKey = activeReport === 'last-mile-imei' ? 'reportConfig_last-mile-imei_v2' : `reportConfig_${activeReport}`;
+    const storageKey = `reportConfig_${activeReport}_v3`;
     localStorage.setItem(storageKey, JSON.stringify(newConfig));
   };
 
@@ -860,11 +863,12 @@ function App() {
           if (!pivot[dist]) pivot[dist] = {};
           if (!pivot[dist][godown]) pivot[dist][godown] = {};
           if (!pivot[dist][godown][vendor]) {
-             pivot[dist][godown][vendor] = { epodStatus: 0, weighbridgeUsed: 0 };
+             pivot[dist][godown][vendor] = { epodStatus: 0, weighbridgeUsed: 0, _rawTrips: 0 };
           }
           
           pivot[dist][godown][vendor].epodStatus += (row.epodStatus || 0);
           pivot[dist][godown][vendor].weighbridgeUsed += (row.weighbridgeUsed || 0);
+          pivot[dist][godown][vendor]._rawTrips += 1;
        });
 
        const rows = [];
@@ -889,6 +893,7 @@ function App() {
                    weighbridgeVendor: vendor,
                    epodStatus: stats.epodStatus,
                    weighbridgeUsed: stats.weighbridgeUsed,
+                   _rawTrips: stats._rawTrips,
                    isSubtotal: false
                 });
              });
@@ -1028,7 +1033,8 @@ function App() {
           pivotGroups[groupKey] = {
              ...row,
              refNo: getVal('refNo'),
-             vehicleSet: new Set()
+             vehicleSet: new Set(),
+             _rawTrips: 0
           };
           numericColumns.forEach(metric => {
             pivotGroups[groupKey][metric] = 0;
@@ -1050,6 +1056,8 @@ function App() {
         if (activeReport === 'lifting-report' && row.vehicleAssignedRaw) {
            pivotGroups[groupKey].vehicleSet.add(row.vehicleAssignedRaw);
         }
+        
+        pivotGroups[groupKey]._rawTrips = (pivotGroups[groupKey]._rawTrips || 0) + 1;
       });
 
       // Explicitly apply user formulas for Pivot Groups
@@ -2533,7 +2541,7 @@ function App() {
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', padding: '12px 16px', background: 'var(--bg-panel)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                             <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                               Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, displayData.length)} of {displayData.length} rows ({displayData.filter(d => !d.isSubtotal).length} actual trips)
+                               Showing {((currentPage - 1) * itemsPerPage) + 1} to {Math.min(currentPage * itemsPerPage, displayData.length)} of {displayData.length} rows ({displayData.filter(d => !d.isSubtotal).reduce((sum, d) => sum + (d._rawTrips || 1), 0)} actual trips)
                             </span>
                             <select 
                                value={itemsPerPage} 
