@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { UploadCloud, FileSpreadsheet, Download, Building2, Truck, FileText, Filter, AlertCircle, Database, Menu, X, ChevronDown, ChevronRight, FileDown, Settings, GripVertical, History, Trash2, FolderOpen, Search, CheckCircle, Repeat } from 'lucide-react';
+import { UploadCloud, FileSpreadsheet, Download, Building2, Truck, FileText, Filter, AlertCircle, Database, Menu, X, ChevronDown, ChevronRight, FileDown, Settings, GripVertical, History, Trash2, FolderOpen, Search, CheckCircle, Repeat, MapPin, BarChart2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -333,9 +333,7 @@ function WeighbridgeVendors({ vendors, setVendors }) {
 }
 
 function App() {
-  const [activeReport, setActiveReport] = useState(() => {
-    return localStorage.getItem('activeReportTab') || 'godown-to-miller';
-  });
+  const [activeReport, setActiveReport] = useState('welcome');
   const [reportData, setReportData] = useState({});
   const rawData = reportData[activeReport] || [];
   const [filterStatus, setFilterStatus] = useState('All');
@@ -961,7 +959,7 @@ function App() {
        if (dcDateFilter !== null) {
           filtered = filtered.filter(row => dcDateFilter.includes(row.dcCreationDate));
        }
-    } else if (activeReport === 'lifting-report' || activeReport === 'vehicle-assigned') {
+    } else if (activeReport === 'lifting-report' || activeReport === 'vehicle-assigned' || activeReport === 'first-mile-epod') {
         if (tpDateFilter !== null) {
           filtered = filtered.filter(row => tpDateFilter.includes(row.tpDate));
        }
@@ -1671,9 +1669,8 @@ function App() {
       {/* Premium Admin Sidebar */}
       <div className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
         <div className="sidebar-header">
-          <div className="logo-container">
-            <Database className="logo-icon" size={26} />
-            <span className="logo-text">GSCSCL</span>
+          <div className="logo-container" onClick={() => handleMenuClick('welcome')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'center', width: '100%' }}>
+            <img src="/gscscl-logo.png" alt="GSCSCL Logo" style={{ height: '45px', objectFit: 'contain' }} />
           </div>
           <button className="close-btn" onClick={() => setSidebarOpen(false)}>
             <Menu size={24} />
@@ -1872,10 +1869,24 @@ function App() {
             <button className="menu-btn" onClick={() => setSidebarOpen(true)}>
               <Menu size={24} />
             </button>
-            <span className="logo-text" style={{ fontSize: '1.2rem' }}>GSCSCL Report</span>
+            <span className="logo-text" onClick={() => handleMenuClick('welcome')} style={{ fontSize: '1.2rem', cursor: 'pointer' }}>GSCSCL Report</span>
           </div>
         )}
         
+        {/* Render content based on active report */}
+        {activeReport === 'welcome' && (
+          <div className="welcome-container" style={{ padding: '60px 20px', maxWidth: '1000px', margin: '0 auto', textAlign: 'center' }}>
+             <div style={{ display: 'inline-flex', padding: '16px', borderRadius: '50%', background: 'var(--bg-panel)', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', marginBottom: '24px' }}>
+                <img src="/gscscl-logo.png" alt="GSCSCL Logo" style={{ height: '80px', objectFit: 'contain' }} />
+             </div>
+             <h1 style={{ fontSize: '2.5rem', color: 'var(--text-main)', marginBottom: '16px', fontWeight: '700' }}>Welcome to GSCSCL Reports</h1>
+             <p style={{ fontSize: '1.15rem', color: 'var(--text-muted)', marginBottom: '48px', maxWidth: '700px', margin: '0 auto 48px auto', lineHeight: '1.6' }}>
+                Your central hub for generating clean, actionable insights from raw data. 
+                Select any report from the sidebar to start uploading and analyzing your trips.
+             </p>
+          </div>
+        )}
+
         {/* Render content based on active report */}
         {(activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown' || activeReport === 'first-mile-epod' || activeReport === 'last-mile-epod' || activeReport === 'last-mile-imei' || activeReport === 'lifting-report' || activeReport === 'multi-trip-analysis' || activeReport === 'eta-route' || activeReport === 'vehicle-assigned' || activeReport === 'weighbridge-report') && (
           <>
@@ -2211,7 +2222,7 @@ function App() {
 
                     <Filter size={18} style={{ color: 'var(--text-muted)' }} />
                     
-                    {(activeReport === 'lifting-report' || activeReport === 'vehicle-assigned') ? (
+                    {(activeReport === 'lifting-report' || activeReport === 'vehicle-assigned' || activeReport === 'first-mile-epod') ? (
                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
                         <MultiSelectDropdown 
                           placeholder="TP Date" 
