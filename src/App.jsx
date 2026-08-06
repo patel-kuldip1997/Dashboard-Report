@@ -341,6 +341,15 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState({ percent: 0, message: '' });
   const [toastConfig, setToastConfig] = useState({ isOpen: false, message: '' });
+  const toastTimeoutRef = useRef(null);
+
+  const showToast = (message, type = 'success', duration = 4000) => {
+    if (toastTimeoutRef.current) clearTimeout(toastTimeoutRef.current);
+    setToastConfig({ isOpen: true, message, type });
+    toastTimeoutRef.current = setTimeout(() => {
+      setToastConfig({ isOpen: false, message: '', type: 'success' });
+    }, duration);
+  };
   const [historyList, setHistoryList] = useState([]);
   const fileInputRef = useRef(null);
   
@@ -562,8 +571,7 @@ function App() {
     
     const reader = new FileReader();
     reader.onload = (evt) => {
-      setToastConfig({ isOpen: true, message: 'Raw Data Uploaded Successfully' });
-      setTimeout(() => setToastConfig({ isOpen: false, message: '' }), 3000);
+      showToast('Raw Data Uploaded Successfully', 'success', 3000);
       
       setProgress({ percent: 10, message: 'Parsing Data...' });
       const arrayBuffer = evt.target.result;
@@ -579,22 +587,27 @@ function App() {
         setIsLoading(false);
         setProgress({ percent: 100, message: 'Complete' });
         if (e.data.type === 'error' || e.data.error) {
-          setToastConfig({ isOpen: true, message: e.data.message || 'Error Processing File', type: 'error' });
-          setTimeout(() => setToastConfig({ isOpen: false, message: '', type: 'success' }), 4000);
+          showToast(e.data.message || 'Error Processing File', 'error', 5000);
           if (fileInputRef.current) fileInputRef.current.value = '';
           setReportData(prev => ({ ...prev, [activeReport]: [] }));
         } else if (e.data.type === 'success' || !e.data.error) {
           if (e.data.data.length === 0) {
-            setToastConfig({ isOpen: true, message: 'No valid data found for this report type. Please check your Excel file.', type: 'error' });
-            setTimeout(() => setToastConfig({ isOpen: false, message: '', type: 'success' }), 4000);
+            showToast('No valid data found for this report type. Please check your Excel file.', 'error', 5000);
             if (fileInputRef.current) fileInputRef.current.value = '';
             setReportData(prev => ({ ...prev, [activeReport]: [] }));
           } else {
             setReportData(prev => ({ ...prev, [activeReport]: e.data.data }));
-            setToastConfig({ isOpen: true, message: 'Data Uploaded Successfully!', type: 'success' });
-            setTimeout(() => setToastConfig({ isOpen: false, message: '', type: 'success' }), 3000);
+            showToast('Data Uploaded Successfully!', 'success', 3000);
           }
         }
+        worker.terminate();
+      };
+
+      worker.onerror = (err) => {
+        setIsLoading(false);
+        showToast('File format not supported or file is too large.', 'error', 5000);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        setReportData(prev => ({ ...prev, [activeReport]: [] }));
         worker.terminate();
       };
 
@@ -625,8 +638,7 @@ function App() {
       readAsArrayBuffer(mainLiftingFile),
       trackLiftingFile ? readAsArrayBuffer(trackLiftingFile) : Promise.resolve(null)
     ]).then(([mainBuffer, trackBuffer]) => {
-      setToastConfig({ isOpen: true, message: 'Raw Data Uploaded Successfully' });
-      setTimeout(() => setToastConfig({ isOpen: false, message: '' }), 3000);
+      showToast('Raw Data Uploaded Successfully', 'success', 3000);
       
       setProgress({ percent: 10, message: 'Parsing Data...' });
       const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
@@ -640,28 +652,30 @@ function App() {
         setIsLoading(false);
         setProgress({ percent: 100, message: 'Complete' });
         if (e.data.type === 'error' || e.data.error) {
-          setToastConfig({ isOpen: true, message: e.data.message || 'Error Processing Files', type: 'error' });
-          setTimeout(() => setToastConfig({ isOpen: false, message: '', type: 'success' }), 4000);
+          showToast(e.data.message || 'Error Processing Files', 'error', 5000);
           setReportData(prev => ({ ...prev, [activeReport]: [] }));
         } else if (e.data.type === 'success' || !e.data.error) {
           if (e.data.data.length === 0) {
-            setToastConfig({ isOpen: true, message: 'No valid data found for this report type. Please check your Excel file.', type: 'error' });
-            setTimeout(() => setToastConfig({ isOpen: false, message: '', type: 'success' }), 4000);
+            showToast('No valid data found for this report type. Please check your Excel file.', 'error', 5000);
             setReportData(prev => ({ ...prev, [activeReport]: [] }));
           } else {
             setReportData(prev => ({ ...prev, [activeReport]: e.data.data }));
-            setToastConfig({ isOpen: true, message: 'Data Uploaded Successfully!', type: 'success' });
-            setTimeout(() => setToastConfig({ isOpen: false, message: '', type: 'success' }), 3000);
+            showToast('Data Uploaded Successfully!', 'success', 3000);
           }
         }
+        worker.terminate();
+      };
+      worker.onerror = (err) => {
+        setIsLoading(false);
+        showToast('File format not supported or file is too large.', 'error', 5000);
+        setReportData(prev => ({ ...prev, [activeReport]: [] }));
         worker.terminate();
       };
 
       worker.postMessage({ data: mainBuffer, trackingData: trackBuffer, activeReport });
     }).catch(err => {
       setIsLoading(false);
-      setToastConfig({ isOpen: true, message: 'Failed to read uploaded files.', type: 'error' });
-      setTimeout(() => setToastConfig({ isOpen: false, message: '', type: 'success' }), 4000);
+      showToast('Failed to read uploaded files.', 'error', 5000);
     });
   };
 
@@ -673,11 +687,9 @@ function App() {
         type: activeReport,
         rawData: rawData
       });
-      setToastConfig({ isOpen: true, message: 'Report saved to History successfully!', type: 'success' });
-      setTimeout(() => setToastConfig({ isOpen: false, message: '', type: 'success' }), 3000);
+      showToast('Report saved to History successfully!', 'success', 3000);
     } catch (e) {
-      setToastConfig({ isOpen: true, message: 'Error saving to history: ' + e.message, type: 'error' });
-      setTimeout(() => setToastConfig({ isOpen: false, message: '', type: 'success' }), 4000);
+      showToast('Error saving to history: ' + e.message, 'error', 5000);
     }
   };
 
@@ -1324,8 +1336,6 @@ function App() {
     const doc = new jsPDF({ orientation, format: 'a4' });
     
     const drawHeader = () => {
-      if (activeReport === 'weighbridge-report') return; // Skip standard header for weighbridge
-
       const pageWidth = doc.internal.pageSize.getWidth();
       doc.setTextColor(0, 0, 0);
       doc.setFontSize(22);
@@ -1355,16 +1365,7 @@ function App() {
 
     let headConfig = [visibleColumns.map(col => col.label)];
     if (activeReport === 'weighbridge-report') {
-       const titleStr = reportTitle || 'Weighbridge Utilization Reports';
-       
        headConfig = [
-          [
-             {
-                content: titleStr,
-                colSpan: 5,
-                styles: { halign: 'center', fillColor: [252, 213, 180], fontStyle: 'bold', textColor: [0, 0, 0], fontSize: 16 }
-             }
-          ],
           [
              { content: 'District', styles: { halign: 'center', fillColor: [180, 198, 231], textColor: [0,0,0], fontStyle: 'bold' } },
              { content: 'Destination Godown', styles: { halign: 'center', fillColor: [180, 198, 231], textColor: [0,0,0], fontStyle: 'bold' } },
@@ -1471,7 +1472,7 @@ function App() {
       autoTable(doc, {
             head: headConfig,
             body: tableRows,
-            startY: activeReport === 'weighbridge-report' ? 14 : 35,
+            startY: 35,
             styles: { fontSize: 7.5, cellPadding: 1.5, textColor: [50, 50, 50], lineColor: [0, 0, 0], lineWidth: 0.1 },
             headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
             columnStyles: columnStyles,
