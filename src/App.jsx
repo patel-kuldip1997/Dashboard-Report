@@ -5,6 +5,8 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { saveHistoryReport, getHistoryReports, deleteHistoryReport } from './db.js';
 import SmsTemplate from './components/SmsTemplate';
+import CustomizeReport from './components/CustomizeReport';
+import { DEFAULT_REPORT_ATTRIBUTES } from './reportAttributes';
 
 const DEFAULT_GM_CONFIG = [
   { id: 'refNo', label: 'Ref. No', visible: true },
@@ -333,7 +335,13 @@ function WeighbridgeVendors({ vendors, setVendors }) {
 }
 
 function App() {
-  const [activeReport, setActiveReport] = useState('welcome');
+  const [activeReport, setActiveReport] = useState(() => {
+    return sessionStorage.getItem('activeReportTab') || 'welcome';
+  });
+
+  useEffect(() => {
+    sessionStorage.setItem('activeReportTab', activeReport);
+  }, [activeReport]);
   const [reportData, setReportData] = useState({});
   const rawData = reportData[activeReport] || [];
   const [filterStatus, setFilterStatus] = useState('All');
@@ -438,16 +446,39 @@ function App() {
 
     const storageKey = `reportConfig_${activeReport}_v3`;
     const savedConfig = localStorage.getItem(storageKey);
-    let defaultConf = DEFAULT_GM_CONFIG;
-    if (activeReport === 'first-mile-epod') defaultConf = DEFAULT_EPOD_CONFIG;
-    else if (activeReport === 'last-mile-epod') defaultConf = DEFAULT_LAST_MILE_EPOD_CONFIG;
-    else if (activeReport === 'last-mile-imei') defaultConf = DEFAULT_LAST_MILE_IMEI_CONFIG;
-    else if (activeReport === 'miller-to-godown') defaultConf = DEFAULT_MG_CONFIG;
-    else if (activeReport === 'lifting-report') defaultConf = DEFAULT_LIFTING_CONFIG;
-    else if (activeReport === 'multi-trip-analysis') defaultConf = DEFAULT_MULTI_TRIP_CONFIG;
-    else if (activeReport === 'eta-route') defaultConf = DEFAULT_ETA_ROUTE_CONFIG;
-    else if (activeReport === 'vehicle-assigned') defaultConf = DEFAULT_VEHICLE_ASSIGNED_CONFIG;
-    else if (activeReport === 'weighbridge-report') defaultConf = DEFAULT_WEIGHBRIDGE_CONFIG;
+    let defaultConf = [...DEFAULT_GM_CONFIG];
+    if (activeReport === 'first-mile-epod') defaultConf = [...DEFAULT_EPOD_CONFIG];
+    else if (activeReport === 'last-mile-epod') defaultConf = [...DEFAULT_LAST_MILE_EPOD_CONFIG];
+    else if (activeReport === 'last-mile-imei') defaultConf = [...DEFAULT_LAST_MILE_IMEI_CONFIG];
+    else if (activeReport === 'miller-to-godown') defaultConf = [...DEFAULT_MG_CONFIG];
+    else if (activeReport === 'lifting-report') defaultConf = [...DEFAULT_LIFTING_CONFIG];
+    else if (activeReport === 'multi-trip-analysis') defaultConf = [...DEFAULT_MULTI_TRIP_CONFIG];
+    else if (activeReport === 'eta-route') defaultConf = [...DEFAULT_ETA_ROUTE_CONFIG];
+    else if (activeReport === 'vehicle-assigned') defaultConf = [...DEFAULT_VEHICLE_ASSIGNED_CONFIG];
+    else if (activeReport === 'weighbridge-report') defaultConf = [...DEFAULT_WEIGHBRIDGE_CONFIG];
+    
+    // Inject custom dynamic columns from localStorage configuration
+    try {
+      const savedConfigAttrs = localStorage.getItem('customReportAttributes_v3');
+      if (savedConfigAttrs) {
+         const parsedConfigAttrs = JSON.parse(savedConfigAttrs);
+         if (parsedConfigAttrs[activeReport]) {
+             const customKeys = Object.keys(parsedConfigAttrs[activeReport]);
+             const standardKeys = DEFAULT_REPORT_ATTRIBUTES[activeReport] ? Object.keys(DEFAULT_REPORT_ATTRIBUTES[activeReport]) : [];
+             customKeys.forEach(key => {
+                 if (!standardKeys.includes(key)) {
+                     // This is a completely new custom column!
+                     // Check if it's already in defaultConf to avoid duplicates just in case
+                     if (!defaultConf.find(c => c.id === key)) {
+                         defaultConf.push({ id: key, label: key, visible: true, isCustom: true });
+                     }
+                 }
+             });
+         }
+      }
+    } catch(e) {
+      console.error('Error injecting dynamic custom columns', e);
+    }
     
     if (savedConfig && activeReport !== 'history') {
       const parsedConfig = JSON.parse(savedConfig);
@@ -611,7 +642,16 @@ function App() {
         worker.terminate();
       };
 
-      worker.postMessage({ data: arrayBuffer, activeReport, etaApiKey, etaVehicleType, weighbridgeVendors });
+      // Parse custom attributes to pass to worker
+      let customAttrs = DEFAULT_REPORT_ATTRIBUTES;
+      try {
+        const saved = localStorage.getItem('customReportAttributes_v3');
+        if (saved) {
+           customAttrs = JSON.parse(saved);
+        }
+      } catch(e) {}
+
+      worker.postMessage({ data: arrayBuffer, activeReport, etaApiKey, etaVehicleType, weighbridgeVendors, customAttributes: customAttrs });
     };
     reader.readAsArrayBuffer(file);
   };
@@ -672,7 +712,16 @@ function App() {
         worker.terminate();
       };
 
-      worker.postMessage({ data: mainBuffer, trackingData: trackBuffer, activeReport });
+      // Parse custom attributes to pass to worker
+      let customAttrs = DEFAULT_REPORT_ATTRIBUTES;
+      try {
+        const saved = localStorage.getItem('customReportAttributes_v3');
+        if (saved) {
+           customAttrs = JSON.parse(saved);
+        }
+      } catch(e) {}
+
+      worker.postMessage({ data: mainBuffer, trackingData: trackBuffer, activeReport, customAttributes: customAttrs });
     }).catch(err => {
       setIsLoading(false);
       showToast('Failed to read uploaded files.', 'error', 5000);
@@ -1855,6 +1904,13 @@ function App() {
                   <Settings className="nav-icon" size={16} />
                   <span>Weighbridge Vendors</span>
                 </div>
+                <div 
+                  className={`nav-item ${activeReport === 'customize-report' ? 'active' : ''}`}
+                  onClick={() => handleMenuClick('customize-report')}
+                >
+                  <Settings className="nav-icon" size={16} />
+                  <span>Customize Report</span>
+                </div>
               </div>
             )}
           </div>
@@ -1880,13 +1936,14 @@ function App() {
              <div style={{ display: 'inline-flex', padding: '16px', borderRadius: '50%', background: 'var(--bg-panel)', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', marginBottom: '24px' }}>
                 <img src="/gscscl-logo.png" alt="GSCSCL Logo" style={{ height: '80px', objectFit: 'contain' }} />
              </div>
-             <h1 style={{ fontSize: '2.5rem', color: 'var(--text-main)', marginBottom: '16px', fontWeight: '700' }}>Welcome to GSCSCL Reports</h1>
+             <h1 style={{ fontSize: '2.5rem', color: 'var(--text-main)', marginBottom: '16px', fontWeight: '700' }}>Welcome to GSCSCL Report Dashboard</h1>
              <p style={{ fontSize: '1.15rem', color: 'var(--text-muted)', marginBottom: '48px', maxWidth: '700px', margin: '0 auto 48px auto', lineHeight: '1.6' }}>
-                Your central hub for generating clean, actionable insights from raw data. 
-                Select any report from the sidebar to start uploading and analyzing your trips.
+                Please select a report module from the sidebar to begin analyzing your data. Customize dynamic reporting columns in the Master Data section.
              </p>
           </div>
         )}
+
+          {activeReport === 'customize-report' && <CustomizeReport />}
 
         {/* Render content based on active report */}
         {(activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown' || activeReport === 'first-mile-epod' || activeReport === 'last-mile-epod' || activeReport === 'last-mile-imei' || activeReport === 'lifting-report' || activeReport === 'multi-trip-analysis' || activeReport === 'eta-route' || activeReport === 'vehicle-assigned' || activeReport === 'weighbridge-report') && (
@@ -2013,13 +2070,13 @@ function App() {
                 className={`upload-area ${isDragging ? 'active' : ''} glass-panel`}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
+                onDrop={(e) => handleDrop(e, { customConfig: activeReport })}
                 onClick={() => fileInputRef.current?.click()}
               >
                 <input 
                   type="file" 
                   ref={fileInputRef} 
-                  onChange={handleFileUpload} 
+                  onChange={(e) => handleFileUpload(e, { customConfig: activeReport })} 
                   accept=".xlsx, .xls, .csv" 
                   style={{ display: 'none' }} 
                 />
@@ -2069,13 +2126,13 @@ function App() {
                   style={{ opacity: etaApiKey ? 1 : 0.5, cursor: etaApiKey ? 'pointer' : 'not-allowed' }}
                   onDragOver={(e) => etaApiKey && handleDragOver(e)}
                   onDragLeave={(e) => etaApiKey && handleDragLeave(e)}
-                  onDrop={(e) => etaApiKey && handleDrop(e)}
+                  onDrop={(e) => etaApiKey && handleDrop(e, { customConfig: activeReport })}
                   onClick={() => etaApiKey && fileInputRef.current?.click()}
                 >
                   <input 
                     type="file" 
                     ref={fileInputRef} 
-                    onChange={handleFileUpload} 
+                    onChange={(e) => handleFileUpload(e, { customConfig: activeReport })} 
                     accept=".xlsx, .xls, .csv" 
                     style={{ display: 'none' }} 
                     disabled={!etaApiKey}

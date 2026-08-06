@@ -34,7 +34,16 @@ const formatExcelDate = (dateVal) => {
 };
 
 self.onmessage = async (e) => {
-  const { data, trackingData, activeReport, etaApiKey, etaVehicleType, weighbridgeVendors } = e.data;
+  const { data, trackingData, activeReport, etaApiKey, etaVehicleType, weighbridgeVendors, customAttributes } = e.data;
+  
+  // Helper to get dynamically resolved aliases for an attribute
+  const getAliases = (attributeName) => {
+     if (customAttributes && customAttributes[activeReport] && customAttributes[activeReport][attributeName]) {
+         return customAttributes[activeReport][attributeName];
+     }
+     // Fallback for internal lookups if not found in customAttributes
+     return [attributeName];
+  };
   
   try {
     self.postMessage({ type: 'progress', percent: 20, message: 'Reading Excel File (This may take a minute for large files)...' });
@@ -67,46 +76,79 @@ self.onmessage = async (e) => {
     let isValid = true;
     let expectedColumns = '';
 
-    if (activeReport === 'first-mile-epod') {
-      if (!headers.includes('epod status') && !headers.includes('reference no') && !headers.includes('reference number') && !headers.includes('tracking')) {
-        isValid = false;
-        expectedColumns = 'Reference No, EPOD status, TP date';
-      }
-    } else if (activeReport === 'godown-to-miller') {
-      if (!headers.includes('tp district') && !headers.includes('lifting location name')) {
-        isValid = false;
-        expectedColumns = 'TP District, Lifting Location Name, TP Destination Name';
-      }
-    } else if (activeReport === 'miller-to-godown') {
-      if (!headers.includes('gp source name') && !headers.includes('gp destination name')) {
-        isValid = false;
-        expectedColumns = 'GP Source Name, GP Destination Name';
-      }
-    } else if (activeReport === 'lifting-report') {
-      if (!headers.includes('reference number') && !headers.includes('district') && !headers.includes('tp creation mode')) {
-        isValid = false;
-        expectedColumns = 'Reference Number, District, TP Creation Mode, Final Quantity Allocated';
-      }
-    } else if (activeReport === 'last-mile-epod') {
-      if (!headers.includes('dc month') && !headers.includes('dc date') && !headers.includes('dc creation date')) {
-        isValid = false;
-        expectedColumns = 'DC Month, DC Creation Date';
-      }
-    } else if (activeReport === 'eta-route') {
-      if (!headers.includes('origin_lat') && !headers.includes('origin lat') && !headers.includes('origin_lat_origin_lng') && !headers.includes('origin lat origin lng') && !headers.includes('destination_lat') && !headers.includes('destination lat')) {
-        isValid = false;
-        expectedColumns = 'Origin_Lat, Origin_Lng, Destination_Lat, Destination_Lng, Actual_Time_Mins';
-      }
-    } else if (activeReport === 'vehicle-assigned') {
-      if (!headers.includes('reference number') && !headers.includes('tp date') && !headers.includes('district')) {
-        isValid = false;
-        expectedColumns = 'Reference Number, District, TP Date';
-      }
-    } else if (activeReport === 'weighbridge-report') {
-      if (!headers.includes('weighbridge id') && !headers.includes('weighbridge_id')) {
-        isValid = false;
-        expectedColumns = 'TP date, District, Destination Godown, EPOD status, Weighbridge ID';
-      }
+    // Dynamic Validation Check based on customAttributes
+    if (customAttributes && customAttributes[activeReport]) {
+        const requiredAttributes = Object.keys(customAttributes[activeReport]);
+        // Special case loose validation for some reports
+        if (activeReport === 'first-mile-epod') {
+            const hasStatus = getAliases('EPOD status').some(alias => headers.includes(alias.toLowerCase()));
+            const hasRef = getAliases('Reference Number').some(alias => headers.includes(alias.toLowerCase()));
+            const hasTrack = headers.includes('tracking');
+            if (!hasStatus && !hasRef && !hasTrack) {
+                isValid = false;
+                expectedColumns = requiredAttributes.join(', ');
+            }
+        } else {
+            // Strict check: At least ONE standard attribute must have a matching header (very loose check matching original loose logic)
+            // Original logic only checked if specific headers were missing. To match the behavior, we will check if ANY of the required attributes are missing.
+            // Wait, original logic: if (!headers.includes('tp district') && !headers.includes('lifting location name')) isValid = false;
+            // It means if BOTH are missing, it's invalid.
+            // A dynamic strict check: check if the file is completely irrelevant by ensuring at least some required headers exist.
+            let matchCount = 0;
+            for (const attr of requiredAttributes) {
+                const aliases = getAliases(attr);
+                if (aliases.some(alias => headers.includes(alias.toLowerCase()))) {
+                    matchCount++;
+                }
+            }
+            if (matchCount === 0) {
+                isValid = false;
+                expectedColumns = requiredAttributes.join(', ');
+            }
+        }
+    } else {
+       // Fallback to original validation if customAttributes are somehow missing
+       if (activeReport === 'first-mile-epod') {
+         if (!headers.includes('epod status') && !headers.includes('reference no') && !headers.includes('reference number') && !headers.includes('tracking')) {
+           isValid = false;
+           expectedColumns = 'Reference No, EPOD status, TP date';
+         }
+       } else if (activeReport === 'godown-to-miller') {
+         if (!headers.includes('tp district') && !headers.includes('lifting location name')) {
+           isValid = false;
+           expectedColumns = 'TP District, Lifting Location Name, TP Destination Name';
+         }
+       } else if (activeReport === 'miller-to-godown') {
+         if (!headers.includes('gp source name') && !headers.includes('gp destination name')) {
+           isValid = false;
+           expectedColumns = 'GP Source Name, GP Destination Name';
+         }
+       } else if (activeReport === 'lifting-report') {
+         if (!headers.includes('reference number') && !headers.includes('district') && !headers.includes('tp creation mode')) {
+           isValid = false;
+           expectedColumns = 'Reference Number, District, TP Creation Mode, Final Quantity Allocated';
+         }
+       } else if (activeReport === 'last-mile-epod') {
+         if (!headers.includes('dc month') && !headers.includes('dc date') && !headers.includes('dc creation date')) {
+           isValid = false;
+           expectedColumns = 'DC Month, DC Creation Date';
+         }
+       } else if (activeReport === 'eta-route') {
+         if (!headers.includes('origin_lat') && !headers.includes('origin lat') && !headers.includes('origin_lat_origin_lng') && !headers.includes('origin lat origin lng') && !headers.includes('destination_lat') && !headers.includes('destination lat')) {
+           isValid = false;
+           expectedColumns = 'Origin_Lat, Origin_Lng, Destination_Lat, Destination_Lng, Actual_Time_Mins';
+         }
+       } else if (activeReport === 'vehicle-assigned') {
+         if (!headers.includes('reference number') && !headers.includes('tp date') && !headers.includes('district')) {
+           isValid = false;
+           expectedColumns = 'Reference Number, District, TP Date';
+         }
+       } else if (activeReport === 'weighbridge-report') {
+         if (!headers.includes('weighbridge id') && !headers.includes('weighbridge_id')) {
+           isValid = false;
+           expectedColumns = 'TP date, District, Destination Godown, EPOD status, Weighbridge ID';
+         }
+       }
     }
 
     if (!isValid) {
@@ -126,14 +168,35 @@ self.onmessage = async (e) => {
     const jsonDataRaw = XLSX.utils.sheet_to_json(ws, { range: headerRowIndex });
     
     // Helper to get value case-insensitively and trim keys
-    const getVal = (row, ...keys) => {
-        const lowerKeys = keys.map(k => String(k).toLowerCase().trim());
+    // Helper to get value using custom resolved aliases
+    const getVal = (row, standardAttribute, ...fallbackAliases) => {
+        // Find aliases for this attribute from custom mapping, or use the standard name if no mapping exists
+        let aliases = [standardAttribute];
+        if (customAttributes && customAttributes[activeReport] && customAttributes[activeReport][standardAttribute]) {
+           aliases = customAttributes[activeReport][standardAttribute];
+        }
+        
+        // As a fallback, include any additional arguments (the old hardcoded style) as fallback aliases
+        if (fallbackAliases && fallbackAliases.length > 0) {
+           aliases.push(...fallbackAliases);
+        }
+        
+        const lowerKeys = aliases.map(k => String(k).toLowerCase().trim());
         for (const k in row) {
             if (lowerKeys.includes(String(k).toLowerCase().trim())) {
                 return row[k];
             }
         }
         return undefined;
+    };
+    const extractDynamicColumns = (row) => {
+        const dynamicProps = {};
+        if (customAttributes && customAttributes[activeReport]) {
+            Object.keys(customAttributes[activeReport]).forEach(attr => {
+                dynamicProps[attr] = getVal(row, attr) || '';
+            });
+        }
+        return dynamicProps;
     };
     
     const jsonData = jsonDataRaw;
@@ -193,7 +256,7 @@ self.onmessage = async (e) => {
             tpDate = tpDate.split(' ')[0];
         }
 
-        processed.push({
+        processed.push({ ...extractDynamicColumns(row),
            district: dist,
            tpDate: tpDate,
            vehicleAssignedRaw: veh,
@@ -253,7 +316,7 @@ self.onmessage = async (e) => {
               qty = Number(getVal(row, 'Net Weight')) || 0;
           }
           
-          tripGroups[key].push({
+          tripGroups[key].push({ ...extractDynamicColumns(row),
              district: getVal(row, 'District') || '',
              tpDate: tpDate,
              hrs: hrs,
@@ -278,7 +341,7 @@ self.onmessage = async (e) => {
                
                group.forEach((row, idx) => {
                    totalQty += row.qty;
-                   processed.push({
+                   processed.push({ ...extractDynamicColumns(row),
                        district: row.district,
                        tpDate: idx === 0 ? row.tpDate : '',
                        hrs: row.hrs,
@@ -296,7 +359,7 @@ self.onmessage = async (e) => {
                
                const remarks = totalQty > 35 ? "Greater than 35" : "Less than or equal to 35";
                
-               processed.push({
+               processed.push({ ...extractDynamicColumns(row),
                    district: group[0].district,
                    tpDate: group[0].tpDate + ' Total',
                    hrs: '',
@@ -392,7 +455,7 @@ self.onmessage = async (e) => {
            let actualTime = parseTransitTime(getVal(row, 'Actual_Time_Mins', 'Transit Time(hh:mm)', 'Transit Time'));
            
            if (orig && dest) {
-               routesData.push({ orig, dest, actualTime, routeCode: routeCode || 'N/A', originalRow: row });
+               routesData.push({ ...extractDynamicColumns(row), orig, dest, actualTime, routeCode: routeCode || 'N/A', originalRow: row });
            }
        });
 
@@ -460,7 +523,7 @@ self.onmessage = async (e) => {
                }
            }
            
-            processed.push({
+            processed.push({ ...extractDynamicColumns(row),
                 routeCode: r.routeCode,
                 origin: r.orig,
                 destination: r.dest,
@@ -487,7 +550,7 @@ self.onmessage = async (e) => {
          
          if (getVal(row, 'EPOD Date') !== undefined && getVal(row, 'EPOD Date') !== null && String(getVal(row, 'EPOD Date')).trim() !== '') return;
 
-         processed.push({
+         processed.push({ ...extractDynamicColumns(row),
            district: getVal(row, 'District') || '',
            destLoc: getVal(row, 'Destination Godown') || '',
            transporter: getVal(row, 'Transporter Name') || '',
@@ -518,7 +581,7 @@ self.onmessage = async (e) => {
          if (dcDate) uniqueDcDates.add(dcDate);
          uniqueEpodStatuses.add(statusRaw);
 
-         processed.push({
+         processed.push({ ...extractDynamicColumns(row),
            district: getVal(row, 'District') || '',
            godown: getVal(row, 'GSCSCL Godown') || '',
            transporter: getVal(row, 'Transporter Name') || '',
@@ -577,7 +640,7 @@ self.onmessage = async (e) => {
          
          uniqueImeiStatuses.add(imeiStatus);
          
-         processed.push({
+         processed.push({ ...extractDynamicColumns(row),
             district,
             godown: getVal(row, 'GSCSCL Godown', 'Godown') || '',
             transporter: getVal(row, 'Transporter Name', 'Transporter', 'DSD Transporter Name') || '',
@@ -643,7 +706,7 @@ self.onmessage = async (e) => {
             }
          }
 
-         processed.push({
+         processed.push({ ...extractDynamicColumns(row),
             tpDate: tpDate,
             district: district,
             destGodown: destGodown,
@@ -663,7 +726,7 @@ self.onmessage = async (e) => {
          const tpDate = formatExcelDate(getVal(row, 'TP date') || getVal(row, 'TP Date') || getVal(row, 'tp date'));
          if (!district || !tpDate) return;
 
-         processed.push({
+         processed.push({ ...extractDynamicColumns(row),
             refNo: refNoStr,
             district: district,
             tpDate: tpDate,
@@ -731,7 +794,7 @@ self.onmessage = async (e) => {
          status = 'Completed';
       }
 
-      processed.push({
+      processed.push({ ...extractDynamicColumns(row),
         district,
         sourceLoc,
         destLoc,
