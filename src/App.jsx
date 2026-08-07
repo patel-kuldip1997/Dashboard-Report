@@ -113,6 +113,25 @@ const DEFAULT_VEHICLE_ASSIGNED_CONFIG = [
   { id: 'transporter', label: 'Transporter Name', visible: true }
 ];
 
+const DEFAULT_LAST_MILE_VEHICLE_ASSIGNED_CONFIG = [
+  { id: 'lrNumber', label: 'LR Number', visible: true },
+  { id: 'refNo', label: 'Reference Number', visible: true },
+  { id: 'dcCreationDate', label: 'DC Creation Date', visible: true },
+  { id: 'createdAt', label: 'Created At', visible: true },
+  { id: 'district', label: 'District', visible: true },
+  { id: 'fpsName', label: 'FPS Name', visible: true },
+  { id: 'areaIdFpsName', label: 'Area ID/FPS Name', visible: true },
+  { id: 'gscsclGodown', label: 'GSCSCL Godown', visible: true },
+  { id: 'transporterName', label: 'Transporter Name', visible: true },
+  { id: 'vehicleNumberUser', label: 'Vehicle Number User', visible: true },
+  { id: 'epodStatus', label: 'EPOD Status', visible: true },
+  { id: 'qtyKg', label: 'Qty (KG)', visible: true },
+  { id: 'qtyMt', label: 'Qty (MT)', visible: true },
+  { id: 'timeOfStartTrip', label: 'Time of Start Trip', visible: true },
+  { id: 'timeOfDelivery', label: 'Time of Delivery', visible: true },
+  { id: 'updateDeliverDateTime', label: 'Update Deliver Date Time 1', visible: true }
+];
+
 const DEFAULT_LAST_MILE_IMEI_CONFIG = [
   { id: 'district', label: 'District', visible: true },
   { id: 'godown', label: 'GSCSCL Godown', visible: true },
@@ -440,6 +459,8 @@ function App() {
        setReportTitle("SMS Templates");
     } else if (activeReport === 'last-mile-imei') {
        setReportTitle("Last Mile IMEI Report");
+    } else if (activeReport === 'last-mile-vehicle-assigned') {
+       setReportTitle("Last Mile Vehicle Assigned");
     } else {
        setReportTitle("Godown to Miller Trips");
     }
@@ -449,6 +470,7 @@ function App() {
     let defaultConf = [...DEFAULT_GM_CONFIG];
     if (activeReport === 'first-mile-epod') defaultConf = [...DEFAULT_EPOD_CONFIG];
     else if (activeReport === 'last-mile-epod') defaultConf = [...DEFAULT_LAST_MILE_EPOD_CONFIG];
+    else if (activeReport === 'last-mile-vehicle-assigned') defaultConf = [...DEFAULT_LAST_MILE_VEHICLE_ASSIGNED_CONFIG];
     else if (activeReport === 'last-mile-imei') defaultConf = [...DEFAULT_LAST_MILE_IMEI_CONFIG];
     else if (activeReport === 'miller-to-godown') defaultConf = [...DEFAULT_MG_CONFIG];
     else if (activeReport === 'lifting-report') defaultConf = [...DEFAULT_LIFTING_CONFIG];
@@ -874,6 +896,7 @@ function App() {
       if (r.dcMonth) months.add(r.dcMonth);
       if (r.dcCreationDate) dates.add(r.dcCreationDate);
       if (r.epodStatusRaw) epodStatuses.add(r.epodStatusRaw);
+      if (r.epodStatus) epodStatuses.add(r.epodStatus);
       if (r.tpDate) tpDates.add(r.tpDate);
       if (r.remarks && r.isSubtotal) remarks.add(r.remarks);
       if (r.weighbridgeId) wbIds.add(r.weighbridgeId);
@@ -1019,6 +1042,13 @@ function App() {
        }
        if (dcDateFilter !== null) {
           filtered = filtered.filter(row => dcDateFilter.includes(row.dcCreationDate));
+       }
+    } else if (activeReport === 'last-mile-vehicle-assigned') {
+       if (dcDateFilter !== null) {
+          filtered = filtered.filter(row => dcDateFilter.includes(row.dcCreationDate));
+       }
+       if (epodStatusFilter !== null) {
+          filtered = filtered.filter(row => epodStatusFilter.includes(row.epodStatus));
        }
     } else if (activeReport === 'lifting-report' || activeReport === 'vehicle-assigned' || activeReport === 'first-mile-epod') {
         if (tpDateFilter !== null) {
@@ -1381,7 +1411,7 @@ function App() {
   const exportPDF = () => {
     if (displayData.length === 0) return;
 
-    const orientation = (activeReport === 'lifting-report' || activeReport === 'vehicle-assigned' || activeReport === 'multi-trip-analysis' || activeReport === 'last-mile-imei') ? 'landscape' : 'portrait';
+    const orientation = (activeReport === 'lifting-report' || activeReport === 'vehicle-assigned' || activeReport === 'multi-trip-analysis' || activeReport === 'last-mile-imei' || activeReport === 'last-mile-vehicle-assigned') ? 'landscape' : 'portrait';
     const doc = new jsPDF({ orientation, format: 'a4' });
     
     const drawHeader = () => {
@@ -1824,6 +1854,13 @@ function App() {
                   <span>Last Mile EPOD</span>
                 </div>
                 <div 
+                  className={`nav-item ${activeReport === 'last-mile-vehicle-assigned' ? 'active' : ''}`}
+                  onClick={() => handleMenuClick('last-mile-vehicle-assigned')}
+                >
+                  <FileText className="nav-icon" size={16} />
+                  <span>Last Mile Vehicle Assigned</span>
+                </div>
+                <div 
                   className={`nav-item ${activeReport === 'last-mile-imei' ? 'active' : ''}`}
                   onClick={() => handleMenuClick('last-mile-imei')}
                 >
@@ -1946,7 +1983,7 @@ function App() {
           {activeReport === 'customize-report' && <CustomizeReport />}
 
         {/* Render content based on active report */}
-        {(activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown' || activeReport === 'first-mile-epod' || activeReport === 'last-mile-epod' || activeReport === 'last-mile-imei' || activeReport === 'lifting-report' || activeReport === 'multi-trip-analysis' || activeReport === 'eta-route' || activeReport === 'vehicle-assigned' || activeReport === 'weighbridge-report') && (
+        {(activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown' || activeReport === 'first-mile-epod' || activeReport === 'last-mile-epod' || activeReport === 'last-mile-imei' || activeReport === 'lifting-report' || activeReport === 'multi-trip-analysis' || activeReport === 'eta-route' || activeReport === 'vehicle-assigned' || activeReport === 'last-mile-vehicle-assigned' || activeReport === 'weighbridge-report') && (
           <>
             <div className="page-header">
               <div style={{ flex: 1, maxWidth: '70%' }}>
@@ -2339,7 +2376,7 @@ function App() {
                           onChange={setEpodStatusFilter} 
                         />
                       </>
-                    ) : activeReport === 'last-mile-imei' ? (
+                    ) : (activeReport === 'last-mile-imei' || activeReport === 'last-mile-vehicle-assigned') ? (
                       <>
                         <MultiSelectDropdown 
                           placeholder="DC Date" 
@@ -2353,12 +2390,14 @@ function App() {
                           selected={epodStatusFilter} 
                           onChange={setEpodStatusFilter} 
                         />
-                        <MultiSelectDropdown 
-                            placeholder="IMEI Status" 
-                            options={uniqueImeiStatuses} 
-                            selected={imeiStatusFilter} 
-                            onChange={setImeiStatusFilter} 
-                          />
+                        {activeReport === 'last-mile-imei' && (
+                          <MultiSelectDropdown 
+                              placeholder="IMEI Status" 
+                              options={uniqueImeiStatuses} 
+                              selected={imeiStatusFilter} 
+                              onChange={setImeiStatusFilter} 
+                            />
+                        )}
                       </>
                     ) : (activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown') ? (
                       <select 
@@ -2476,6 +2515,48 @@ function App() {
                   </div>
                 ) : (
                   <>
+                    {activeReport === 'last-mile-vehicle-assigned' && (
+                      <div className="summary-cards" style={{ marginBottom: '24px', backgroundColor: 'var(--bg-panel)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-color)', overflowX: 'auto' }}>
+                        <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', color: 'var(--text-main)' }}>LR Assignment Summary (Top LRs by DCs)</h3>
+                        <table style={{ minWidth: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+                          <thead>
+                            <tr style={{ borderBottom: '2px solid var(--border-color)' }}>
+                              <th style={{ padding: '8px', color: 'var(--text-muted)' }}>LR Number</th>
+                              <th style={{ padding: '8px', color: 'var(--text-muted)' }}>District</th>
+                              <th style={{ padding: '8px', color: 'var(--text-muted)' }}>Transporter</th>
+                              <th style={{ padding: '8px', color: 'var(--text-muted)' }}>Vehicle</th>
+                              <th style={{ padding: '8px', color: 'var(--text-muted)', textAlign: 'right' }}>Assigned DCs</th>
+                              <th style={{ padding: '8px', color: 'var(--text-muted)', textAlign: 'right' }}>Total Qty (MT)</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(() => {
+                               const summary = {};
+                               displayData.forEach(row => {
+                                   if (!row.lrNumber) return;
+                                   if (!summary[row.lrNumber]) {
+                                       summary[row.lrNumber] = { lrNumber: row.lrNumber, totalDCs: 0, totalMt: 0, transporter: row.transporterName, vehicle: row.vehicleNumberUser, district: row.district };
+                                   }
+                                   summary[row.lrNumber].totalDCs += 1;
+                                   summary[row.lrNumber].totalMt += (row.qtyMt || 0);
+                               });
+                               const topLRs = Object.values(summary).sort((a, b) => b.totalDCs - a.totalDCs).slice(0, 10);
+                               if (topLRs.length === 0) return <tr><td colSpan="6" style={{ padding: '8px', textAlign: 'center' }}>No LR data found</td></tr>;
+                               return topLRs.map(lr => (
+                                 <tr key={lr.lrNumber} style={{ borderBottom: '1px solid var(--border-color)' }}>
+                                   <td style={{ padding: '8px', fontWeight: '500' }}>{lr.lrNumber}</td>
+                                   <td style={{ padding: '8px' }}>{lr.district}</td>
+                                   <td style={{ padding: '8px' }}>{lr.transporter}</td>
+                                   <td style={{ padding: '8px' }}>{lr.vehicle}</td>
+                                   <td style={{ padding: '8px', textAlign: 'right', fontWeight: 'bold', color: 'var(--primary-color)' }}>{lr.totalDCs}</td>
+                                   <td style={{ padding: '8px', textAlign: 'right' }}>{lr.totalMt.toFixed(3)}</td>
+                                 </tr>
+                               ));
+                            })()}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                     <div className="table-container" style={{ marginTop: 0 }}>
                       <table>
                         <thead>
@@ -2759,12 +2840,13 @@ function App() {
                     let defaultConf = DEFAULT_GM_CONFIG;
                     if (activeReport === 'first-mile-epod') defaultConf = DEFAULT_EPOD_CONFIG;
                     else if (activeReport === 'last-mile-epod') defaultConf = DEFAULT_LAST_MILE_EPOD_CONFIG;
+                    else if (activeReport === 'last-mile-vehicle-assigned') defaultConf = DEFAULT_LAST_MILE_VEHICLE_ASSIGNED_CONFIG;
                     else if (activeReport === 'miller-to-godown') defaultConf = DEFAULT_MG_CONFIG;
                     else if (activeReport === 'lifting-report') defaultConf = DEFAULT_LIFTING_CONFIG;
                     else if (activeReport === 'multi-trip-analysis') defaultConf = DEFAULT_MULTI_TRIP_CONFIG;
                     else if (activeReport === 'eta-route') defaultConf = DEFAULT_ETA_ROUTE_CONFIG;
                     else if (activeReport === 'vehicle-assigned') defaultConf = DEFAULT_VEHICLE_ASSIGNED_CONFIG;
-    else if (activeReport === 'weighbridge-report') defaultConf = DEFAULT_WEIGHBRIDGE_CONFIG;
+                    else if (activeReport === 'weighbridge-report') defaultConf = DEFAULT_WEIGHBRIDGE_CONFIG;
                     saveConfig(defaultConf.map(c => ({...c})));
                   }}>Reset</button>
                 <button className="btn-primary" onClick={() => setShowConfigModal(false)}>Done</button>

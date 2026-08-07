@@ -5,6 +5,23 @@ export const DEFAULT_REPORT_ATTRIBUTES = {
     'TP date': ['TP date', 'TP Date'],
     'District': ['District']
   },
+  'last-mile-vehicle-assigned': {
+    'Reference Number': ['Reference Number', 'Reference No', 'DC No'],
+    'DC Creation Date': ['DC Creation Date', 'Creation Date'],
+    'Created At': ['Created At', 'Created Date'],
+    'District': ['District', 'TP District'],
+    'LR Number': ['LR Number', 'LR No'],
+    'FPS Name': ['FPS Name'],
+    'Area ID/FPS Name': ['Area ID/FPS Name', 'Area ID', 'Area'],
+    'GSCSCL Godown': ['GSCSCL Godown', 'Godown'],
+    'Transporter Name': ['Transporter Name', 'Transporter'],
+    'Vehicle Number User': ['Vehicle Number User', 'Vehicle Number', 'Vehicle No'],
+    'EPOD Status': ['EPOD Status', 'Status'],
+    'Total DC Qty(Kg)': ['Total DC Qty(Kg)', 'Total DC Qty', 'Qty'],
+    'time_of_start_trip': ['time_of_start_trip', 'Time of Start Trip', 'Start Trip Time'],
+    'Time of Delivery': ['Time of Delivery', 'Delivery Time'],
+    'update_deliver_date_time1': ['update_deliver_date_time1', 'Update Deliver Date Time', 'Deliver Date Time']
+  },
   'lifting-report': {
     'Reference Number': ['Reference Number', 'Reference No'],
     'District': ['District', 'TP District'],

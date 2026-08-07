@@ -143,6 +143,11 @@ self.onmessage = async (e) => {
            isValid = false;
            expectedColumns = 'Reference Number, District, TP Date';
          }
+       } else if (activeReport === 'last-mile-vehicle-assigned') {
+         if (!headers.includes('reference number') && !headers.includes('lr number')) {
+           isValid = false;
+           expectedColumns = 'Reference Number, LR Number';
+         }
        } else if (activeReport === 'weighbridge-report') {
          if (!headers.includes('weighbridge id') && !headers.includes('weighbridge_id')) {
            isValid = false;
@@ -733,6 +738,45 @@ self.onmessage = async (e) => {
             vehicleNo: getVal(row, 'Vehicle Number') || getVal(row, 'Vehicle No.') || '',
             destGodown: getVal(row, 'Destination Godown') || '',
             transporter: getVal(row, 'Transporter Name') || ''
+         });
+         return;
+      }
+      
+      if (activeReport === 'last-mile-vehicle-assigned') {
+         const refNoStr = String(getVal(row, 'Reference Number') || '');
+         const lrNoStr = String(getVal(row, 'LR Number') || '');
+         
+         const rawQty = getVal(row, 'Total DC Qty(Kg)');
+         let qtyKg = 0;
+         let qtyMt = 0;
+         if (rawQty) {
+             const parsed = parseFloat(rawQty);
+             if (!isNaN(parsed)) {
+                 qtyKg = parsed;
+                 qtyMt = parseFloat((parsed / 1000).toFixed(3));
+             }
+         }
+
+         let epodStatus = getVal(row, 'EPOD Status') || '(Blanks)';
+         if (epodStatus) uniqueEpodStatuses.add(epodStatus);
+
+         processed.push({ ...extractDynamicColumns(row),
+            refNo: refNoStr,
+            dcCreationDate: formatExcelDate(getVal(row, 'DC Creation Date') || ''),
+            createdAt: getVal(row, 'Created At') || '',
+            district: getVal(row, 'District') || '',
+            lrNumber: lrNoStr,
+            fpsName: getVal(row, 'FPS Name') || '',
+            areaIdFpsName: getVal(row, 'Area ID/FPS Name') || '',
+            gscsclGodown: getVal(row, 'GSCSCL Godown') || '',
+            transporterName: getVal(row, 'Transporter Name') || '',
+            vehicleNumberUser: getVal(row, 'Vehicle Number User') || '',
+            epodStatus: epodStatus,
+            qtyKg: qtyKg,
+            qtyMt: qtyMt,
+            timeOfStartTrip: getVal(row, 'time_of_start_trip') || '',
+            timeOfDelivery: getVal(row, 'Time of Delivery') || '',
+            updateDeliverDateTime: getVal(row, 'update_deliver_date_time1') || ''
          });
          return;
       }

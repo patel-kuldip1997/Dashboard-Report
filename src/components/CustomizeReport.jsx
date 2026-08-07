@@ -10,6 +10,7 @@ const reportNames = {
   'last-mile-epod': 'Last Mile EPOD',
   'eta-route': 'ETA Route Adherence',
   'vehicle-assigned': 'Vehicle Assigned',
+  'last-mile-vehicle-assigned': 'Last Mile Vehicle Assigned',
   'last-mile-imei': 'Last Mile IMEI',
   'multi-trip-analysis': 'Multi Trip Analysis',
   'weighbridge-report': 'Weighbridge Report'
@@ -91,12 +92,15 @@ const CustomizeReport = () => {
       try {
         const parsed = JSON.parse(saved);
         // Merge saved custom attributes with default structure to ensure new standard attributes aren't lost
-        const merged = { ...DEFAULT_REPORT_ATTRIBUTES };
-        for (const reportKey in parsed) {
-            if (merged[reportKey]) {
-                for (const attrKey in parsed[reportKey]) {
-                    if (merged[reportKey][attrKey]) {
-                        merged[reportKey][attrKey] = parsed[reportKey][attrKey];
+        // and user custom attributes are preserved.
+        const merged = JSON.parse(JSON.stringify(parsed));
+        for (const reportKey in DEFAULT_REPORT_ATTRIBUTES) {
+            if (!merged[reportKey]) {
+                merged[reportKey] = { ...DEFAULT_REPORT_ATTRIBUTES[reportKey] };
+            } else {
+                for (const attrKey in DEFAULT_REPORT_ATTRIBUTES[reportKey]) {
+                    if (!merged[reportKey][attrKey]) {
+                        merged[reportKey][attrKey] = [...DEFAULT_REPORT_ATTRIBUTES[reportKey][attrKey]];
                     }
                 }
             }
