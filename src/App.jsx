@@ -260,6 +260,7 @@ const ALL_DISTRICTS = [
 
 
 function WeighbridgeVendors({ vendors, setVendors }) {
+  const isAdmin = sessionStorage.getItem('isAdminAuth') === 'true';
   const [newId, setNewId] = useState('');
   const [newName, setNewName] = useState('');
   const [editIndex, setEditIndex] = useState(-1);
@@ -305,18 +306,20 @@ function WeighbridgeVendors({ vendors, setVendors }) {
           Map the trailing digit of a Weighbridge ID to the Vendor Name.
         </p>
 
-        <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', flexWrap: 'wrap' }}>
-          <input type="text" placeholder="Vendor Code (e.g. 1)" value={newId} onChange={e => setNewId(e.target.value)} style={{ padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)', outline: 'none', background: 'var(--bg-main)', color: 'var(--text-main)', flex: 1, minWidth: '150px' }} />
-          <input type="text" placeholder="Vendor Name (e.g. APPLE WEIGHINFRA LIMITED)" value={newName} onChange={e => setNewName(e.target.value)} style={{ padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)', outline: 'none', background: 'var(--bg-main)', color: 'var(--text-main)', flex: 3, minWidth: '250px' }} />
-          <button className="btn-primary" onClick={handleAdd}>Add Vendor</button>
-        </div>
+        {isAdmin && (
+          <div style={{ display: 'flex', gap: '12px', marginBottom: '24px', flexWrap: 'wrap' }}>
+            <input type="text" placeholder="Vendor Code (e.g. 1)" value={newId} onChange={e => setNewId(e.target.value)} style={{ padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)', outline: 'none', background: 'var(--bg-main)', color: 'var(--text-main)', flex: 1, minWidth: '150px' }} />
+            <input type="text" placeholder="Vendor Name (e.g. APPLE WEIGHINFRA LIMITED)" value={newName} onChange={e => setNewName(e.target.value)} style={{ padding: '10px', borderRadius: '6px', border: '1px solid var(--border-color)', outline: 'none', background: 'var(--bg-main)', color: 'var(--text-main)', flex: 3, minWidth: '250px' }} />
+            <button className="btn-primary" onClick={handleAdd}>Add Vendor</button>
+          </div>
+        )}
 
         <table className="report-table">
           <thead>
             <tr>
               <th style={{ width: '150px' }}>Vendor Code</th>
               <th>Vendor Name</th>
-              <th style={{ width: '150px', textAlign: 'center' }}>Actions</th>
+              {isAdmin && <th style={{ width: '150px', textAlign: 'center' }}>Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -335,16 +338,18 @@ function WeighbridgeVendors({ vendors, setVendors }) {
                   <>
                     <td style={{ fontWeight: '600' }}>{v.id}</td>
                     <td>{v.name}</td>
-                    <td style={{ textAlign: 'center' }}>
-                      <button className="btn-secondary" onClick={() => startEdit(i, v)} style={{ padding: '6px 12px', marginRight: '8px' }}>Edit</button>
-                      <button className="btn-secondary" onClick={() => handleDelete(i)} style={{ padding: '6px 12px', color: '#ff4d4f', borderColor: '#ff4d4f' }}>Delete</button>
-                    </td>
+                    {isAdmin && (
+                      <td style={{ textAlign: 'center' }}>
+                        <button className="btn-secondary" onClick={() => startEdit(i, v)} style={{ padding: '6px 12px', marginRight: '8px' }}>Edit</button>
+                        <button className="btn-secondary" onClick={() => handleDelete(i)} style={{ padding: '6px 12px', color: '#ff4d4f', borderColor: '#ff4d4f' }}>Delete</button>
+                      </td>
+                    )}
                   </>
                 )}
               </tr>
             ))}
             {vendors.length === 0 && (
-               <tr><td colSpan="3" style={{ textAlign: 'center', padding: '24px' }}>No vendors configured.</td></tr>
+               <tr><td colSpan={isAdmin ? "3" : "2"} style={{ textAlign: 'center', padding: '24px' }}>No vendors configured.</td></tr>
             )}
           </tbody>
         </table>
@@ -2037,66 +2042,107 @@ function App() {
             </div>
 
             {isLoading && (
-              <div style={{ textAlign: 'center', marginTop: '2.5rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <div style={{ 
-                    fontWeight: '600', 
-                    marginBottom: '1rem', 
-                    color: 'var(--accent-primary)',
-                    fontSize: '1.1rem',
-                    letterSpacing: '0.5px'
-                }}>
+              <div style={{ textAlign: 'center', marginTop: '3rem', marginBottom: '3rem', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                <div className="c-wrap">
+                  <svg width="350" height="306" viewBox="0 0 344 306" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <use id="infinite-background" href="#infinite" stroke="var(--border-color, #E2E8F0)" />
+                    <g id="snake-body">
+                      <use href="#infinite" stroke="var(--accent-primary-hover, #E85300)" strokeDasharray="150 773.1340942382812" strokeDashoffset="-150">
+                        <animate 
+                                 attributeName="stroke-dashoffset"
+                                 values="1055.1340942382812; 980; 945; 900; 865; 825; 755; 745; 655; 565; 495; 450; 415; 360; 310; 240; 150; 130" 
+                                 keyTimes="0; 0.0684; 0.1368; 0.2052; 0.2736; 0.342; 0.4104; 0.4275; 0.4788; 0.5472; 0.6156; 0.684; 0.7524; 0.8208; 0.8892; 0.9576; 0.9876; 1"
+                                 calcMode="linear"
+                                 dur="1.465s"
+                                 repeatCount="indefinite"/>
+                      </use>
+                    </g>
+                    <g id="snake-head">
+                      <animateMotion
+                                     keyPoints="0.025; 0.105; 0.145; 0.192; 0.231; 0.275; 0.35; 0.363; 0.46; 0.557; 0.632; 0.678; 0.717; 0.777; 0.83; 0.907; 1; 0; 0.025;" 
+                                     keyTimes="0; 0.0684; 0.1368; 0.2052; 0.2736; 0.342; 0.4104; 0.4275; 0.4788; 0.5472; 0.6156; 0.684; 0.7524; 0.8208; 0.8892; 0.9576; 0.9876; 0.9876; 1" 
+                                     calcMode="linear"
+                                     dur="1.465s"
+                                     repeatCount="indefinite"  
+                                     rotate="auto">
+                        <mpath href="#infinite"/>
+                      </animateMotion>
+                      <circle r="7" fill="var(--accent-primary, #FF5B00)"/>
+                    </g>
+                    <g id="ball" transform="translate(-24 -23)">
+                      <g>
+                        <path id="blue-half" d="M24 46C36.5355 46 46.7287 35.9717 46.9947 23.5H1.00533C1.27132 35.9717 11.4645 46 24 46Z" fill="var(--accent-primary-hover, #E85300)"/>
+                        <path id="dark-blue-half" d="M24 0C36.5355 0 46.7287 10.4643 46.9947 23.4783H1.00533C1.27132 10.4643 11.4645 0 24 0Z" fill="var(--accent-primary, #FF5B00)">
+                          <animate 
+                                   attributeName="opacity"
+                                   values="0; 0; 1; 1"
+                                   keyTimes="0; 0.21375; 0.21375; 1;"
+                                   calcMode="linear"
+                                   dur="2.93s"
+                                   repeatCount="indefinite" />
+                        </path>      
+                        <animateMotion
+                                       keyPoints="0.0455; 0.081; 0.094; 0.105; 0.113; 0.131; 0.189; 0.213; 0.261; 0.324; 0.363; 0.374; 0.386; 0.412; 0.459; 0.509; 0.593; 0.625; 0.643; 0.661; 0.68; 0.705; 0.765; 0.832; 0.877; 0.896; 0.913; 0.949; 0.966; 0.979; 1; 0; 0.014; 0.0455"
+                                       keyTimes="0; 0.0342; 0.0684; 0.1026; 0.1368; 0.171; 0.2052; 0.21375; 0.2394; 0.2736; 0.3078; 0.342; 0.3762; 0.4104; 0.4446; 0.4788; 0.513; 0.5472; 0.5814; 0.6156; 0.6498; 0.684; 0.7182; 0.7524; 0.7866; 0.8208; 0.855; 0.8892; 0.9234;  0.9576; 0.9776; 0.9776; 0.9918; 1"
+                                       calcMode="linear"
+                                       dur="2.93s"
+                                       repeatCount="indefinite">
+                          <mpath href="#track"/>
+                        </animateMotion>
+                        <animateTransform 
+                                          attributeName="transform"
+                                          type="rotate"
+                                          values="-44 24 23; 8 24 23; 60 24 23; 130 24 23; 180 24 23; 233 24 23; 300 24 23; 320 24 23; 295 24 23; 240 24 23; 170 24 23; 120 24 23;  70 24 23; 25 24 23; 10 24 23; 20 24 23; 80 24 23; 154 24 23; 253 24 23; 415 24 23; 556 24 23; 702 24 23; 720 24 23; 630 24 23; 540 24 23; 415 24 23; 330 24 23; 470 24 23; 660 24 23; 805 24 23; 945 24 23; 1034 24 23; -44 24 23" 
+                                          keyTimes="0; 0.0342; 0.0684; 0.1026; 0.1368; 0.171; 0.2052; 0.21375; 0.2394; 0.2736; 0.3078; 0.342; 0.3762; 0.4104; 0.4446; 0.4788; 0.513; 0.5472; 0.5814; 0.6156; 0.6498; 0.684; 0.7182; 0.7524; 0.7866; 0.8208; 0.855; 0.8892; 0.9234; 0.9576; 0.9918; 1; 1"
+                                          calcMode="linear"
+                                          dur="2.93s"
+                                          repeatCount="indefinite" />
+                      </g>
+                      <path id="dark-blue-half--fantom" d="M24 0C36.5355 0 46.7287 10.4643 46.9947 23.4783H1.00533C1.27132 10.4643 11.4645 0 24 0Z" fill="var(--accent-primary, #FF5B00)">      
+                        <animateMotion
+                                       keyPoints="0.0425; 0.103; 0.121; 0.127; 0.14; 0.164; 0.238; 0.2659; 1" 
+                                       keyTimes="0; 0.0342; 0.0684; 0.1026; 0.1368; 0.171; 0.2052; 0.21375; 1"
+                                       calcMode="linear"
+                                       dur="2.93s"
+                                       repeatCount="indefinite">
+                          <mpath href="#track-dark"/>
+                        </animateMotion>
+                        <animateTransform 
+                                          attributeName="transform"
+                                          type="rotate"
+                                          values="-44 24 23; -93 24 23; -145 24 23; -215 24 23; -268 24 23; -320 24 23; -385 24 23; -400 24 23; 360 24 23"
+                                          keyTimes="0; 0.0342; 0.0684; 0.1026; 0.1368; 0.171; 0.2052; 0.21375; 1"
+                                          calcMode="linear"
+                                          dur="2.93s"
+                                          repeatCount="indefinite" />
+                        <animate 
+                                 attributeName="opacity"
+                                 values="1; 1; 0; 0"
+                                 keyTimes="0; 0.21375; 0.21375; 1;"
+                                 calcMode="linear"
+                                 dur="2.93s"
+                                 repeatCount="indefinite" />
+                      </path>
+                    </g>
+                    <defs>
+                      <path id="infinite" d="M169.695 216.229C217.089 164.558 241.969 144.454 268.809 145C306.897 145 337.777 175.934 337.809 214.014C337.773 252.092 306.895 283.001 268.809 283.001C244.334 283.499 225.557 270.817 186.5 229.382C183.002 225.671 172.342 214.086 168.5 209.902C164.629 205.69 160.94 201.727 157.416 198C118.38 156.726 99.4583 144.517 75 145.014C36.9197 145.014 6.04431 175.93 6 214C6.05783 252.058 36.928 282.987 75 282.987C101.893 283.533 122.092 268.169 169.695 216.229Z" strokeWidth="2"/>
+                      <path id="track" d="M183.418 103.5C186.015 110.503 188.89 118.045 191.69 125.891C198.018 143.618 203.97 162.894 205.5 181C230.5 148.5 257.5 111 276 111C282.011 111 286.565 115.952 290 124.029C301.974 152.185 300.343 218.313 299.384 245L299 256C297 302 258.5 284 202 240C193.805 233.295 177.56 201.95 162.159 171.675C156.889 161.315 151.717 151.08 147 142C142.09 132.548 137.25 122.372 132.228 112.942C127.993 105.006 123.504 97.377 118.856 91.3992C108.288 77.8057 96.2612 71.5541 81 83C66 94.5 51.1094 131.108 30 210C22 247 82.5 301.5 140 206L162.072 171.811L174.943 152.285L191 127C191.207 126.665 191.414 126.332 191.622 126C229.457 65.7104 273.806 65.8921 294.668 125L295 126C296 129 303.073 150.945 304 155C308.229 173.5 308.5 180 310 199C309.808 218.36 311.227 240.318 299.19 250.188C296.303 252.555 294 252.5 288 255C235.494 276.877 200.481 203.454 178.031 158C177.025 155.962 176.044 153.981 175.087 152.066C169.897 141.679 165.277 133.127 161.5 128.5C161.5 128.5 152 116 145.5 113C142.465 111.599 137.904 111.07 132.173 112.839C125.63 114.858 117.748 119.861 108.685 129.989C111.616 114.523 114.944 101.81 118.815 91.5105C128.951 64.6849 141.539 54.3499 152.5 54.864C163.057 55.3591 172.105 65.9179 176 81.5C177.718 87.8421 180.378 95.3016 183.418 103.5Z" stroke="rgba(255, 91, 0, 0.2)"/>
+                      <path id="track-dark" d="M183.419 103.5C186.016 110.503 188.89 118.046 191.691 125.891C198.019 143.618 203.971 162.894 205.501 181C206.785 139.346 237.246 28.8464 238.785 26.3465C243.785 18.222 273.152 138.846 275.285 146.846C283.285 176.846 291.285 211.346 289.285 229.846C287.285 248.346 281.949 261.841 275.285 281.846C273.285 286.846 258.501 284 202.001 240C193.805 233.295 177.561 201.951 162.16 171.675C156.889 161.315 151.717 151.08 147.001 142C142.09 132.548 137.251 122.372 132.229 112.943C127.994 105.006 123.505 97.3772 118.857 91.3994C108.288 77.8059 96.2618 71.5543 81.0006 83.0001C66.0007 94.5001 51.1101 131.108 30.0007 210C22.0007 247 82.5007 301.5 140.001 206L162.072 171.811L174.944 152.285L191.001 127C191.208 126.665 191.415 126.332 191.623 126C229.458 65.7105 273.807 65.8923 294.668 125L295.001 126C296.001 129 303.074 150.945 304.001 155C308.229 173.5 308.501 180 310.001 199C309.808 218.36 311.227 240.318 299.19 250.188C296.304 252.555 294.001 252.5 288.001 255C235.494 276.877 200.482 203.454 178.032 158C177.026 155.962 176.044 153.981 175.088 152.067C169.898 141.679 165.278 133.127 161.501 128.5C161.501 128.5 152.001 116 145.501 113C142.466 111.599 137.905 111.071 132.174 112.839C125.631 114.858 117.748 119.861 108.686 129.99C111.617 114.523 114.945 101.81 118.815 91.5107C128.952 64.6851 141.54 54.3501 152.501 54.8642C163.057 55.3593 172.105 65.918 176.001 81.5001C177.718 87.8423 180.379 95.3018 183.419 103.5Z" stroke="rgba(255, 91, 0, 0.4)"/>
+                    </defs>
+                  </svg>
+                </div>
+
+                <div style={{ fontWeight: '600', marginBottom: '1rem', color: 'var(--accent-primary)', fontSize: '1.2rem', letterSpacing: '0.5px' }}>
                     {progress.message || 'Processing Data...'}
                 </div>
                 
-                <div style={{ 
-                    width: '100%', 
-                    maxWidth: '350px', 
-                    height: '8px', 
-                    background: 'rgba(255, 90, 31, 0.1)', 
-                    borderRadius: '10px', 
-                    overflow: 'hidden', 
-                    marginBottom: '1rem',
-                    boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.05)',
-                    position: 'relative'
-                }}>
-                  <div style={{ 
-                      width: `${progress.percent}%`, 
-                      height: '100%', 
-                      background: 'linear-gradient(90deg, var(--accent-primary), #ff8a5c)', 
-                      borderRadius: '10px',
-                      transition: 'width 0.6s cubic-bezier(0.4, 0, 0.2, 1)',
-                      boxShadow: '0 0 10px rgba(255, 90, 31, 0.4)',
-                      position: 'relative',
-                      overflow: 'hidden'
-                  }}>
-                      <div className="progress-shimmer" style={{
-                          position: 'absolute',
-                          top: 0, left: 0, right: 0, bottom: 0,
-                          background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)',
-                          transform: 'translateX(-100%)',
-                          animation: 'shimmer 1.5s infinite'
-                      }}></div>
+                <div style={{ width: '100%', maxWidth: '350px', height: '8px', background: 'rgba(255, 90, 31, 0.1)', borderRadius: '10px', overflow: 'hidden', marginBottom: '0.75rem', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.05)', position: 'relative' }}>
+                  <div style={{ width: `${progress.percent}%`, height: '100%', background: 'linear-gradient(90deg, var(--accent-primary), #ff8a5c)', borderRadius: '10px', transition: 'width 0.6s cubic-bezier(0.4, 0, 0.2, 1)', boxShadow: '0 0 10px rgba(255, 90, 31, 0.4)', position: 'relative', overflow: 'hidden' }}>
+                      <div className="progress-shimmer" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent)', transform: 'translateX(-100%)', animation: 'shimmer 1.5s infinite' }}></div>
                   </div>
                 </div>
                 
-                <div style={{ 
-                    fontSize: '0.95rem', 
-                    color: 'var(--text-muted)',
-                    fontWeight: '500',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px'
-                }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 2s linear infinite' }}>
-                        <line x1="12" y1="2" x2="12" y2="6"></line>
-                        <line x1="12" y1="18" x2="12" y2="22"></line>
-                        <line x1="4.93" y1="4.93" x2="7.76" y2="7.76"></line>
-                        <line x1="16.24" y1="16.24" x2="19.07" y2="19.07"></line>
-                        <line x1="2" y1="12" x2="6" y2="12"></line>
-                        <line x1="18" y1="12" x2="22" y2="12"></line>
-                        <line x1="4.93" y1="19.07" x2="7.76" y2="16.24"></line>
-                        <line x1="16.24" y1="7.76" x2="19.07" y2="4.93"></line>
-                    </svg>
+                <div style={{ fontSize: '1rem', color: 'var(--text-muted)', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
                     {progress.percent}% Completed
                 </div>
               </div>

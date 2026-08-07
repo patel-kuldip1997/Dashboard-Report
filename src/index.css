@@ -906,3 +906,16 @@ select:focus {
   right: 20px;
   opacity: 0.15;
 }
+
+/* Custom SVG Preloader Animation */
+.c-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.c-wrap svg {
+  width: 180px;
+  height: auto;
+}
