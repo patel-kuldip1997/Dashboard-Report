@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { sha256 } from 'js-sha256';
 import { DEFAULT_REPORT_ATTRIBUTES } from '../reportAttributes';
 
 const reportNames = {
@@ -18,14 +19,6 @@ const reportNames = {
 const ADMIN_USERNAME = 'kuldipp@rbi.edu.in';
 // SHA-256 hash for 'Eyecon@123'
 const ADMIN_PASSWORD_HASH = 'd7e2340880afed33eb88dea1857a9328af70cfc7d57ddae66c60010451de883e';
-
-// Utility to hash passwords on the client side using Web Crypto API
-async function sha256(message) {
-    const msgBuffer = new TextEncoder().encode(message);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
 
 const CustomizeReport = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
