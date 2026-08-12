@@ -1596,7 +1596,7 @@ function App() {
         const summaryData = [
           ["Vehicle Assign", gt.vehicleAssigned || 0, "DOS TP Created", gt.dosTpCreated || 0],
           ["Lifted Quantity (MT)", typeof gt.liftedQty === 'number' ? gt.liftedQty.toFixed(2) : (gt.liftedQty || 0), "Manual TP Created", gt.manualTpCreated || 0],
-          ["Total TP Created", gt.tpsGenerated || 0, "EPOD Pending", gt.pendingEpodDriver || 0]
+          ["Total TP Created", gt.tpsGenerated || 0, "EPOD Pending", gt.pendingEpodManager || 0]
         ];
 
         doc.setFontSize(11);
