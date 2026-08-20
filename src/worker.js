@@ -153,6 +153,11 @@ self.onmessage = async (e) => {
            isValid = false;
            expectedColumns = 'TP date, District, Destination Godown, EPOD status, Weighbridge ID';
          }
+       } else if (activeReport === 'penalty-epod') {
+         if (!headers.includes('start_trip') && !headers.includes('start trip')) {
+           isValid = false;
+           expectedColumns = 'Reference Number, Penalty Hours, Start_Trip, end_trip';
+         }
        }
     }
 
@@ -547,6 +552,105 @@ self.onmessage = async (e) => {
     }
 
     jsonData.forEach(row => {
+      if (activeReport === 'penalty-epod') {
+         const refNoStr = String(getVal(row, 'Reference Number') || getVal(row, 'Reference No') || '').trim();
+         const currentDcNo = String(getVal(row, 'DC No.', 'DC No') || '').trim();
+         
+         // If reference number is empty but there's a DC number, it belongs to the previous Reference Number
+         if (refNoStr === '' && currentDcNo !== '') {
+             if (processed.length > 0) {
+                 const prev = processed[processed.length - 1];
+                 if (prev.dcNo) {
+                     prev.dcNo += ', ' + currentDcNo;
+                 } else {
+                     prev.dcNo = currentDcNo;
+                 }
+             }
+             return;
+         }
+         
+         const penaltyHoursRaw = getVal(row, 'Penalty Hours');
+         let penaltyHours = 16;
+         if (penaltyHoursRaw !== undefined && penaltyHoursRaw !== null && penaltyHoursRaw !== '') {
+            penaltyHours = Number(penaltyHoursRaw) || 16;
+         }
+
+         const startTripRaw = getVal(row, 'Start_Trip', 'Start Trip', 'start trip');
+         const endTripRaw = getVal(row, 'end_trip', 'End_Trip', 'End Trip', 'end trip');
+         
+         const formatPenaltyTime = (t) => {
+             if (t === undefined || t === null || t === '') return '';
+             if (typeof t === 'number') {
+                 const parsed = XLSX.SSF.parse_date_code(t);
+                 return `${parsed.y}-${String(parsed.m).padStart(2,'0')}-${String(parsed.d).padStart(2,'0')} ${String(parsed.H).padStart(2,'0')}:${String(parsed.M).padStart(2,'0')}`;
+             }
+             return String(t);
+         };
+
+         const startTripStr = formatPenaltyTime(startTripRaw);
+         const endTripStr = formatPenaltyTime(endTripRaw);
+         
+         let totalTime = '';
+         let finalPenalty = '';
+         
+         if (startTripRaw === '' || endTripRaw === '' || startTripRaw === undefined || endTripRaw === undefined) {
+             totalTime = '';
+             finalPenalty = '';
+         } else if (typeof startTripRaw === 'number' && typeof endTripRaw === 'number') {
+             if (endTripRaw < startTripRaw) {
+                 totalTime = 'Time Error';
+                 finalPenalty = 'Time Error';
+             } else {
+                 const diffDays = endTripRaw - startTripRaw;
+                 const diffHours = diffDays * 24;
+                 totalTime = diffHours;
+                 
+                 if (diffHours > penaltyHours) {
+                     const extraHours = Math.ceil(diffHours - penaltyHours);
+                     finalPenalty = extraHours * 2000;
+                 } else {
+                     finalPenalty = 0;
+                 }
+             }
+         } else {
+            // String parsing logic if they are strings (e.g. DD-MM-YYYY HH:mm)
+            const dStart = new Date(startTripStr);
+            const dEnd = new Date(endTripStr);
+            if (!isNaN(dStart.getTime()) && !isNaN(dEnd.getTime())) {
+                if (dEnd < dStart) {
+                   totalTime = 'Time Error';
+                   finalPenalty = 'Time Error';
+                } else {
+                   const diffHours = (dEnd.getTime() - dStart.getTime()) / (1000 * 60 * 60);
+                   totalTime = diffHours;
+                   if (diffHours > penaltyHours) {
+                       const extraHours = Math.ceil(diffHours - penaltyHours);
+                       finalPenalty = extraHours * 2000;
+                   } else {
+                       finalPenalty = 0;
+                   }
+                }
+            } else {
+                totalTime = 'Data Error';
+                finalPenalty = 'Data Error';
+            }
+         }
+
+         processed.push({ ...extractDynamicColumns(row),
+           refNo: refNoStr,
+           penaltyHours: penaltyHours,
+           startTripStr: startTripStr,
+           endTripStr: endTripStr,
+           dcNo: currentDcNo,
+           totalTime: totalTime,
+           finalPenalty: finalPenalty,
+           isSubtotal: false,
+           district: 'Penalty Data', // Dummy for sorting/filtering if needed
+           sortKey: refNoStr
+         });
+         return;
+      }
+
       if (activeReport === 'first-mile-epod') {
          const refNoStr = String(getVal(row, 'Reference No') || getVal(row, 'Reference Number') || '');
          if (refNoStr.includes('_cancel')) return;

@@ -3,9 +3,11 @@ import { UploadCloud, FileSpreadsheet, Download, Building2, Truck, FileText, Fil
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import MonthlyOverview from './components/MonthlyOverview';
 import { saveHistoryReport, getHistoryReports, deleteHistoryReport } from './db.js';
 import SmsTemplate from './components/SmsTemplate';
 import CustomizeReport from './components/CustomizeReport';
+import PenaltyDashboard from './components/PenaltyDashboard';
 import { DEFAULT_REPORT_ATTRIBUTES } from './reportAttributes';
 
 const DEFAULT_GM_CONFIG = [
@@ -94,6 +96,17 @@ const DEFAULT_ETA_ROUTE_CONFIG = [
   { id: 'distance', label: 'Google Distance (KM)', visible: true },
   { id: 'vehicleType', label: 'Vehicle Type', visible: true },
   { id: 'tripStatus', label: 'Trip Status', visible: true }
+];
+
+const DEFAULT_PENALTY_EPOD_CONFIG = [
+  { id: 'Reference Number', label: 'Reference Number', visible: true },
+  { id: 'Penalty Hours', label: 'Penalty Hours', visible: true },
+  { id: 'Calculated Penalty', label: 'Calculated Penalty', visible: true },
+  { id: 'Start_Trip', label: 'Start Trip', visible: true },
+  { id: 'end_trip', label: 'End Trip', visible: true },
+  { id: 'DC No.', label: 'DC No.', visible: true },
+  { id: 'Total Time', label: 'Total Time', visible: true },
+  { id: 'Final Penalty', label: 'Final Penalty', visible: true }
 ];
 
 const DEFAULT_WEIGHBRIDGE_CONFIG = [
@@ -460,6 +473,8 @@ function App() {
        setReportTitle("First Mile - Vehicle Assignment Report");
     } else if (activeReport === 'weighbridge-report') {
        setReportTitle("Weighbridge Report");
+    } else if (activeReport === 'penalty-epod') {
+      setReportTitle("Last Mile EPOD Penalty");
     } else if (activeReport === 'sms-template') {
        setReportTitle("SMS Templates");
     } else if (activeReport === 'last-mile-imei') {
@@ -481,6 +496,7 @@ function App() {
     else if (activeReport === 'lifting-report') defaultConf = [...DEFAULT_LIFTING_CONFIG];
     else if (activeReport === 'multi-trip-analysis') defaultConf = [...DEFAULT_MULTI_TRIP_CONFIG];
     else if (activeReport === 'eta-route') defaultConf = [...DEFAULT_ETA_ROUTE_CONFIG];
+    else if (activeReport === 'penalty-epod') defaultConf = [...DEFAULT_PENALTY_EPOD_CONFIG];
     else if (activeReport === 'vehicle-assigned') defaultConf = [...DEFAULT_VEHICLE_ASSIGNED_CONFIG];
     else if (activeReport === 'weighbridge-report') defaultConf = [...DEFAULT_WEIGHBRIDGE_CONFIG];
     
@@ -586,6 +602,8 @@ function App() {
   const [lastMileMenuOpen, setLastMileMenuOpen] = useState(true);
   const [analyticsMenuOpen, setAnalyticsMenuOpen] = useState(true);
   const [templatesMenuOpen, setTemplatesMenuOpen] = useState(true);
+  const [penaltyMenuOpen, setPenaltyMenuOpen] = useState(true);
+
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 1024);
 
   useEffect(() => {
@@ -1024,7 +1042,7 @@ function App() {
        return filtered;
     }
 
-    if (activeReport === 'eta-route') {
+    if (activeReport === 'eta-route' || activeReport === 'penalty-epod') {
        return filtered;
     }
 
@@ -1875,6 +1893,29 @@ function App() {
               </div>
             )}
           </div>
+          
+          {/* Section: Penalty Reports */}
+          <div className="nav-section" style={{ marginTop: '12px' }}>
+            <div 
+              className="nav-section-header" 
+              onClick={() => setPenaltyMenuOpen(!penaltyMenuOpen)}
+            >
+              <span className="nav-section-title">Penalty Reports</span>
+              {penaltyMenuOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            </div>
+            
+            {penaltyMenuOpen && (
+              <div className="nav-submenu">
+                <div 
+                  className={`nav-item ${activeReport === 'penalty-epod' ? 'active' : ''}`}
+                  onClick={() => handleMenuClick('penalty-epod')}
+                >
+                  <AlertCircle className="nav-icon" size={16} />
+                  <span>Last Mile EPOD Penalty</span>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* Section 2 */}
           <div className="nav-section" style={{ marginTop: '12px' }}>
@@ -1988,7 +2029,7 @@ function App() {
           {activeReport === 'customize-report' && <CustomizeReport />}
 
         {/* Render content based on active report */}
-        {(activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown' || activeReport === 'first-mile-epod' || activeReport === 'last-mile-epod' || activeReport === 'last-mile-imei' || activeReport === 'lifting-report' || activeReport === 'multi-trip-analysis' || activeReport === 'eta-route' || activeReport === 'vehicle-assigned' || activeReport === 'last-mile-vehicle-assigned' || activeReport === 'weighbridge-report') && (
+        {(activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown' || activeReport === 'first-mile-epod' || activeReport === 'last-mile-epod' || activeReport === 'last-mile-imei' || activeReport === 'lifting-report' || activeReport === 'multi-trip-analysis' || activeReport === 'eta-route' || activeReport === 'vehicle-assigned' || activeReport === 'last-mile-vehicle-assigned' || activeReport === 'weighbridge-report' || activeReport === 'penalty-epod') && (
           <>
             <div className="page-header">
               <div style={{ flex: 1, maxWidth: '70%' }}>
@@ -2500,6 +2541,8 @@ function App() {
                     <AlertCircle size={48} style={{ opacity: 0.3, margin: '0 auto 16px' }} />
                     <p style={{ fontSize: '1.1rem' }}>No trips found for the selected filter.</p>
                   </div>
+                ) : activeReport === 'penalty-epod' ? (
+                  <PenaltyDashboard data={displayData} />
                 ) : activeReport === 'vehicle-assigned' ? (
                   <div className="table-container" style={{ marginTop: 0 }}>
                     <table>
@@ -2785,13 +2828,9 @@ function App() {
         )}
 
 
-        {/* Placeholder for Monthly Overview */}
+        {/* Monthly Overview Dashboard */}
         {activeReport === 'monthly' && (
-          <div className="coming-soon-container">
-            <FileText className="coming-soon-icon" size={64} />
-            <h2 className="coming-soon-title">Monthly Analytics</h2>
-            <p className="coming-soon-subtitle">Advanced analytics and charts will be available soon.</p>
-          </div>
+          <MonthlyOverview reportData={reportData} />
         )}
 
         {/* History View */}
