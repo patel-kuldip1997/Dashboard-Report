@@ -1203,9 +1203,12 @@ function App() {
          numericColumns.forEach(metric => pivotGroups[groupKey][metric] = 0);
       }
       
-      distRows.forEach(row => {
+      distRows.forEach((row, idx) => {
         const getVal = (key) => key === 'refNo' ? (row._ref || row.refNo || '') : (row[key] || '');
-        const groupKey = pivotKeys.map(key => getVal(key)).join('|||');
+        let groupKey = pivotKeys.map(key => getVal(key)).join('|||');
+        if (activeReport === 'last-mile-commodity') {
+            groupKey += '|||' + idx;
+        }
         
         if (!pivotGroups[groupKey]) {
           pivotGroups[groupKey] = {
