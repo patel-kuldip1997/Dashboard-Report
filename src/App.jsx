@@ -465,6 +465,7 @@ function App() {
   const [wbIdFilter, setWbIdFilter] = useState(null);
   const [remarksFilter, setRemarksFilter] = useState(null);
   const [imeiStatusFilter, setImeiStatusFilter] = useState(null);
+  const [districtFilter, setDistrictFilter] = useState(null);
   const [globalSearchTerm, setGlobalSearchTerm] = useState('');
   
   // Pagination State
@@ -943,9 +944,9 @@ function App() {
   };
 
   // Extract unique filter options for Last Mile EPOD, Lifting Report, and Multi-Trip
-  const { uniqueDcMonths, uniqueDcDates, uniqueEpodStatuses, uniqueTpDates, uniqueRemarks, uniqueWbIds, uniqueImeiStatuses } = useMemo(() => {
+  const { uniqueDcMonths, uniqueDcDates, uniqueEpodStatuses, uniqueTpDates, uniqueRemarks, uniqueWbIds, uniqueImeiStatuses, uniqueDistricts } = useMemo(() => {
     if (rawData.length === 0) {
-        return { uniqueDcMonths: [], uniqueDcDates: [], uniqueEpodStatuses: [], uniqueTpDates: [], uniqueRemarks: [], uniqueWbIds: [], uniqueImeiStatuses: [] };
+        return { uniqueDcMonths: [], uniqueDcDates: [], uniqueEpodStatuses: [], uniqueTpDates: [], uniqueRemarks: [], uniqueWbIds: [], uniqueImeiStatuses: [], uniqueDistricts: [] };
     }
     const months = new Set();
     const dates = new Set();
@@ -954,6 +955,7 @@ function App() {
     const remarks = new Set();
     const wbIds = new Set();
     const imeiStatuses = new Set();
+    const districts = new Set();
     rawData.forEach(r => {
       if (r.dcMonth) months.add(r.dcMonth);
       if (r.dcCreationDate) dates.add(r.dcCreationDate);
@@ -963,6 +965,7 @@ function App() {
       if (r.remarks && r.isSubtotal) remarks.add(r.remarks);
       if (r.weighbridgeId) wbIds.add(r.weighbridgeId);
       if (r.imeiStatus) imeiStatuses.add(r.imeiStatus);
+      if (r.district) districts.add(r.district);
     });
     return {
       uniqueDcMonths: Array.from(months).sort(),
@@ -971,7 +974,8 @@ function App() {
       uniqueTpDates: Array.from(tpDates).sort(),
       uniqueRemarks: Array.from(remarks).sort(),
       uniqueWbIds: Array.from(wbIds).sort(),
-      uniqueImeiStatuses: Array.from(imeiStatuses).sort()
+      uniqueImeiStatuses: Array.from(imeiStatuses).sort(),
+      uniqueDistricts: Array.from(districts).sort()
     };
   }, [rawData, activeReport]);
 
@@ -988,6 +992,10 @@ function App() {
             String(val).toLowerCase().includes(lowerSearch)
          )
       );
+    }
+    
+    if (districtFilter && districtFilter.length > 0) {
+       filtered = filtered.filter(row => districtFilter.includes(row.district));
     }
     
     if (activeReport === 'weighbridge-report') {
@@ -1379,9 +1387,8 @@ function App() {
       
       groupedData.push(grandTotalRow);
     }
-
     return groupedData;
-  }, [rawData, filterStatus, activeReport, dcMonthFilter, dcDateFilter, epodStatusFilter, visibleColumns, globalSearchTerm, tpDateFilter, wbIdFilter, remarksFilter, imeiStatusFilter]);
+  }, [rawData, filterStatus, activeReport, dcMonthFilter, dcDateFilter, epodStatusFilter, visibleColumns, globalSearchTerm, tpDateFilter, wbIdFilter, remarksFilter, imeiStatusFilter, districtFilter]);
 
   // Reset pagination when data or filters change
   useEffect(() => {
@@ -1463,26 +1470,39 @@ function App() {
     const mergeCols = ['district', 'refNo', 'lrNo', 'transporterName', 'fpsAreaId', 'fpsId', 'fpsName', 'distance', 'tripCount'];
     const mergeColIndices = mergeCols.map(id => visibleColumns.findIndex(c => c.id === id)).filter(idx => idx !== -1);
     
+    // Filter out all subtotal and grand total rows from the export
+    const rawExportData = displayData.filter(row => !row.isSubtotal);
+    
+    const parseIfNumber = (val) => {
+        if (typeof val === 'number') return val;
+        if (typeof val !== 'string') return val;
+        const trimmed = val.trim();
+        if (trimmed === '') return val;
+        const num = Number(trimmed);
+        if (!isNaN(num) && String(num) === trimmed) return num;
+        return val;
+    };
+    
     let i = 0;
-    while (i < displayData.length) {
-      const row = displayData[i];
+    while (i < rawExportData.length) {
+      const row = rawExportData[i];
       const rowData = {};
       visibleColumns.forEach(col => {
-         rowData[col.label] = row[col.id] !== undefined ? row[col.id] : '';
+         rowData[col.label] = row[col.id] !== undefined ? parseIfNumber(row[col.id]) : '';
       });
       exportData.push(rowData);
       
-      if (activeReport === 'last-mile-commodity' && !row.isSubtotal && row.refNo) {
+      if (activeReport === 'last-mile-commodity' && row.refNo) {
           let count = 1;
-          while (i + count < displayData.length && !displayData[i+count].isSubtotal && displayData[i+count].refNo === row.refNo) {
-              const subRow = displayData[i+count];
+          while (i + count < rawExportData.length && rawExportData[i+count].refNo === row.refNo) {
+              const subRow = rawExportData[i+count];
               const subRowData = {};
               visibleColumns.forEach((col, colIdx) => {
                  // For merged columns, leave them blank in the exported JSON to prevent Excel warnings
                  if (mergeColIndices.includes(colIdx)) {
                      subRowData[col.label] = '';
                  } else {
-                     subRowData[col.label] = subRow[col.id] !== undefined ? subRow[col.id] : '';
+                     subRowData[col.label] = subRow[col.id] !== undefined ? parseIfNumber(subRow[col.id]) : '';
                  }
               });
               exportData.push(subRowData);
@@ -1491,7 +1511,6 @@ function App() {
           
           if (count > 1) {
               const startR = i + 1; // +1 for header row
-              const endR = i + count; // Excel merge end is inclusive of the index but 0-indexed. Wait, endR should be startR + count - 1.
               mergeColIndices.forEach(c => {
                   merges.push({ s: { r: startR, c: c }, e: { r: startR + count - 1, c: c } });
               });
@@ -1529,6 +1548,9 @@ function App() {
        colWidths[i] = { wch: Math.min(maxLen + 2, 50) };
     });
     wsRaw['!cols'] = colWidths;
+    if (wsRaw['!ref']) {
+        wsRaw['!autofilter'] = { ref: wsRaw['!ref'] };
+    }
 
     XLSX.utils.book_append_sheet(wb, wsRaw, "Raw Data");
 
@@ -1602,8 +1624,14 @@ function App() {
 
     const tableRows = [];
     const maxLifted = activeReport === 'lifting-report' ? Math.max(...displayData.filter(r => !r.isSubtotal).map(r => r.liftedQty || 0), 1) : 1;
+    
+    const pdfData = activeReport === 'last-mile-commodity' ? displayData.filter(row => !row.isSubtotal) : displayData;
+    const mergeCols = ['district', 'refNo', 'lrNo', 'transporterName', 'fpsAreaId', 'fpsId', 'fpsName', 'distance', 'tripCount'];
+    const mergeColIndices = mergeCols.map(id => visibleColumns.findIndex(c => c.id === id)).filter(idx => idx !== -1);
 
-    displayData.forEach(row => {
+    let i = 0;
+    while (i < pdfData.length) {
+      const row = pdfData[i];
       if (row.isSubtotal) {
         let fillColor = row.isGrandTotal ? [252, 213, 180] : [217, 217, 217];
           if (activeReport === 'weighbridge-report' && row.isGrandTotal) {
@@ -1630,8 +1658,8 @@ function App() {
               });
            }
            
-           for (let i = firstNumericIndex; i < visibleColumns.length; i++) {
-             const col = visibleColumns[i];
+           for (let j = firstNumericIndex; j < visibleColumns.length; j++) {
+             const col = visibleColumns[j];
              if (subtotalCols.includes(col.id)) {
                subtotalContent.push({ 
                  content: row[col.id] !== undefined ? String(row[col.id]) : '', 
@@ -1647,25 +1675,53 @@ function App() {
         }
         
         tableRows.push(subtotalContent);
+        i++;
       } else {
-        const rowData = visibleColumns.map(col => {
-          let val = row[col.id];
-          if (val === undefined || val === null) return '';
-          if (col.id === 'liftedQty' && typeof val === 'number') {
-            const ratio = val / maxLifted;
-            const r = Math.round(248 + (99 - 248) * ratio);
-            const g = Math.round(105 + (190 - 105) * ratio);
-            const b = Math.round(107 + (123 - 107) * ratio);
-            return {
-               content: val.toFixed(2),
-               styles: { fillColor: [r, g, b], textColor: [0, 0, 0], halign: 'center' }
-            };
-          }
-          return String(val);
-        });
-        tableRows.push(rowData);
+        if (activeReport === 'last-mile-commodity' && row.refNo) {
+            let count = 1;
+            while (i + count < pdfData.length && pdfData[i+count].refNo === row.refNo) {
+                count++;
+            }
+            
+            const rowData = visibleColumns.map(col => {
+                let val = row[col.id];
+                if (val === undefined || val === null) return '';
+                return String(val);
+            });
+            tableRows.push(rowData);
+            
+            for (let j = 1; j < count; j++) {
+                const subRow = pdfData[i + j];
+                const subRowData = visibleColumns.map((col, colIdx) => {
+                    if (mergeColIndices.includes(colIdx)) return '';
+                    let val = subRow[col.id];
+                    if (val === undefined || val === null) return '';
+                    return String(val);
+                });
+                tableRows.push(subRowData);
+            }
+            i += count;
+        } else {
+            const rowData = visibleColumns.map(col => {
+              let val = row[col.id];
+              if (val === undefined || val === null) return '';
+              if (col.id === 'liftedQty' && typeof val === 'number') {
+                const ratio = val / maxLifted;
+                const r = Math.round(248 + (99 - 248) * ratio);
+                const g = Math.round(105 + (190 - 105) * ratio);
+                const b = Math.round(107 + (123 - 107) * ratio);
+                return {
+                   content: val.toFixed(2),
+                   styles: { fillColor: [r, g, b], textColor: [0, 0, 0], halign: 'center' }
+                };
+              }
+              return String(val);
+            });
+            tableRows.push(rowData);
+            i++;
+        }
       }
-    });
+    }
 
     const columnStyles = {};
     const numericColsList = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', 'vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager', 'epodStatus', 'weighbridgeUsed', 'hrs', 'tripCount', 'netWeight'];
@@ -2598,6 +2654,13 @@ function App() {
                             />
                         )}
                       </>
+                    ) : activeReport === 'last-mile-commodity' ? (
+                      <MultiSelectDropdown 
+                          placeholder="District" 
+                          options={uniqueDistricts} 
+                          selected={districtFilter} 
+                          onChange={setDistrictFilter} 
+                      />
                     ) : (activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown') ? (
                       <select 
                         className="btn-secondary" 
