@@ -91,5 +91,31 @@ export const DEFAULT_REPORT_ATTRIBUTES = {
     'Destination_Lng': ['Destination_Lng', 'Destination Lng'],
     'Destination_Lat_Destination_Lng': ['Destination_Lat_Destination_Lng', 'Destination Lat Destination Lng'],
     'Actual_Time_Mins': ['Actual_Time_Mins', 'Transit Time(hh:mm)', 'Transit Time']
+  },
+  'penalty-epod': {
+    'Reference Number': ['Reference Number', 'Reference No', 'Ref No', 'DC No'],
+    'Penalty Hours': ['Penalty Hours', 'Penalty_Hours'],
+    'Start_Trip': ['Start_Trip', 'Start Trip', 'Start Trip Time', 'time_of_start_trip'],
+    'end_trip': ['end_trip', 'End Trip', 'End_Trip', 'Time of Delivery']
+  },
+  'last-mile-commodity': {
+    'Reference Number': ['Reference Number', 'Reference No', 'Ref No'],
+    'LR Number': ['LR Number', 'LR No', 'LR No.'],
+    'District': ['District', 'DISTRICT', 'district'],
+    'FPS Area ID': ['FPS Area ID', 'FPS AREA ID', 'fps area id'],
+    'FPS id': ['FPS id', 'FPS ID', 'fps id'],
+    'FPS Name': ['FPS Name', 'FPS NAME', 'fps name'],
+    'Commodity': ['Commodity', 'Commodity Name', 'COMMODITY', 'ItemDesc'],
+    'Quantity': ['Quantity', 'Qty', 'BilledQty', 'Net Weight'],
+    'Transporter Name': ['Transporter Name', 'Transporter', 'transporter name'],
+    'Scheme key/Name': ['Scheme key/Name', 'Scheme key', 'Scheme Name'],
+    'Scheme name': ['Scheme name', 'Scheme Name'],
+    'Scheme Master ID': ['Scheme Master ID', 'Scheme Master Id'],
+    'Issue Id': ['Issue Id', 'Issue ID'],
+    'Scheme Master Name': ['Scheme Master Name'],
+    'Issue Date': ['Issue Date'],
+    'Commodity ID/Name': ['Commodity ID/Name'],
+    'No. of Bags/ Tin/Carton/Pouch': ['No. of Bags/ Tin/Carton/Pouch', 'No. of Bags'],
+    'Bag/Tin/Carton/Pouch weight (in Kg)': ['Bag/Tin/Carton/Pouch weight (in Kg)', 'Bag weight']
   }
 };

@@ -56,23 +56,37 @@ self.onmessage = async (e) => {
     });
     
     self.postMessage({ type: 'progress', percent: 40, message: 'Extracting Data...' });
-    const wsname = wb.SheetNames[0];
-    const ws = wb.Sheets[wsname];
     
-    const allRows = XLSX.utils.sheet_to_json(ws, { header: 1 });
-    let headersRaw = [];
-    let headerRowIndex = 0;
-    for (let i = 0; i < allRows.length; i++) {
-        const rowData = allRows[i] || [];
-        // Check if row has at least 3 valid string headers (to avoid picking up random empty/merged formatting rows)
-        const validHeaders = rowData.filter(cell => cell && String(cell).trim().length > 0);
-        if (validHeaders.length >= 3) {
-            headersRaw = rowData;
-            headerRowIndex = i;
-            break;
+    let allJsonDataRaw = [];
+    let firstHeadersRaw = [];
+    let totalRowsCount = 0;
+
+    wb.SheetNames.forEach((wsname, idx) => {
+        const ws = wb.Sheets[wsname];
+        const allRows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+        if (allRows.length === 0) return;
+        
+        let headersRaw = [];
+        let headerRowIndex = 0;
+        for (let i = 0; i < allRows.length; i++) {
+            const rowData = allRows[i] || [];
+            // Check if row has at least 3 valid string headers
+            const validHeaders = rowData.filter(cell => cell && String(cell).trim().length > 0);
+            if (validHeaders.length >= 3) {
+                headersRaw = rowData;
+                headerRowIndex = i;
+                break;
+            }
         }
-    }
-    const headers = headersRaw.map(h => String(h).trim().toLowerCase());
+        
+        if (idx === 0) firstHeadersRaw = headersRaw;
+        
+        const jsonDataRaw = XLSX.utils.sheet_to_json(ws, { range: headerRowIndex });
+        allJsonDataRaw = allJsonDataRaw.concat(jsonDataRaw);
+        totalRowsCount += allRows.length;
+    });
+
+    const headers = firstHeadersRaw.map(h => String(h).trim().toLowerCase());
     let isValid = true;
     let expectedColumns = '';
 
@@ -90,10 +104,6 @@ self.onmessage = async (e) => {
             }
         } else {
             // Strict check: At least ONE standard attribute must have a matching header (very loose check matching original loose logic)
-            // Original logic only checked if specific headers were missing. To match the behavior, we will check if ANY of the required attributes are missing.
-            // Wait, original logic: if (!headers.includes('tp district') && !headers.includes('lifting location name')) isValid = false;
-            // It means if BOTH are missing, it's invalid.
-            // A dynamic strict check: check if the file is completely irrelevant by ensuring at least some required headers exist.
             let matchCount = 0;
             for (const attr of requiredAttributes) {
                 const aliases = getAliases(attr);
@@ -148,6 +158,11 @@ self.onmessage = async (e) => {
            isValid = false;
            expectedColumns = 'Reference Number, LR Number';
          }
+       } else if (activeReport === 'multi-trip-analysis') {
+         if (!headers.includes('vehicle number') && !headers.includes('vehicle no')) {
+           isValid = false;
+           expectedColumns = 'Vehicle Number';
+         }
        } else if (activeReport === 'weighbridge-report') {
          if (!headers.includes('weighbridge id') && !headers.includes('weighbridge_id')) {
            isValid = false;
@@ -166,7 +181,7 @@ self.onmessage = async (e) => {
       return;
     }
 
-    self.postMessage({ type: 'progress', percent: 60, message: 'Processing ' + allRows.length + ' rows...' });
+    self.postMessage({ type: 'progress', percent: 60, message: 'Processing ' + totalRowsCount + ' rows...' });
     
     const processed = [];
     const uniqueDcMonths = new Set();
@@ -174,8 +189,8 @@ self.onmessage = async (e) => {
     const uniqueEpodStatuses = new Set();
     const uniqueImeiStatuses = new Set();
 
-    // Parse the JSON data starting from the actual header row
-    const jsonDataRaw = XLSX.utils.sheet_to_json(ws, { range: headerRowIndex });
+    // Use the combined data from all sheets
+    const jsonDataRaw = allJsonDataRaw;
     
     // Helper to get value case-insensitively and trim keys
     // Helper to get value using custom resolved aliases
@@ -213,6 +228,7 @@ self.onmessage = async (e) => {
     
     // Parse tracking data if provided
     let trackingMap = null;
+    let distanceMap = null;
     if (trackingData) {
       try {
          const wbTrack = XLSX.read(trackingData, { type: 'array' });
@@ -221,12 +237,20 @@ self.onmessage = async (e) => {
          const trackingJson = XLSX.utils.sheet_to_json(wsTrack);
          
          trackingMap = {};
+         distanceMap = {};
          trackingJson.forEach(row => {
             const refNo = String(getVal(row, 'Reference Number') || getVal(row, 'Reference No') || getVal(row, 'Ref No') || '').trim();
             if (refNo) {
                const rowValues = Object.values(row).map(v => String(v).toLowerCase());
                const isUntrack = rowValues.some(v => v.includes('untrack') || v === 'untracked');
                trackingMap[refNo] = isUntrack ? 'untracked' : 'tracked';
+            }
+            if (activeReport === 'last-mile-commodity') {
+               const invoiceNo = String(getVal(row, 'Invoice No.') || row['Invoice No.'] || row['Invoice No'] || '').trim();
+               const distRaw = getVal(row, 'Distance(Km)') || row['Distance(Km)'] || row['Distance (Km)'];
+               if (invoiceNo && distRaw !== undefined) {
+                  distanceMap[invoiceNo] = Number(distRaw) || 0;
+               }
             }
          });
       } catch (err) {
@@ -266,7 +290,7 @@ self.onmessage = async (e) => {
             tpDate = tpDate.split(' ')[0];
         }
 
-        processed.push({ ...extractDynamicColumns(row),
+        processed.push({ ...row, ...extractDynamicColumns(row),
            district: dist,
            tpDate: tpDate,
            vehicleAssignedRaw: veh,
@@ -351,7 +375,7 @@ self.onmessage = async (e) => {
                
                group.forEach((row, idx) => {
                    totalQty += row.qty;
-                   processed.push({ ...extractDynamicColumns(row),
+                   processed.push({ ...row,
                        district: row.district,
                        tpDate: idx === 0 ? row.tpDate : '',
                        hrs: row.hrs,
@@ -369,7 +393,7 @@ self.onmessage = async (e) => {
                
                const remarks = totalQty > 35 ? "Greater than 35" : "Less than or equal to 35";
                
-               processed.push({ ...extractDynamicColumns(row),
+               processed.push({ ...group[0],
                    district: group[0].district,
                    tpDate: group[0].tpDate + ' Total',
                    hrs: '',
@@ -533,7 +557,7 @@ self.onmessage = async (e) => {
                }
            }
            
-            processed.push({ ...extractDynamicColumns(row),
+            processed.push({ ...row, ...extractDynamicColumns(row),
                 routeCode: r.routeCode,
                 origin: r.orig,
                 destination: r.dest,
@@ -636,7 +660,7 @@ self.onmessage = async (e) => {
             }
          }
 
-         processed.push({ ...extractDynamicColumns(row),
+         processed.push({ ...row, ...extractDynamicColumns(row),
            refNo: refNoStr,
            penaltyHours: penaltyHours,
            startTripStr: startTripStr,
@@ -659,7 +683,7 @@ self.onmessage = async (e) => {
          
          if (getVal(row, 'EPOD Date') !== undefined && getVal(row, 'EPOD Date') !== null && String(getVal(row, 'EPOD Date')).trim() !== '') return;
 
-         processed.push({ ...extractDynamicColumns(row),
+         processed.push({ ...row, ...extractDynamicColumns(row),
            district: getVal(row, 'District') || '',
            destLoc: getVal(row, 'Destination Godown') || '',
            transporter: getVal(row, 'Transporter Name') || '',
@@ -690,7 +714,7 @@ self.onmessage = async (e) => {
          if (dcDate) uniqueDcDates.add(dcDate);
          uniqueEpodStatuses.add(statusRaw);
 
-         processed.push({ ...extractDynamicColumns(row),
+         processed.push({ ...row, ...extractDynamicColumns(row),
            district: getVal(row, 'District') || '',
            godown: getVal(row, 'GSCSCL Godown') || '',
            transporter: getVal(row, 'Transporter Name') || '',
@@ -700,6 +724,43 @@ self.onmessage = async (e) => {
            dcMonth: dcMonth,
            dcCreationDate: dcDate,
            epodStatusRaw: statusRaw
+         });
+         return;
+      }
+      
+      if (activeReport === 'last-mile-commodity') {
+         const district = String(getVal(row, 'District') || '').trim();
+         const refNo = String(getVal(row, 'Reference Number') || '').trim();
+         
+         if (!district && !refNo) return; // Skip empty rows
+
+         const lrNo = String(getVal(row, 'LR Number') || '').trim();
+         const fpsAreaId = String(getVal(row, 'FPS Area ID') || '').trim();
+         const fpsId = String(getVal(row, 'FPS id') || '').trim();
+         const fpsName = String(getVal(row, 'FPS Name') || '').trim();
+         const transporterName = String(getVal(row, 'Transporter Name') || '').trim();
+         const commodity = String(getVal(row, 'Commodity') || '').trim();
+         
+         const qtyRaw = getVal(row, 'Quantity') || 0;
+         const qty = Number(qtyRaw) || 0;
+         
+         let distance = 0;
+         if (distanceMap && lrNo && distanceMap[lrNo] !== undefined) {
+             distance = distanceMap[lrNo];
+         }
+
+         processed.push({ ...row, ...extractDynamicColumns(row),
+           district: district,
+           refNo: refNo,
+           lrNo: lrNo,
+           fpsAreaId: fpsAreaId,
+           fpsId: fpsId,
+           fpsName: fpsName,
+           transporterName: transporterName,
+           commodity: commodity,
+           quantity: qty,
+           tripCount: refNo ? 1 : 0,
+           distance: distance
          });
          return;
       }
@@ -749,7 +810,7 @@ self.onmessage = async (e) => {
          
          uniqueImeiStatuses.add(imeiStatus);
          
-         processed.push({ ...extractDynamicColumns(row),
+         processed.push({ ...row, ...extractDynamicColumns(row),
             district,
             godown: getVal(row, 'GSCSCL Godown', 'Godown') || '',
             transporter: getVal(row, 'Transporter Name', 'Transporter', 'DSD Transporter Name') || '',
@@ -815,7 +876,7 @@ self.onmessage = async (e) => {
             }
          }
 
-         processed.push({ ...extractDynamicColumns(row),
+         processed.push({ ...row, ...extractDynamicColumns(row),
             tpDate: tpDate,
             district: district,
             destGodown: destGodown,
@@ -835,7 +896,7 @@ self.onmessage = async (e) => {
          const tpDate = formatExcelDate(getVal(row, 'TP date') || getVal(row, 'TP Date') || getVal(row, 'tp date'));
          if (!district || !tpDate) return;
 
-         processed.push({ ...extractDynamicColumns(row),
+         processed.push({ ...row, ...extractDynamicColumns(row),
             refNo: refNoStr,
             district: district,
             tpDate: tpDate,
@@ -864,7 +925,7 @@ self.onmessage = async (e) => {
          let epodStatus = getVal(row, 'EPOD Status') || '(Blanks)';
          if (epodStatus) uniqueEpodStatuses.add(epodStatus);
 
-         processed.push({ ...extractDynamicColumns(row),
+         processed.push({ ...row, ...extractDynamicColumns(row),
             refNo: refNoStr,
             dcCreationDate: formatExcelDate(getVal(row, 'DC Creation Date') || ''),
             createdAt: getVal(row, 'Created At') || '',
@@ -942,7 +1003,7 @@ self.onmessage = async (e) => {
          status = 'Completed';
       }
 
-      processed.push({ ...extractDynamicColumns(row),
+      processed.push({ ...row, ...extractDynamicColumns(row),
         district,
         sourceLoc,
         destLoc,

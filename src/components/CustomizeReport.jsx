@@ -13,7 +13,9 @@ const reportNames = {
   'last-mile-vehicle-assigned': 'Last Mile Vehicle Assigned',
   'last-mile-imei': 'Last Mile IMEI',
   'multi-trip-analysis': 'Multi Trip Analysis',
-  'weighbridge-report': 'Weighbridge Report'
+  'weighbridge-report': 'Weighbridge Report',
+  'penalty-epod': 'Last Mile EPOD Penalty',
+  'last-mile-commodity': 'Last Mile Commodity Wise'
 };
 
 // The expected username for admin access

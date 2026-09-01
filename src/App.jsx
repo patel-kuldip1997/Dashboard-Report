@@ -46,6 +46,27 @@ const DEFAULT_MG_CONFIG = [
   { id: 'trips', label: 'Total Trips', visible: true }
 ];
 
+const DEFAULT_LAST_MILE_COMMODITY_CONFIG = [
+  { id: 'district', label: 'District', visible: true },
+  { id: 'refNo', label: 'Reference Number', visible: true },
+  { id: 'lrNo', label: 'LR Number', visible: true },
+  { id: 'transporterName', label: 'Transporter Name', visible: true },
+  { id: 'fpsAreaId', label: 'FPS Area ID', visible: true },
+  { id: 'fpsId', label: 'FPS id', visible: true },
+  { id: 'fpsName', label: 'FPS Name', visible: true },
+  { id: 'Scheme key/Name', label: 'Scheme key/Name', visible: true },
+  { id: 'Scheme name', label: 'Scheme name', visible: true },
+  { id: 'Scheme Master ID', label: 'Scheme Master ID', visible: true },
+  { id: 'Scheme Master Name', label: 'Scheme Master Name', visible: true },
+  { id: 'Issue Id', label: 'Issue Id', visible: true },
+  { id: 'Issue Date', label: 'Issue Date', visible: true },
+  { id: 'Commodity ID/Name', label: 'Commodity ID/Name', visible: true },
+  { id: 'Commodity Name', label: 'Commodity Name', visible: true },
+  { id: 'No. of Bags/ Tin/Carton/Pouch', label: 'No. of Bags/ Tin/Carton/Pouch', visible: true },
+  { id: 'Bag/Tin/Carton/Pouch weight (in Kg)', label: 'Bag/Tin/Carton/Pouch weight (in Kg)', visible: true },
+  { id: 'distance', label: 'Distance(Km)', visible: true }
+];
+
 const DEFAULT_LAST_MILE_EPOD_CONFIG = [
   { id: 'district', label: 'District', visible: true },
   { id: 'godown', label: 'GSCSCL Godown', visible: true },
@@ -481,6 +502,8 @@ function App() {
        setReportTitle("Last Mile IMEI Report");
     } else if (activeReport === 'last-mile-vehicle-assigned') {
        setReportTitle("Last Mile Vehicle Assigned");
+    } else if (activeReport === 'last-mile-commodity') {
+       setReportTitle("Last Mile Commodity Wise Report");
     } else {
        setReportTitle("Godown to Miller Trips");
     }
@@ -492,6 +515,7 @@ function App() {
     else if (activeReport === 'last-mile-epod') defaultConf = [...DEFAULT_LAST_MILE_EPOD_CONFIG];
     else if (activeReport === 'last-mile-vehicle-assigned') defaultConf = [...DEFAULT_LAST_MILE_VEHICLE_ASSIGNED_CONFIG];
     else if (activeReport === 'last-mile-imei') defaultConf = [...DEFAULT_LAST_MILE_IMEI_CONFIG];
+    else if (activeReport === 'last-mile-commodity') defaultConf = [...DEFAULT_LAST_MILE_COMMODITY_CONFIG];
     else if (activeReport === 'miller-to-godown') defaultConf = [...DEFAULT_MG_CONFIG];
     else if (activeReport === 'lifting-report') defaultConf = [...DEFAULT_LIFTING_CONFIG];
     else if (activeReport === 'multi-trip-analysis') defaultConf = [...DEFAULT_MULTI_TRIP_CONFIG];
@@ -758,13 +782,28 @@ function App() {
       };
 
       // Parse custom attributes to pass to worker
-      let customAttrs = DEFAULT_REPORT_ATTRIBUTES;
+      let customAttrs = JSON.parse(JSON.stringify(DEFAULT_REPORT_ATTRIBUTES));
       try {
         const saved = localStorage.getItem('customReportAttributes_v3');
         if (saved) {
-           customAttrs = JSON.parse(saved);
+           const parsed = JSON.parse(saved);
+           // Merge saved custom attributes with default structure to ensure new standard attributes aren't lost
+           for (const reportKey in DEFAULT_REPORT_ATTRIBUTES) {
+               if (!parsed[reportKey]) {
+                   parsed[reportKey] = { ...DEFAULT_REPORT_ATTRIBUTES[reportKey] };
+               } else {
+                   for (const attrKey in DEFAULT_REPORT_ATTRIBUTES[reportKey]) {
+                       if (!parsed[reportKey][attrKey]) {
+                           parsed[reportKey][attrKey] = [...DEFAULT_REPORT_ATTRIBUTES[reportKey][attrKey]];
+                       }
+                   }
+               }
+           }
+           customAttrs = parsed;
         }
-      } catch(e) {}
+      } catch(e) {
+         console.error('Failed to parse custom attributes in App.jsx', e);
+      }
 
       worker.postMessage({ data: mainBuffer, trackingData: trackBuffer, activeReport, customAttributes: customAttrs });
     }).catch(err => {
@@ -1114,13 +1153,32 @@ function App() {
     let gtTotalTrips = 0, gtMatched = 0, gtMismatched = 0, gtMissing = 0;
     
     const liftingNumerics = ['vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager'];
+    const baseNumericColumns = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', 'totalTrips', 'matched', 'mismatched', 'missing', 'quantity', 'No. of Bags/ Tin/Carton/Pouch', 'Bag/Tin/Carton/Pouch weight (in Kg)', 'distance', ...liftingNumerics];
+    
+    // Auto-detect numeric custom columns
+    visibleColumns.forEach(col => {
+        if (col.isCustom && !baseNumericColumns.includes(col.id)) {
+            let numCount = 0;
+            let totalCount = 0;
+            for(let i=0; i<Math.min(rawData.length, 100); i++) {
+                const val = rawData[i][col.id];
+                if (val !== undefined && val !== '') {
+                    totalCount++;
+                    if (!isNaN(Number(val))) numCount++;
+                }
+            }
+            if (totalCount > 0 && (numCount / totalCount) > 0.8) {
+                baseNumericColumns.push(col.id);
+            }
+        }
+    });
 
     Object.keys(distGroups).sort().forEach(dist => {
       const distRows = distGroups[dist];
       
       // Pivot Table Style Grouping
       const pivotGroups = {};
-      const numericColumns = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', 'totalTrips', 'matched', 'mismatched', 'missing', ...liftingNumerics];
+      const numericColumns = [...baseNumericColumns];
       const pivotKeys = visibleColumns.filter(c => !numericColumns.includes(c.id)).map(c => c.id);
       
       const distTotals = { trips: 0, deliveryChallan: 0, epodComplete: 0, epodPending: 0, totalTrips: 0, matched: 0, mismatched: 0, missing: 0 };
@@ -1506,7 +1564,7 @@ function App() {
           }
         const fontSize = row.isGrandTotal ? 11 : 9;
         
-        const subtotalCols = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', 'vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager', 'tripCount', 'netWeight', 'remarks', 'epodStatus', 'weighbridgeUsed', 'totalTrips', 'matched', 'mismatched', 'missing'];
+        const subtotalCols = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', 'vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager', 'tripCount', 'netWeight', 'remarks', 'epodStatus', 'weighbridgeUsed', 'totalTrips', 'matched', 'mismatched', 'missing', 'quantity', 'No. of Bags/ Tin/Carton/Pouch', 'Bag/Tin/Carton/Pouch weight (in Kg)', 'distance'];
         const firstNumericIndex = visibleColumns.findIndex(c => subtotalCols.includes(c.id));
         const subtotalContent = [];
 
@@ -1890,6 +1948,13 @@ function App() {
                   <FileText className="nav-icon" size={16} />
                   <span>Last Mile IMEI Report</span>
                 </div>
+                <div 
+                  className={`nav-item ${activeReport === 'last-mile-commodity' ? 'active' : ''}`}
+                  onClick={() => handleMenuClick('last-mile-commodity')}
+                >
+                  <FileText className="nav-icon" size={16} />
+                  <span>Last Mile Commodity Wise</span>
+                </div>
               </div>
             )}
           </div>
@@ -2029,7 +2094,7 @@ function App() {
           {activeReport === 'customize-report' && <CustomizeReport />}
 
         {/* Render content based on active report */}
-        {(activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown' || activeReport === 'first-mile-epod' || activeReport === 'last-mile-epod' || activeReport === 'last-mile-imei' || activeReport === 'lifting-report' || activeReport === 'multi-trip-analysis' || activeReport === 'eta-route' || activeReport === 'vehicle-assigned' || activeReport === 'last-mile-vehicle-assigned' || activeReport === 'weighbridge-report' || activeReport === 'penalty-epod') && (
+        {(activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown' || activeReport === 'first-mile-epod' || activeReport === 'last-mile-epod' || activeReport === 'last-mile-imei' || activeReport === 'lifting-report' || activeReport === 'multi-trip-analysis' || activeReport === 'eta-route' || activeReport === 'vehicle-assigned' || activeReport === 'last-mile-vehicle-assigned' || activeReport === 'weighbridge-report' || activeReport === 'penalty-epod' || activeReport === 'last-mile-commodity') && (
           <>
             <div className="page-header">
               <div style={{ flex: 1, maxWidth: '70%' }}>
@@ -2189,7 +2254,7 @@ function App() {
               </div>
             )}
 
-            {!isLoading && rawData.length === 0 && activeReport !== 'lifting-report' && activeReport !== 'eta-route' && (
+            {!isLoading && rawData.length === 0 && activeReport !== 'lifting-report' && activeReport !== 'eta-route' && activeReport !== 'last-mile-commodity' && (
               <div 
                 className={`upload-area ${isDragging ? 'active' : ''} glass-panel`}
                 onDragOver={handleDragOver}
@@ -2268,7 +2333,7 @@ function App() {
               </div>
             )}
             
-            {!isLoading && rawData.length === 0 && activeReport === 'lifting-report' && (
+            {!isLoading && rawData.length === 0 && (activeReport === 'lifting-report' || activeReport === 'last-mile-commodity') && (
               <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', width: '100%' }}>
                 <div 
                   className="upload-area glass-panel"
@@ -2279,7 +2344,7 @@ function App() {
                   <UploadCloud className="upload-icon" />
                   <h3 className="upload-title">1. Upload Main Data</h3>
                   <p className="upload-subtitle" style={{ color: mainLiftingFile ? '#2ed573' : 'var(--text-muted)' }}>
-                    {mainLiftingFile ? mainLiftingFile.name : "Select FM Report Excel"}
+                    {mainLiftingFile ? mainLiftingFile.name : `Select ${activeReport === 'lifting-report' ? 'FM Report' : 'Main Report'} Excel`}
                   </p>
                 </div>
 
@@ -2290,16 +2355,16 @@ function App() {
                 >
                   <input type="file" ref={trackLiftingRef} onChange={e => setTrackLiftingFile(e.target.files[0])} accept=".xlsx, .xls, .csv" style={{ display: 'none' }} />
                   <UploadCloud className="upload-icon" />
-                  <h3 className="upload-title">2. Upload Tracking Data (Optional)</h3>
+                  <h3 className="upload-title">2. Upload {activeReport === 'last-mile-commodity' ? 'Trip Data (LM_TRIP_DC)' : 'Tracking Data'} (Optional)</h3>
                   <p className="upload-subtitle" style={{ color: trackLiftingFile ? '#2ed573' : 'var(--text-muted)' }}>
-                    {trackLiftingFile ? trackLiftingFile.name : "Select Tracking Data Excel"}
+                    {trackLiftingFile ? trackLiftingFile.name : `Select ${activeReport === 'last-mile-commodity' ? 'LM_TRIP_DC' : 'Tracking Data'} Excel`}
                   </p>
                 </div>
                 
                 {(mainLiftingFile) && (
                    <div style={{ width: '100%', textAlign: 'center', marginTop: '16px' }}>
                       <button className="btn-primary" onClick={handleProcessLiftingFiles} style={{ padding: '14px 40px', fontSize: '1.2rem' }}>
-                        Generate Lifting Report
+                        Generate Report
                       </button>
                    </div>
                 )}
@@ -2660,7 +2725,7 @@ function App() {
                             if (row.isSubtotal) {
                               lastDist = null;
                               lastSource = null;
-                              const subtotalCols = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', 'vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager', 'tripCount', 'netWeight', 'remarks', 'epodStatus', 'weighbridgeUsed', 'totalTrips', 'matched', 'mismatched', 'missing'];
+                              const subtotalCols = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', 'vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager', 'tripCount', 'netWeight', 'remarks', 'epodStatus', 'weighbridgeUsed', 'totalTrips', 'matched', 'mismatched', 'missing', 'quantity', 'No. of Bags/ Tin/Carton/Pouch', 'Bag/Tin/Carton/Pouch weight (in Kg)', 'distance'];
                               const firstNumericIndex = visibleColumns.findIndex(c => subtotalCols.includes(c.id));
                               const colSpanBeforeNum = firstNumericIndex > 0 ? firstNumericIndex : visibleColumns.length;
                               const sizeStyle = row.isGrandTotal ? '1.15rem' : '1.05rem';
@@ -2926,6 +2991,8 @@ function App() {
                     if (activeReport === 'first-mile-epod') defaultConf = DEFAULT_EPOD_CONFIG;
                     else if (activeReport === 'last-mile-epod') defaultConf = DEFAULT_LAST_MILE_EPOD_CONFIG;
                     else if (activeReport === 'last-mile-vehicle-assigned') defaultConf = DEFAULT_LAST_MILE_VEHICLE_ASSIGNED_CONFIG;
+                    else if (activeReport === 'last-mile-imei') defaultConf = DEFAULT_LAST_MILE_IMEI_CONFIG;
+                    else if (activeReport === 'last-mile-commodity') defaultConf = DEFAULT_LAST_MILE_COMMODITY_CONFIG;
                     else if (activeReport === 'miller-to-godown') defaultConf = DEFAULT_MG_CONFIG;
                     else if (activeReport === 'lifting-report') defaultConf = DEFAULT_LIFTING_CONFIG;
                     else if (activeReport === 'multi-trip-analysis') defaultConf = DEFAULT_MULTI_TRIP_CONFIG;
