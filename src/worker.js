@@ -79,10 +79,29 @@ self.onmessage = async (e) => {
             }
         }
         
-        if (idx === 0) firstHeadersRaw = headersRaw;
+        if (idx === 0) {
+            firstHeadersRaw = headersRaw;
+            const jsonDataRaw = XLSX.utils.sheet_to_json(ws, { range: headerRowIndex });
+            allJsonDataRaw = allJsonDataRaw.concat(jsonDataRaw);
+        } else {
+            let isSameHeader = true;
+            for(let i=0; i<Math.max(headersRaw.length, firstHeadersRaw.length); i++) {
+                if (String(headersRaw[i] || '').trim().toLowerCase() !== String(firstHeadersRaw[i] || '').trim().toLowerCase()) {
+                    isSameHeader = false;
+                    break;
+                }
+            }
+            
+            let jsonDataRaw;
+            if (isSameHeader) {
+                jsonDataRaw = XLSX.utils.sheet_to_json(ws, { range: headerRowIndex });
+            } else {
+                // Subsequent sheet does not repeat the header, it's just raw data
+                jsonDataRaw = XLSX.utils.sheet_to_json(ws, { header: firstHeadersRaw, range: 0 });
+            }
+            allJsonDataRaw = allJsonDataRaw.concat(jsonDataRaw);
+        }
         
-        const jsonDataRaw = XLSX.utils.sheet_to_json(ws, { range: headerRowIndex });
-        allJsonDataRaw = allJsonDataRaw.concat(jsonDataRaw);
         totalRowsCount += allRows.length;
     });
 
@@ -575,6 +594,14 @@ self.onmessage = async (e) => {
        return;
     }
 
+    let lmDist = '';
+    let lmRefNo = '';
+    let lmLrNo = '';
+    let lmFpsArea = '';
+    let lmFpsId = '';
+    let lmFpsName = '';
+    let lmTransporter = '';
+
     jsonData.forEach(row => {
       if (activeReport === 'penalty-epod') {
          const refNoStr = String(getVal(row, 'Reference Number') || getVal(row, 'Reference No') || '').trim();
@@ -729,25 +756,53 @@ self.onmessage = async (e) => {
       }
       
       if (activeReport === 'last-mile-commodity') {
-         const district = String(getVal(row, 'District') || '').trim();
-         const refNo = String(getVal(row, 'Reference Number') || '').trim();
+         let district = String(getVal(row, 'District') || '').trim();
+         let refNo = String(getVal(row, 'Reference Number') || '').trim();
          
-         if (!district && !refNo) return; // Skip empty rows
-
-         const lrNo = String(getVal(row, 'LR Number') || '').trim();
-         const fpsAreaId = String(getVal(row, 'FPS Area ID') || '').trim();
-         const fpsId = String(getVal(row, 'FPS id') || '').trim();
-         const fpsName = String(getVal(row, 'FPS Name') || '').trim();
-         const transporterName = String(getVal(row, 'Transporter Name') || '').trim();
          const commodity = String(getVal(row, 'Commodity') || '').trim();
+         const schemeName = String(getVal(row, 'Scheme name') || getVal(row, 'Scheme Name') || getVal(row, 'Scheme key/Name') || '').trim();
+         
+         // If a row is completely blank in standard fields, skip it
+         if (!district && !refNo && !commodity && !schemeName) {
+             return; 
+         }
+         
+         const isFirstRowOfDC = Boolean(refNo);
+         
+         if (district) lmDist = district; else district = lmDist;
+         if (refNo) lmRefNo = refNo; else refNo = lmRefNo;
+         
+         let lrNo = String(getVal(row, 'LR Number') || '').trim();
+         if (lrNo) lmLrNo = lrNo; else lrNo = lmLrNo;
+         
+         let fpsAreaId = String(getVal(row, 'FPS Area ID') || '').trim();
+         if (fpsAreaId) lmFpsArea = fpsAreaId; else fpsAreaId = lmFpsArea;
+         
+         let fpsId = String(getVal(row, 'FPS id') || '').trim();
+         if (fpsId) lmFpsId = fpsId; else fpsId = lmFpsId;
+         
+         let fpsName = String(getVal(row, 'FPS Name') || '').trim();
+         if (fpsName) lmFpsName = fpsName; else fpsName = lmFpsName;
+         
+         let transporterName = String(getVal(row, 'Transporter Name') || '').trim();
+         if (transporterName) lmTransporter = transporterName; else transporterName = lmTransporter;
          
          const qtyRaw = getVal(row, 'Quantity') || 0;
          const qty = Number(qtyRaw) || 0;
          
          let distance = 0;
-         if (distanceMap && lrNo && distanceMap[lrNo] !== undefined) {
+         if (isFirstRowOfDC && distanceMap && lrNo && distanceMap[lrNo] !== undefined) {
              distance = distanceMap[lrNo];
          }
+         
+         // Mutate row so that exact string matches (e.g. row['Reference Number']) get the filled-down values too
+         row['District'] = district;
+         row['Reference Number'] = refNo;
+         row['LR Number'] = lrNo;
+         row['FPS Area ID'] = fpsAreaId;
+         row['FPS id'] = fpsId;
+         row['FPS Name'] = fpsName;
+         row['Transporter Name'] = transporterName;
 
          processed.push({ ...row, ...extractDynamicColumns(row),
            district: district,
@@ -759,7 +814,7 @@ self.onmessage = async (e) => {
            transporterName: transporterName,
            commodity: commodity,
            quantity: qty,
-           tripCount: refNo ? 1 : 0,
+           tripCount: isFirstRowOfDC ? 1 : 0,
            distance: distance
          });
          return;

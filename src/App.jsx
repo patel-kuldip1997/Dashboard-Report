@@ -1458,16 +1458,63 @@ function App() {
       XLSX.utils.book_append_sheet(wb, wsPivot, "Pivot Summary");
     }
 
-    const exportData = displayData.map(row => {
+    const exportData = [];
+    const merges = [];
+    const mergeCols = ['district', 'refNo', 'lrNo', 'transporterName', 'fpsAreaId', 'fpsId', 'fpsName', 'distance', 'tripCount'];
+    const mergeColIndices = mergeCols.map(id => visibleColumns.findIndex(c => c.id === id)).filter(idx => idx !== -1);
+    
+    let i = 0;
+    while (i < displayData.length) {
+      const row = displayData[i];
       const rowData = {};
       visibleColumns.forEach(col => {
-         let content = row[col.id] !== undefined ? row[col.id] : '';
-         rowData[col.label] = content;
+         rowData[col.label] = row[col.id] !== undefined ? row[col.id] : '';
       });
-      return rowData;
-    });
+      exportData.push(rowData);
+      
+      if (activeReport === 'last-mile-commodity' && !row.isSubtotal && row.refNo) {
+          let count = 1;
+          while (i + count < displayData.length && !displayData[i+count].isSubtotal && displayData[i+count].refNo === row.refNo) {
+              const subRow = displayData[i+count];
+              const subRowData = {};
+              visibleColumns.forEach((col, colIdx) => {
+                 // For merged columns, leave them blank in the exported JSON to prevent Excel warnings
+                 if (mergeColIndices.includes(colIdx)) {
+                     subRowData[col.label] = '';
+                 } else {
+                     subRowData[col.label] = subRow[col.id] !== undefined ? subRow[col.id] : '';
+                 }
+              });
+              exportData.push(subRowData);
+              count++;
+          }
+          
+          if (count > 1) {
+              const startR = i + 1; // +1 for header row
+              const endR = i + count; // Excel merge end is inclusive of the index but 0-indexed. Wait, endR should be startR + count - 1.
+              mergeColIndices.forEach(c => {
+                  merges.push({ s: { r: startR, c: c }, e: { r: startR + count - 1, c: c } });
+              });
+          }
+          i += count;
+      } else {
+          i++;
+      }
+    }
 
     const wsRaw = XLSX.utils.json_to_sheet(exportData);
+    if (merges.length > 0) {
+        wsRaw['!merges'] = merges;
+        
+        // Also vertically align center for all cells in the worksheet
+        // Note: xlsx library requires pro version or styles extension for full styling, 
+        // but some viewers support basic alignment if we set it.
+        for (const cell in wsRaw) {
+            if (cell[0] === '!') continue;
+            if (!wsRaw[cell].s) wsRaw[cell].s = {};
+            wsRaw[cell].s.alignment = { vertical: 'center' };
+        }
+    }
     
     const colWidths = [];
     visibleColumns.forEach((col, i) => {
