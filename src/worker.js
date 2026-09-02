@@ -262,13 +262,18 @@ self.onmessage = async (e) => {
             if (refNo) {
                const rowValues = Object.values(row).map(v => String(v).toLowerCase());
                const isUntrack = rowValues.some(v => v.includes('untrack') || v === 'untracked');
-               trackingMap[refNo] = isUntrack ? 'untracked' : 'tracked';
+               trackingMap[refNo.toLowerCase()] = isUntrack ? 'untracked' : 'tracked';
             }
             if (activeReport === 'last-mile-commodity') {
-               const invoiceNo = String(getVal(row, 'Invoice No.') || row['Invoice No.'] || row['Invoice No'] || '').trim();
+               const invoiceNo = String(getVal(row, 'Invoice No.') || row['Invoice No.'] || row['Invoice No'] || '').trim().toLowerCase();
                const distRaw = getVal(row, 'Distance(Km)') || row['Distance(Km)'] || row['Distance (Km)'];
-               if (invoiceNo && distRaw !== undefined) {
-                  distanceMap[invoiceNo] = Number(distRaw) || 0;
+               if (invoiceNo && distRaw !== undefined && distRaw !== null && distRaw !== '') {
+                  const num = Number(distRaw);
+                  if (!isNaN(num) && num > 0) {
+                      if (!distanceMap[invoiceNo] || num > distanceMap[invoiceNo]) {
+                          distanceMap[invoiceNo] = num;
+                      }
+                  }
                }
             }
          });
@@ -296,7 +301,7 @@ self.onmessage = async (e) => {
         if (refNum.toLowerCase().includes('_cancel')) return;
         
         let isTracked = true;
-        if (trackingMap && refNum && trackingMap[refNum] === 'untracked') {
+        if (trackingMap && refNum && trackingMap[refNum.toLowerCase()] === 'untracked') {
            isTracked = false;
         }
 
@@ -792,8 +797,8 @@ self.onmessage = async (e) => {
          const qty = Number(qtyRaw) || 0;
          
          let distance = 0;
-         if (isFirstRowOfLR && distanceMap && lrNo && distanceMap[lrNo] !== undefined) {
-             distance = distanceMap[lrNo];
+         if (isFirstRowOfLR && distanceMap && lrNo && distanceMap[lrNo.toLowerCase()] !== undefined) {
+             distance = distanceMap[lrNo.toLowerCase()];
          }
          
          // Mutate row so that exact string matches (e.g. row['Reference Number']) get the filled-down values too
