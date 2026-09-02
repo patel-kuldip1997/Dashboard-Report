@@ -797,7 +797,7 @@ self.onmessage = async (e) => {
          const qty = Number(qtyRaw) || 0;
          
          let distance = 0;
-         if (isFirstRowOfLR && distanceMap && lrNo && distanceMap[lrNo.toLowerCase()] !== undefined) {
+         if (distanceMap && lrNo && distanceMap[lrNo.toLowerCase()] !== undefined) {
              distance = distanceMap[lrNo.toLowerCase()];
          }
          
@@ -820,7 +820,7 @@ self.onmessage = async (e) => {
            transporterName: transporterName,
            commodity: commodity,
            quantity: qty,
-           tripCount: isFirstRowOfLR ? 1 : 0,
+           tripCount: lrNo ? 1 : 0, // Mark 1 for all rows belonging to an LR
            distance: distance
          });
          return;
