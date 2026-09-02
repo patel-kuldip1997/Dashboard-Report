@@ -1202,8 +1202,19 @@ function App() {
          };
          numericColumns.forEach(metric => pivotGroups[groupKey][metric] = 0);
       }
+      let sortedDistRows = distRows;
+      if (activeReport === 'last-mile-commodity') {
+          sortedDistRows = [...distRows].sort((a, b) => {
+              const lrA = String(a.lrNo || '');
+              const lrB = String(b.lrNo || '');
+              if (lrA !== lrB) return lrA.localeCompare(lrB);
+              const refA = String(a.refNo || '');
+              const refB = String(b.refNo || '');
+              return refA.localeCompare(refB);
+          });
+      }
       
-      distRows.forEach((row, idx) => {
+      sortedDistRows.forEach((row, idx) => {
         const getVal = (key) => key === 'refNo' ? (row._ref || row.refNo || '') : (row[key] || '');
         let groupKey = pivotKeys.map(key => getVal(key)).join('|||');
         if (activeReport === 'last-mile-commodity') {
