@@ -48,12 +48,12 @@ const DEFAULT_MG_CONFIG = [
 
 const DEFAULT_LAST_MILE_COMMODITY_CONFIG = [
   { id: 'district', label: 'District', visible: true },
-  { id: 'refNo', label: 'Reference Number', visible: true },
   { id: 'lrNo', label: 'LR Number', visible: true },
+  { id: 'refNo', label: 'Reference Number', visible: true },
   { id: 'transporterName', label: 'Transporter Name', visible: true },
-  { id: 'fpsAreaId', label: 'FPS Area ID', visible: true },
   { id: 'fpsId', label: 'FPS id', visible: true },
   { id: 'fpsName', label: 'FPS Name', visible: true },
+  { id: 'fpsAreaId', label: 'FPS Area ID', visible: true },
   { id: 'Scheme key/Name', label: 'Scheme key/Name', visible: true },
   { id: 'Scheme name', label: 'Scheme name', visible: true },
   { id: 'Scheme Master ID', label: 'Scheme Master ID', visible: true },
@@ -1470,8 +1470,10 @@ function App() {
 
     const exportData = [];
     const merges = [];
-    const mergeCols = ['district', 'refNo', 'lrNo', 'transporterName', 'fpsAreaId', 'fpsId', 'fpsName', 'distance', 'tripCount'];
-    const mergeColIndices = mergeCols.map(id => visibleColumns.findIndex(c => c.id === id)).filter(idx => idx !== -1);
+    const lrMergeCols = ['district', 'lrNo', 'distance', 'tripCount'];
+    const refMergeCols = ['refNo', 'transporterName', 'fpsAreaId', 'fpsId', 'fpsName'];
+    const lrMergeColIndices = lrMergeCols.map(id => visibleColumns.findIndex(c => c.id === id)).filter(idx => idx !== -1);
+    const refMergeColIndices = refMergeCols.map(id => visibleColumns.findIndex(c => c.id === id)).filter(idx => idx !== -1);
     
     // Filter out all subtotal and grand total rows from the export
     const rawExportData = displayData.filter(row => !row.isSubtotal);
@@ -1486,42 +1488,54 @@ function App() {
         return val;
     };
     
-    let i = 0;
-    while (i < rawExportData.length) {
-      const row = rawExportData[i];
+    let prevLrNo = null;
+    let prevRefNo = null;
+
+    rawExportData.forEach((row, i) => {
       const rowData = {};
-      visibleColumns.forEach(col => {
-         rowData[col.label] = row[col.id] !== undefined ? parseIfNumber(row[col.id]) : '';
+      let sameLr = (activeReport === 'last-mile-commodity' && row.lrNo && row.lrNo === prevLrNo);
+      let sameRef = (sameLr && row.refNo && row.refNo === prevRefNo);
+      
+      visibleColumns.forEach((col, colIdx) => {
+         if (activeReport === 'last-mile-commodity') {
+             if (sameLr && lrMergeColIndices.includes(colIdx)) {
+                 rowData[col.label] = '';
+             } else if (sameRef && refMergeColIndices.includes(colIdx)) {
+                 rowData[col.label] = '';
+             } else {
+                 rowData[col.label] = row[col.id] !== undefined ? parseIfNumber(row[col.id]) : '';
+             }
+         } else {
+             rowData[col.label] = row[col.id] !== undefined ? parseIfNumber(row[col.id]) : '';
+         }
       });
       exportData.push(rowData);
       
-      if (activeReport === 'last-mile-commodity' && row.refNo) {
-          let count = 1;
-          while (i + count < rawExportData.length && rawExportData[i+count].refNo === row.refNo) {
-              const subRow = rawExportData[i+count];
-              const subRowData = {};
-              visibleColumns.forEach((col, colIdx) => {
-                 // For merged columns, leave them blank in the exported JSON to prevent Excel warnings
-                 if (mergeColIndices.includes(colIdx)) {
-                     subRowData[col.label] = '';
-                 } else {
-                     subRowData[col.label] = subRow[col.id] !== undefined ? parseIfNumber(subRow[col.id]) : '';
-                 }
-              });
-              exportData.push(subRowData);
-              count++;
-          }
-          
-          if (count > 1) {
-              const startR = i + 1; // +1 for header row
-              mergeColIndices.forEach(c => {
-                  merges.push({ s: { r: startR, c: c }, e: { r: startR + count - 1, c: c } });
-              });
-          }
-          i += count;
-      } else {
-          i++;
-      }
+      prevLrNo = row.lrNo;
+      prevRefNo = row.refNo;
+    });
+
+    if (activeReport === 'last-mile-commodity') {
+        const createMergesForColumns = (indices, groupKeyFn) => {
+            indices.forEach(colIdx => {
+                let startR = 1; // +1 for header row (0-indexed in Excel)
+                while (startR <= rawExportData.length) {
+                    let endR = startR;
+                    const key = groupKeyFn(rawExportData[startR - 1]);
+                    if (key) {
+                        while (endR < rawExportData.length && groupKeyFn(rawExportData[endR]) === key) {
+                            endR++;
+                        }
+                    }
+                    if (endR > startR) {
+                        merges.push({ s: { r: startR, c: colIdx }, e: { r: endR, c: colIdx } });
+                    }
+                    startR = endR + 1;
+                }
+            });
+        };
+        createMergesForColumns(lrMergeColIndices, row => row.lrNo);
+        createMergesForColumns(refMergeColIndices, row => row.lrNo ? (row.lrNo + '|||' + row.refNo) : null);
     }
 
     const wsRaw = XLSX.utils.json_to_sheet(exportData);
@@ -1629,8 +1643,14 @@ function App() {
     const maxLifted = activeReport === 'lifting-report' ? Math.max(...displayData.filter(r => !r.isSubtotal).map(r => r.liftedQty || 0), 1) : 1;
     
     const pdfData = activeReport === 'last-mile-commodity' ? displayData.filter(row => !row.isSubtotal) : displayData;
-    const mergeCols = ['district', 'refNo', 'lrNo', 'transporterName', 'fpsAreaId', 'fpsId', 'fpsName', 'distance', 'tripCount'];
-    const mergeColIndices = mergeCols.map(id => visibleColumns.findIndex(c => c.id === id)).filter(idx => idx !== -1);
+    
+    const lrMergeCols = ['district', 'lrNo', 'distance', 'tripCount'];
+    const refMergeCols = ['refNo', 'transporterName', 'fpsAreaId', 'fpsId', 'fpsName'];
+    const lrMergeColIndices = lrMergeCols.map(id => visibleColumns.findIndex(c => c.id === id)).filter(idx => idx !== -1);
+    const refMergeColIndices = refMergeCols.map(id => visibleColumns.findIndex(c => c.id === id)).filter(idx => idx !== -1);
+
+    let prevLrNo = null;
+    let prevRefNo = null;
 
     let i = 0;
     while (i < pdfData.length) {
@@ -1680,49 +1700,34 @@ function App() {
         tableRows.push(subtotalContent);
         i++;
       } else {
-        if (activeReport === 'last-mile-commodity' && row.refNo) {
-            let count = 1;
-            while (i + count < pdfData.length && pdfData[i+count].refNo === row.refNo) {
-                count++;
-            }
-            
-            const rowData = visibleColumns.map(col => {
-                let val = row[col.id];
-                if (val === undefined || val === null) return '';
-                return String(val);
-            });
-            tableRows.push(rowData);
-            
-            for (let j = 1; j < count; j++) {
-                const subRow = pdfData[i + j];
-                const subRowData = visibleColumns.map((col, colIdx) => {
-                    if (mergeColIndices.includes(colIdx)) return '';
-                    let val = subRow[col.id];
-                    if (val === undefined || val === null) return '';
-                    return String(val);
-                });
-                tableRows.push(subRowData);
-            }
-            i += count;
-        } else {
-            const rowData = visibleColumns.map(col => {
-              let val = row[col.id];
-              if (val === undefined || val === null) return '';
-              if (col.id === 'liftedQty' && typeof val === 'number') {
-                const ratio = val / maxLifted;
-                const r = Math.round(248 + (99 - 248) * ratio);
-                const g = Math.round(105 + (190 - 105) * ratio);
-                const b = Math.round(107 + (123 - 107) * ratio);
-                return {
-                   content: val.toFixed(2),
-                   styles: { fillColor: [r, g, b], textColor: [0, 0, 0], halign: 'center' }
-                };
-              }
-              return String(val);
-            });
-            tableRows.push(rowData);
-            i++;
-        }
+        let sameLr = (activeReport === 'last-mile-commodity' && row.lrNo && row.lrNo === prevLrNo);
+        let sameRef = (sameLr && row.refNo && row.refNo === prevRefNo);
+        
+        const rowData = visibleColumns.map((col, colIdx) => {
+          if (activeReport === 'last-mile-commodity') {
+              if (sameLr && lrMergeColIndices.includes(colIdx)) return '';
+              if (sameRef && refMergeColIndices.includes(colIdx)) return '';
+          }
+          
+          let val = row[col.id];
+          if (val === undefined || val === null) return '';
+          if (col.id === 'liftedQty' && typeof val === 'number') {
+            const ratio = val / maxLifted;
+            const r = Math.round(248 + (99 - 248) * ratio);
+            const g = Math.round(105 + (190 - 105) * ratio);
+            const b = Math.round(107 + (123 - 107) * ratio);
+            return {
+               content: val.toFixed(2),
+               styles: { fillColor: [r, g, b], textColor: [0, 0, 0], halign: 'center' }
+            };
+          }
+          return String(val);
+        });
+        tableRows.push(rowData);
+        
+        prevLrNo = row.lrNo;
+        prevRefNo = row.refNo;
+        i++;
       }
     }
 

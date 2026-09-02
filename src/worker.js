@@ -773,6 +773,7 @@ self.onmessage = async (e) => {
          if (refNo) lmRefNo = refNo; else refNo = lmRefNo;
          
          let lrNo = String(getVal(row, 'LR Number') || '').trim();
+         const isFirstRowOfLR = Boolean(lrNo);
          if (lrNo) lmLrNo = lrNo; else lrNo = lmLrNo;
          
          let fpsAreaId = String(getVal(row, 'FPS Area ID') || '').trim();
@@ -791,7 +792,7 @@ self.onmessage = async (e) => {
          const qty = Number(qtyRaw) || 0;
          
          let distance = 0;
-         if (isFirstRowOfDC && distanceMap && lrNo && distanceMap[lrNo] !== undefined) {
+         if (isFirstRowOfLR && distanceMap && lrNo && distanceMap[lrNo] !== undefined) {
              distance = distanceMap[lrNo];
          }
          
@@ -814,7 +815,7 @@ self.onmessage = async (e) => {
            transporterName: transporterName,
            commodity: commodity,
            quantity: qty,
-           tripCount: isFirstRowOfDC ? 1 : 0,
+           tripCount: isFirstRowOfLR ? 1 : 0,
            distance: distance
          });
          return;
