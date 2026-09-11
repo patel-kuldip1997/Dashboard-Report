@@ -713,15 +713,27 @@ self.onmessage = async (e) => {
          
          if (getVal(row, 'TP date') === undefined || getVal(row, 'TP date') === null || String(getVal(row, 'TP date')).trim() === '') return;
          
-         if (getVal(row, 'EPOD Date') !== undefined && getVal(row, 'EPOD Date') !== null && String(getVal(row, 'EPOD Date')).trim() !== '') return;
+         const tpDateRaw = getVal(row, 'TP date');
+         if (tpDateRaw) {
+             const dtStr = formatExcelDate(tpDateRaw);
+             if (dtStr) uniqueTpDates.add(dtStr);
+         }
+
+         const epodDateRaw = getVal(row, 'EPOD Date');
+         const epodStatusVal = String(getVal(row, 'EPOD status') || '').toUpperCase().trim();
+         // If EPOD Date exists or status says completed/delivered, it's completed
+         const isCompleted = (epodDateRaw !== undefined && epodDateRaw !== null && String(epodDateRaw).trim() !== '') || epodStatusVal === 'COMPLETED' || epodStatusVal === 'DELIVERED';
 
          processed.push({ ...row, ...extractDynamicColumns(row),
            district: getVal(row, 'District') || '',
            destLoc: getVal(row, 'Destination Godown') || '',
            transporter: getVal(row, 'Transporter Name') || '',
            tpDate: formatExcelDate(getVal(row, 'TP date')),
-           status: 'Pending',
-           trips: 1,
+           status: isCompleted ? 'Completed' : 'Pending',
+           epodComplete: isCompleted ? 1 : 0,
+           epodPending: isCompleted ? 0 : 1,
+           trips: isCompleted ? 0 : 1, // 'trips' is historically used as pending trips in the old report
+           totalTps: 1, // New field for total TPs
            _ref: refNoStr
          });
          return;
@@ -826,6 +838,38 @@ self.onmessage = async (e) => {
          return;
       }
       
+       if (activeReport === 'gps-analysis') {
+          const vehicleNo = String(getVal(row, 'vehicle_no') || '').trim();
+          const imei = String(getVal(row, 'imei') || '').trim();
+          if (!vehicleNo && !imei) return;
+          
+          const timestampRaw = getVal(row, 'ist_timestamp');
+          let timestamp = timestampRaw;
+          if (typeof timestampRaw === 'number') {
+             // Excel date
+             const date = new Date(Math.round((timestampRaw - 25569) * 86400 * 1000));
+             timestamp = date.toISOString();
+          } else if (timestampRaw) {
+             timestamp = String(timestampRaw);
+          }
+          
+          const lat = getVal(row, 'latitude');
+          const lng = getVal(row, 'longitude');
+          const extraData = String(getVal(row, 'extra_data') || '').toLowerCase();
+          const isTampered = extraData.includes('"tampering": true') || extraData.includes('"tampering":true');
+          
+          processed.push({
+             vehicleNo: vehicleNo || imei,
+             imei: imei,
+             timestamp: timestamp,
+             lat: lat,
+             lng: lng,
+             isTampered: isTampered,
+             extraData: extraData
+          });
+          return;
+       }
+       
       if (activeReport === 'last-mile-imei') {
          const district = String(getVal(row, 'District', 'TP District', 'Godown District') || '').trim();
          if (!district) return;
@@ -1064,6 +1108,15 @@ self.onmessage = async (e) => {
          status = 'Completed';
       }
 
+      let createMonth = '';
+      let createDate = '';
+      if (formattedCreatedAt && formattedCreatedAt.length >= 10) {
+         createDate = formattedCreatedAt.substring(0, 10);
+         createMonth = formattedCreatedAt.substring(0, 7);
+         uniqueDcMonths.add(createMonth);
+         uniqueDcDates.add(createDate);
+      }
+
       processed.push({ ...row, ...extractDynamicColumns(row),
         district,
         sourceLoc,
@@ -1071,6 +1124,8 @@ self.onmessage = async (e) => {
         transporter: getVal(row, 'Transporter') || '',
         tpDate: '',
         createdAt: formattedCreatedAt,
+        createDate: createDate,
+        createMonth: createMonth,
         startDate: formattedStartDate,
         endDate: formattedEndDate,
         pendingDays,

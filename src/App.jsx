@@ -8,6 +8,7 @@ import { saveHistoryReport, getHistoryReports, deleteHistoryReport } from './db.
 import SmsTemplate from './components/SmsTemplate';
 import CustomizeReport from './components/CustomizeReport';
 import PenaltyDashboard from './components/PenaltyDashboard';
+import GpsAnalysisDashboard from './components/GpsAnalysisDashboard';
 import { DEFAULT_REPORT_ATTRIBUTES } from './reportAttributes';
 
 const DEFAULT_GM_CONFIG = [
@@ -31,6 +32,16 @@ const DEFAULT_EPOD_CONFIG = [
   { id: 'tpDate', label: 'TP Date', visible: true },
   { id: 'status', label: 'EPOD Status', visible: true },
   { id: 'trips', label: 'EPOD Pending Total', visible: true }
+];
+
+const DEFAULT_FIRST_MILE_EPOD_GROUPED_CONFIG = [
+  { id: 'district', label: 'District', visible: true },
+  { id: 'destLoc', label: 'GSCSCL Godown', visible: true },
+  { id: 'transporter', label: 'Transporter Name', visible: true },
+  { id: 'totalTps', label: 'No. of TP', visible: true },
+  { id: 'epodComplete', label: 'No. of EPOD Completed', visible: true },
+  { id: 'epodPending', label: 'No. of EPOD Pending', visible: true },
+  { id: 'epodPendingPercent', label: 'EPOD Pending (%)', visible: true }
 ];
 
 const DEFAULT_MG_CONFIG = [
@@ -400,6 +411,12 @@ function App() {
   useEffect(() => {
     sessionStorage.setItem('activeReportTab', activeReport);
   }, [activeReport]);
+
+  useEffect(() => {
+    const companyTitleStr = localStorage.getItem('companyTitle');
+    const finalTitle = companyTitleStr === null ? "FarEye Technologies Pvt. Ltd." : companyTitleStr;
+    document.title = finalTitle.trim() === '' ? 'Report Dashboard' : finalTitle;
+  }, []);
   const [reportData, setReportData] = useState({});
   const rawData = reportData[activeReport] || [];
   const [filterStatus, setFilterStatus] = useState('All');
@@ -419,6 +436,7 @@ function App() {
   const [historyList, setHistoryList] = useState([]);
   const fileInputRef = useRef(null);
   
+  const [firstMileTab, setFirstMileTab] = useState('pending-list');
   const [vaStartDate, setVaStartDate] = useState('');
   const [vaEndDate, setVaEndDate] = useState('');
   
@@ -489,6 +507,8 @@ function App() {
       // Handled separately or leave as is
     } else if (activeReport === 'multi-trip-analysis') {
        setReportTitle("Multi-Trip Analysis");
+    } else if (activeReport === 'gps-analysis') {
+       setReportTitle("GPS Data Analysis");
     } else if (activeReport === 'eta-route') {
        setReportTitle("ETA Route Analytics");
     } else if (activeReport === 'vehicle-assigned') {
@@ -509,10 +529,12 @@ function App() {
        setReportTitle("Godown to Miller Trips");
     }
 
-    const storageKey = `reportConfig_${activeReport}_v3`;
+    const storageKey = activeReport === 'first-mile-epod' && firstMileTab === 'grouped' ? `reportConfig_first-mile-epod-grouped_v3` : `reportConfig_${activeReport}_v3`;
     const savedConfig = localStorage.getItem(storageKey);
     let defaultConf = [...DEFAULT_GM_CONFIG];
-    if (activeReport === 'first-mile-epod') defaultConf = [...DEFAULT_EPOD_CONFIG];
+    if (activeReport === 'first-mile-epod') {
+        defaultConf = firstMileTab === 'grouped' ? [...DEFAULT_FIRST_MILE_EPOD_GROUPED_CONFIG] : [...DEFAULT_EPOD_CONFIG];
+    }
     else if (activeReport === 'last-mile-epod') defaultConf = [...DEFAULT_LAST_MILE_EPOD_CONFIG];
     else if (activeReport === 'last-mile-vehicle-assigned') defaultConf = [...DEFAULT_LAST_MILE_VEHICLE_ASSIGNED_CONFIG];
     else if (activeReport === 'last-mile-imei') defaultConf = [...DEFAULT_LAST_MILE_IMEI_CONFIG];
@@ -568,11 +590,11 @@ function App() {
     } else {
       setColumnConfig([...defaultConf]);
     }
-  }, [activeReport]);
+  }, [activeReport, firstMileTab]);
 
   const saveConfig = (newConfig) => {
     setColumnConfig(newConfig);
-    const storageKey = `reportConfig_${activeReport}_v3`;
+    const storageKey = activeReport === 'first-mile-epod' && firstMileTab === 'grouped' ? `reportConfig_first-mile-epod-grouped_v3` : `reportConfig_${activeReport}_v3`;
     localStorage.setItem(storageKey, JSON.stringify(newConfig));
   };
 
@@ -611,14 +633,23 @@ function App() {
   const visibleColumns = columnConfig.filter(c => c.visible);
 
   const filterCounts = useMemo(() => {
-    const counts = { all: rawData.length, startPending: 0, endPending: 0, completed: 0 };
-    rawData.forEach(row => {
+    let baseData = rawData;
+    if (activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown') {
+       if (dcMonthFilter !== null) {
+          baseData = baseData.filter(row => dcMonthFilter.includes(row.createMonth));
+       }
+       if (dcDateFilter !== null) {
+          baseData = baseData.filter(row => dcDateFilter.includes(row.createDate));
+       }
+    }
+    const counts = { all: baseData.length, startPending: 0, endPending: 0, completed: 0 };
+    baseData.forEach(row => {
       if (row.status === 'Completed') counts.completed++;
       if (row.isStartPending) counts.startPending++;
       if (row.isEndPending) counts.endPending++;
     });
     return counts;
-  }, [rawData]);
+  }, [rawData, dcMonthFilter, dcDateFilter, activeReport]);
 
   // Responsive Sidebar States
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -958,7 +989,9 @@ function App() {
     const districts = new Set();
     rawData.forEach(r => {
       if (r.dcMonth) months.add(r.dcMonth);
+      if (r.createMonth) months.add(r.createMonth);
       if (r.dcCreationDate) dates.add(r.dcCreationDate);
+      if (r.createDate) dates.add(r.createDate);
       if (r.epodStatusRaw) epodStatuses.add(r.epodStatusRaw);
       if (r.epodStatus) epodStatuses.add(r.epodStatus);
       if (r.tpDate) tpDates.add(r.tpDate);
@@ -1124,13 +1157,22 @@ function App() {
         if (tpDateFilter !== null) {
           filtered = filtered.filter(row => tpDateFilter.includes(row.tpDate));
        }
+       if (activeReport === 'first-mile-epod' && firstMileTab === 'pending-list') {
+          filtered = filtered.filter(row => row.status === 'Pending');
+       }
     } else {
+       if (dcMonthFilter !== null) {
+          filtered = filtered.filter(row => dcMonthFilter.includes(row.createMonth));
+       }
+       if (dcDateFilter !== null) {
+          filtered = filtered.filter(row => dcDateFilter.includes(row.createDate));
+       }
        if (filterStatus === 'Start Trip Pending') {
-         filtered = rawData.filter(row => row.isStartPending);
+         filtered = filtered.filter(row => row.isStartPending);
        } else if (filterStatus === 'End Trip Pending') {
-         filtered = rawData.filter(row => row.isEndPending);
+         filtered = filtered.filter(row => row.isEndPending);
        } else if (filterStatus === 'Completed') {
-         filtered = rawData.filter(row => row.status === 'Completed');
+         filtered = filtered.filter(row => row.status === 'Completed');
        }
     }
 
@@ -1157,11 +1199,11 @@ function App() {
     });
 
     let grandTotalTrips = 0;
-    let gtTrips = 0, gtChallan = 0, gtComplete = 0;
+    let gtTrips = 0, gtChallan = 0, gtComplete = 0, gtTotalTps = 0;
     let gtTotalTrips = 0, gtMatched = 0, gtMismatched = 0, gtMissing = 0;
     
     const liftingNumerics = ['vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager'];
-    const baseNumericColumns = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', 'totalTrips', 'matched', 'mismatched', 'missing', 'quantity', 'No. of Bags/ Tin/Carton/Pouch', 'Bag/Tin/Carton/Pouch weight (in Kg)', 'distance', ...liftingNumerics];
+    const baseNumericColumns = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', 'totalTrips', 'totalTps', 'matched', 'mismatched', 'missing', 'quantity', 'No. of Bags/ Tin/Carton/Pouch', 'Bag/Tin/Carton/Pouch weight (in Kg)', 'distance', ...liftingNumerics];
     
     // Auto-detect numeric custom columns
     visibleColumns.forEach(col => {
@@ -1189,7 +1231,7 @@ function App() {
       const numericColumns = [...baseNumericColumns];
       const pivotKeys = visibleColumns.filter(c => !numericColumns.includes(c.id)).map(c => c.id);
       
-      const distTotals = { trips: 0, deliveryChallan: 0, epodComplete: 0, epodPending: 0, totalTrips: 0, matched: 0, mismatched: 0, missing: 0 };
+      const distTotals = { trips: 0, deliveryChallan: 0, epodComplete: 0, epodPending: 0, totalTrips: 0, totalTps: 0, matched: 0, mismatched: 0, missing: 0 };
       
       if (activeReport === 'lifting-report' && distRows.length === 0) {
          const dummyRow = { district: dist };
@@ -1255,11 +1297,20 @@ function App() {
       // Explicitly apply user formulas for Pivot Groups
       Object.keys(pivotGroups).forEach(groupKey => {
         const group = pivotGroups[groupKey];
-        group.epodPending = group.deliveryChallan - group.epodComplete;
-        if (group.deliveryChallan > 0) {
-           group.epodPendingPercent = ((group.epodPending / group.deliveryChallan) * 100).toFixed(0) + '%';
+        if (activeReport === 'first-mile-epod' && firstMileTab === 'grouped') {
+            group.epodPending = group.totalTps - group.epodComplete;
+            if (group.totalTps > 0) {
+               group.epodPendingPercent = ((group.epodPending / group.totalTps) * 100).toFixed(0) + '%';
+            } else {
+               group.epodPendingPercent = '0%';
+            }
         } else {
-           group.epodPendingPercent = '0%';
+            group.epodPending = group.deliveryChallan - group.epodComplete;
+            if (group.deliveryChallan > 0) {
+               group.epodPendingPercent = ((group.epodPending / group.deliveryChallan) * 100).toFixed(0) + '%';
+            } else {
+               group.epodPendingPercent = '0%';
+            }
         }
         
         if (activeReport === 'lifting-report') {
@@ -1280,16 +1331,19 @@ function App() {
          distTotals.epodComplete += group.epodComplete || 0;
          distTotals.epodPending += group.epodPending || 0;
          distTotals.totalTrips += group.totalTrips || 0;
+         distTotals.totalTps += group.totalTps || 0;
          distTotals.matched += group.matched || 0;
          distTotals.mismatched += group.mismatched || 0;
          distTotals.missing += group.missing || 0;
         groupedData.push(group);
       });
 
-      if ((distTotals.trips > 0 || distTotals.deliveryChallan > 0 || activeReport === 'lifting-report') && activeReport !== 'lifting-report') {
+      if ((distTotals.trips > 0 || distTotals.deliveryChallan > 0 || distTotals.totalTps > 0 || activeReport === 'lifting-report') && activeReport !== 'lifting-report') {
         let percent = '';
         if (activeReport === 'last-mile-epod' && distTotals.deliveryChallan > 0) {
            percent = ((distTotals.epodPending / distTotals.deliveryChallan) * 100).toFixed(0) + '%';
+        } else if (activeReport === 'first-mile-epod' && firstMileTab === 'grouped' && distTotals.totalTps > 0) {
+           percent = ((distTotals.epodPending / distTotals.totalTps) * 100).toFixed(0) + '%';
         }
         groupedData.push({
           isSubtotal: true,
@@ -1311,6 +1365,7 @@ function App() {
           epodPending: distTotals.epodPending,
           epodPendingPercent: percent,
           totalTrips: distTotals.totalTrips,
+          totalTps: distTotals.totalTps,
           matched: distTotals.matched,
           mismatched: distTotals.mismatched,
           missing: distTotals.missing
@@ -1346,17 +1401,22 @@ function App() {
           gtChallan += (r.deliveryChallan || 0);
           gtComplete += (r.epodComplete || 0);
           gtTotalTrips += (r.totalTrips || 0);
+          gtTotalTps += (r.totalTps || 0);
           gtMatched += (r.matched || 0);
           gtMismatched += (r.mismatched || 0);
           gtMissing += (r.missing || 0);
        });
     }
 
-    if (gtTrips > 0 || gtChallan > 0 || activeReport === 'lifting-report') {
-      const gtPending = gtChallan - gtComplete;
+    if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-report') {
+      let gtPending = gtChallan - gtComplete;
       let gtPercent = '';
       if (activeReport === 'last-mile-epod' && gtChallan > 0) {
          gtPercent = ((gtPending / gtChallan) * 100).toFixed(0) + '%';
+      } else if (activeReport === 'first-mile-epod' && firstMileTab === 'grouped') {
+         gtPending = gtTotalTps - gtComplete;
+         if (gtTotalTps > 0) gtPercent = ((gtPending / gtTotalTps) * 100).toFixed(0) + '%';
+         else gtPercent = '0%';
       }
       
       let grandTotalRow = {
@@ -1380,6 +1440,7 @@ function App() {
         epodPending: gtPending,
         epodPendingPercent: gtPercent,
         totalTrips: gtTotalTrips,
+        totalTps: gtTotalTps,
         matched: gtMatched,
         mismatched: gtMismatched,
         missing: gtMissing
@@ -1402,7 +1463,7 @@ function App() {
       groupedData.push(grandTotalRow);
     }
     return groupedData;
-  }, [rawData, filterStatus, activeReport, dcMonthFilter, dcDateFilter, epodStatusFilter, visibleColumns, globalSearchTerm, tpDateFilter, wbIdFilter, remarksFilter, imeiStatusFilter, districtFilter]);
+  }, [rawData, filterStatus, activeReport, dcMonthFilter, dcDateFilter, epodStatusFilter, visibleColumns, globalSearchTerm, tpDateFilter, wbIdFilter, remarksFilter, imeiStatusFilter, districtFilter, firstMileTab]);
 
   // Reset pagination when data or filters change
   useEffect(() => {
@@ -1597,7 +1658,13 @@ function App() {
       doc.setTextColor(0, 0, 0);
       doc.setFontSize(22);
       doc.setFont("helvetica", "bold");
-      doc.text("FarEye Technologies Pvt. Ltd.", pageWidth / 2, 18, { align: 'center' });
+      const companyTitle = localStorage.getItem('companyTitle');
+      // Default to FarEye if null, but if it is empty string ('') that means user explicitly removed it.
+      const finalTitle = companyTitle === null ? "FarEye Technologies Pvt. Ltd." : companyTitle;
+      
+      if (finalTitle.trim() !== '') {
+          doc.text(finalTitle, pageWidth / 2, 18, { align: 'center' });
+      }
 
       doc.setFontSize(14);
       doc.setFont("helvetica", "bold");
@@ -1673,7 +1740,7 @@ function App() {
           }
         const fontSize = row.isGrandTotal ? 11 : 9;
         
-        const subtotalCols = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', 'vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager', 'tripCount', 'netWeight', 'remarks', 'epodStatus', 'weighbridgeUsed', 'totalTrips', 'matched', 'mismatched', 'missing', 'quantity', 'No. of Bags/ Tin/Carton/Pouch', 'Bag/Tin/Carton/Pouch weight (in Kg)', 'distance'];
+        const subtotalCols = ['trips', 'deliveryChallan', 'totalTps', 'epodComplete', 'epodPending', 'epodPendingPercent', 'vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager', 'tripCount', 'netWeight', 'remarks', 'epodStatus', 'weighbridgeUsed', 'totalTrips', 'matched', 'mismatched', 'missing', 'quantity', 'No. of Bags/ Tin/Carton/Pouch', 'Bag/Tin/Carton/Pouch weight (in Kg)', 'distance'];
         const firstNumericIndex = visibleColumns.findIndex(c => subtotalCols.includes(c.id));
         const subtotalContent = [];
 
@@ -1766,12 +1833,17 @@ function App() {
               doc.setTextColor(150, 150, 150);
               doc.setFont("helvetica", "bold");
               
-              const text = "FarEye";
-              const textWidth = doc.getTextWidth(text);
-              const x = (doc.internal.pageSize.getWidth() - textWidth) / 2;
-              const y = doc.internal.pageSize.getHeight() / 2;
+              const companyTitleStr = localStorage.getItem('companyTitle');
+              // Use first word of the title for watermark, or full title if it's short.
+              const defaultWatermark = companyTitleStr === null ? "FarEye" : (companyTitleStr ? companyTitleStr.split(' ')[0] : "");
               
-              doc.text(text, x, y);
+              if (defaultWatermark.trim() !== '') {
+                  const textWidth = doc.getTextWidth(defaultWatermark);
+                  const x = (doc.internal.pageSize.getWidth() - textWidth) / 2;
+                  const y = doc.internal.pageSize.getHeight() / 2;
+                  
+                  doc.text(defaultWatermark, x, y);
+              }
               doc.setGState(new doc.GState({ opacity: 1.0 })); // Reset opacity
               
               // Footer: Page Number
@@ -2124,6 +2196,13 @@ function App() {
                   <span>Multi-Trip Analysis</span>
                 </div>
                 <div 
+                  className={`nav-item ${activeReport === 'gps-analysis' ? 'active' : ''}`}
+                  onClick={() => handleMenuClick('gps-analysis')}
+                >
+                  <MapPin className="nav-icon" size={16} />
+                  <span>GPS Data Analysis</span>
+                </div>
+                <div 
                   className={`nav-item ${activeReport === 'eta-route' ? 'active' : ''}`}
                   onClick={() => handleMenuClick('eta-route')}
                 >
@@ -2216,7 +2295,7 @@ function App() {
           {activeReport === 'customize-report' && <CustomizeReport />}
 
         {/* Render content based on active report */}
-        {(activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown' || activeReport === 'first-mile-epod' || activeReport === 'last-mile-epod' || activeReport === 'last-mile-imei' || activeReport === 'lifting-report' || activeReport === 'multi-trip-analysis' || activeReport === 'eta-route' || activeReport === 'vehicle-assigned' || activeReport === 'last-mile-vehicle-assigned' || activeReport === 'weighbridge-report' || activeReport === 'penalty-epod' || activeReport === 'last-mile-commodity') && (
+        {(activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown' || activeReport === 'first-mile-epod' || activeReport === 'last-mile-epod' || activeReport === 'last-mile-imei' || activeReport === 'lifting-report' || activeReport === 'multi-trip-analysis' || activeReport === 'gps-analysis' || activeReport === 'eta-route' || activeReport === 'vehicle-assigned' || activeReport === 'last-mile-vehicle-assigned' || activeReport === 'weighbridge-report' || activeReport === 'penalty-epod' || activeReport === 'last-mile-commodity') && (
           <>
             <div className="page-header">
               <div style={{ flex: 1, maxWidth: '70%' }}>
@@ -2556,6 +2635,27 @@ function App() {
                 </div>
               )}
               
+              {(activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown') && displayData.length > 0 && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '24px' }}>
+                  <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '10px', borderLeft: '4px solid #3b82f6' }}>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: '600' }}>Total Trips Analyzed</span>
+                    <span style={{ fontSize: '2.2rem', fontWeight: '600', color: 'var(--text-main)', lineHeight: '1' }}>{filterCounts.all}</span>
+                  </div>
+                  <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '10px', borderLeft: '4px solid #f59e0b' }}>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: '600' }}>Start Trip Pending</span>
+                    <span style={{ fontSize: '2.2rem', fontWeight: '600', color: 'var(--text-main)', lineHeight: '1' }}>{filterCounts.startPending}</span>
+                  </div>
+                  <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '10px', borderLeft: '4px solid #ff6b6b' }}>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: '600' }}>End Trip Pending (In Transit)</span>
+                    <span style={{ fontSize: '2.2rem', fontWeight: '600', color: 'var(--text-main)', lineHeight: '1' }}>{filterCounts.endPending}</span>
+                  </div>
+                  <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '10px', borderLeft: '4px solid #2ed573' }}>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: '600' }}>Trips Completed</span>
+                    <span style={{ fontSize: '2.2rem', fontWeight: '600', color: 'var(--text-main)', lineHeight: '1' }}>{filterCounts.completed}</span>
+                  </div>
+                </div>
+              )}
+              
               <div className="glass-panel" style={{ padding: '24px' }}>
                 <div className="filter-bar">
                   <h3 style={{ display: 'flex', alignItems: 'center', gap: '12px', fontSize: '1.2rem', fontWeight: '600' }}>
@@ -2681,17 +2781,31 @@ function App() {
                           onChange={setDistrictFilter} 
                       />
                     ) : (activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown') ? (
-                      <select 
-                        className="btn-secondary" 
-                        value={filterStatus} 
-                        onChange={(e) => setFilterStatus(e.target.value)}
-                        style={{ outline: 'none', appearance: 'none', paddingRight: '16px', backgroundColor: 'var(--bg-panel)' }}
-                      >
-                        <option value="All">All Trips ({filterCounts.all})</option>
-                        <option value="Start Trip Pending">Start Trip Pending ({filterCounts.startPending})</option>
-                        <option value="End Trip Pending">End Trip Pending (In Transit) ({filterCounts.endPending})</option>
-                        <option value="Completed">Completed ({filterCounts.completed})</option>
-                      </select>
+                      <>
+                        <MultiSelectDropdown 
+                          placeholder="Month" 
+                          options={uniqueDcMonths} 
+                          selected={dcMonthFilter} 
+                          onChange={setDcMonthFilter} 
+                        />
+                        <MultiSelectDropdown 
+                          placeholder="Date" 
+                          options={uniqueDcDates} 
+                          selected={dcDateFilter} 
+                          onChange={setDcDateFilter} 
+                        />
+                        <select 
+                          className="btn-secondary" 
+                          value={filterStatus} 
+                          onChange={(e) => setFilterStatus(e.target.value)}
+                          style={{ outline: 'none', appearance: 'none', paddingRight: '16px', backgroundColor: 'var(--bg-panel)' }}
+                        >
+                          <option value="All">All Trips ({filterCounts.all})</option>
+                          <option value="Start Trip Pending">Start Trip Pending ({filterCounts.startPending})</option>
+                          <option value="End Trip Pending">End Trip Pending (In Transit) ({filterCounts.endPending})</option>
+                          <option value="Completed">Completed ({filterCounts.completed})</option>
+                        </select>
+                      </>
                     ) : null}
                   </div>
                 </div>
@@ -2737,6 +2851,8 @@ function App() {
                   </div>
                 ) : activeReport === 'penalty-epod' ? (
                   <PenaltyDashboard data={displayData} />
+                ) : activeReport === 'gps-analysis' ? (
+                  <GpsAnalysisDashboard data={rawData} />
                 ) : activeReport === 'vehicle-assigned' ? (
                   <div className="table-container" style={{ marginTop: 0 }}>
                     <table>
@@ -2840,6 +2956,30 @@ function App() {
                         </table>
                       </div>
                     )}
+                    {activeReport === 'first-mile-epod' && (
+                      <div className="report-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '0' }}>
+                        <button 
+                          className={`tab-btn ${firstMileTab === 'pending-list' ? 'active' : ''}`}
+                          onClick={() => setFirstMileTab('pending-list')}
+                          style={{
+                            padding: '10px 20px', background: 'none', border: 'none', borderBottom: firstMileTab === 'pending-list' ? '2px solid var(--primary-color)' : '2px solid transparent',
+                            color: firstMileTab === 'pending-list' ? 'var(--primary-color)' : 'var(--text-muted)', fontWeight: firstMileTab === 'pending-list' ? '600' : 'normal', cursor: 'pointer', fontSize: '1rem'
+                          }}
+                        >
+                          Detailed Report
+                        </button>
+                        <button 
+                          className={`tab-btn ${firstMileTab === 'grouped' ? 'active' : ''}`}
+                          onClick={() => setFirstMileTab('grouped')}
+                          style={{
+                            padding: '10px 20px', background: 'none', border: 'none', borderBottom: firstMileTab === 'grouped' ? '2px solid var(--primary-color)' : '2px solid transparent',
+                            color: firstMileTab === 'grouped' ? 'var(--primary-color)' : 'var(--text-muted)', fontWeight: firstMileTab === 'grouped' ? '600' : 'normal', cursor: 'pointer', fontSize: '1rem'
+                          }}
+                        >
+                          EPOD Pending and Percentage Report
+                        </button>
+                      </div>
+                    )}
                     <div className="table-container" style={{ marginTop: 0 }}>
                       <table>
                         <thead>
@@ -2854,7 +2994,7 @@ function App() {
                             if (row.isSubtotal) {
                               lastDist = null;
                               lastSource = null;
-                              const subtotalCols = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', 'vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager', 'tripCount', 'netWeight', 'remarks', 'epodStatus', 'weighbridgeUsed', 'totalTrips', 'matched', 'mismatched', 'missing', 'quantity', 'No. of Bags/ Tin/Carton/Pouch', 'Bag/Tin/Carton/Pouch weight (in Kg)', 'distance'];
+                              const subtotalCols = ['trips', 'deliveryChallan', 'totalTps', 'epodComplete', 'epodPending', 'epodPendingPercent', 'vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager', 'tripCount', 'netWeight', 'remarks', 'epodStatus', 'weighbridgeUsed', 'totalTrips', 'matched', 'mismatched', 'missing', 'quantity', 'No. of Bags/ Tin/Carton/Pouch', 'Bag/Tin/Carton/Pouch weight (in Kg)', 'distance'];
                               const firstNumericIndex = visibleColumns.findIndex(c => subtotalCols.includes(c.id));
                               const colSpanBeforeNum = firstNumericIndex > 0 ? firstNumericIndex : visibleColumns.length;
                               const sizeStyle = row.isGrandTotal ? '1.15rem' : '1.05rem';
@@ -2932,6 +3072,7 @@ function App() {
                                     case 'tripCount':
                                     case 'netWeight':
                                     case 'trips': 
+                                    case 'totalTps':
                                     case 'deliveryChallan': 
                                     case 'epodComplete': 
                                     case 'epodPending': 
@@ -3117,7 +3258,9 @@ function App() {
               <div className="modal-footer" style={{ padding: '16px 20px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between' }}>
                 <button className="btn-secondary" onClick={() => {
                     let defaultConf = DEFAULT_GM_CONFIG;
-                    if (activeReport === 'first-mile-epod') defaultConf = DEFAULT_EPOD_CONFIG;
+                    if (activeReport === 'first-mile-epod') {
+                        defaultConf = firstMileTab === 'grouped' ? DEFAULT_FIRST_MILE_EPOD_GROUPED_CONFIG : DEFAULT_EPOD_CONFIG;
+                    }
                     else if (activeReport === 'last-mile-epod') defaultConf = DEFAULT_LAST_MILE_EPOD_CONFIG;
                     else if (activeReport === 'last-mile-vehicle-assigned') defaultConf = DEFAULT_LAST_MILE_VEHICLE_ASSIGNED_CONFIG;
                     else if (activeReport === 'last-mile-imei') defaultConf = DEFAULT_LAST_MILE_IMEI_CONFIG;

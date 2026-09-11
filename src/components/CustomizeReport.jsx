@@ -42,6 +42,9 @@ const CustomizeReport = () => {
   const [isAddingNewColumn, setIsAddingNewColumn] = useState(false);
   const [newColumnName, setNewColumnName] = useState('');
 
+  // Global Settings
+  const [companyName, setCompanyName] = useState('FarEye Technologies Pvt. Ltd.');
+
   // Custom Alert State
   const [modalConfig, setModalConfig] = useState({ isOpen: false, type: 'alert', message: '', onConfirm: null });
 
@@ -112,11 +115,20 @@ const CustomizeReport = () => {
         console.error('Failed to parse custom attributes', e);
       }
     }
+    const savedCompany = localStorage.getItem('companyTitle');
+    if (savedCompany !== null) {
+      setCompanyName(savedCompany);
+    }
   }, []);
 
   const handleSave = (updatedAttributes) => {
     setAttributes(updatedAttributes);
     localStorage.setItem('customReportAttributes_v3', JSON.stringify(updatedAttributes));
+  };
+
+  const handleSaveCompany = () => {
+    localStorage.setItem('companyTitle', companyName);
+    showAlert('Company Title has been successfully saved!');
   };
 
 
@@ -338,7 +350,46 @@ const CustomizeReport = () => {
       </div>
 
       {!selectedReport ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '24px' }}>
+        <>
+            <div style={{ backgroundColor: 'var(--bg-panel, white)', borderRadius: '8px', padding: '24px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', marginBottom: '32px' }}>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 'bold', color: 'var(--text-main, #1e293b)', margin: '0 0 16px 0', display: 'flex', alignItems: 'center' }}>
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ marginRight: '8px', color: '#3b82f6' }}><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path></svg>
+                    Global Settings
+                </h3>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '16px', maxWidth: '600px' }}>
+                    <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: '600', color: '#475569', marginBottom: '8px' }}>Company Title (Shows in PDFs, Exports, and Map)</label>
+                        <input 
+                            type="text" 
+                            value={companyName}
+                            onChange={(e) => setCompanyName(e.target.value)}
+                            placeholder="e.g. FarEye Technologies Pvt. Ltd."
+                            style={{ width: '100%', padding: '10px 14px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.95rem', outline: 'none' }}
+                        />
+                    </div>
+                    <button 
+                        onClick={handleSaveCompany}
+                        style={{ padding: '10px 20px', backgroundColor: '#10b981', color: 'white', borderRadius: '6px', border: 'none', fontWeight: '600', cursor: 'pointer', height: '42px', transition: 'background-color 0.2s' }}
+                        onMouseOver={e => e.currentTarget.style.backgroundColor = '#059669'}
+                        onMouseOut={e => e.currentTarget.style.backgroundColor = '#10b981'}
+                    >
+                        Save Setting
+                    </button>
+                    <button 
+                        onClick={() => { setCompanyName(''); localStorage.setItem('companyTitle', ''); showAlert('Company Title has been removed!'); }}
+                        style={{ padding: '10px 20px', backgroundColor: '#f1f5f9', color: '#ef4444', borderRadius: '6px', border: '1px solid #cbd5e1', fontWeight: '600', cursor: 'pointer', height: '42px', transition: 'background-color 0.2s' }}
+                        onMouseOver={e => e.currentTarget.style.backgroundColor = '#fee2e2'}
+                        onMouseOut={e => e.currentTarget.style.backgroundColor = '#f1f5f9'}
+                    >
+                        Remove
+                    </button>
+                </div>
+                <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '8px', marginBottom: 0 }}>
+                    Leave blank or click Remove to hide the company title from report headers and watermarks.
+                </p>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '24px' }}>
           {Object.keys(DEFAULT_REPORT_ATTRIBUTES).map(reportKey => (
             <div 
               key={reportKey} 
@@ -359,6 +410,7 @@ const CustomizeReport = () => {
             </div>
           ))}
         </div>
+        </>
       ) : (
         <div style={{ backgroundColor: 'var(--bg-panel, white)', borderRadius: '8px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', border: '1px solid #e2e8f0' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid #e2e8f0' }}>
