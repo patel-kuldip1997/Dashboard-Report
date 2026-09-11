@@ -207,6 +207,7 @@ self.onmessage = async (e) => {
     const uniqueDcDates = new Set();
     const uniqueEpodStatuses = new Set();
     const uniqueImeiStatuses = new Set();
+    const uniqueTpDates = new Set();
 
     // Use the combined data from all sheets
     const jsonDataRaw = allJsonDataRaw;
