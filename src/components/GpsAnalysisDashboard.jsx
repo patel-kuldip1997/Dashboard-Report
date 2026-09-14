@@ -31,6 +31,8 @@ const GpsAnalysisDashboard = ({ data }) => {
     const [activeTab, setActiveTab] = useState('vehicles');
     const [startDate, setStartDate] = useState('');
     const [endDate, setEndDate] = useState('');
+    const [tempStartDate, setTempStartDate] = useState('');
+    const [tempEndDate, setTempEndDate] = useState('');
     const [selectedMapVehicle, setSelectedMapVehicle] = useState(null);
 
     const processedData = useMemo(() => {
@@ -156,32 +158,39 @@ const GpsAnalysisDashboard = ({ data }) => {
                 <h2 style={{ fontSize: '1.8rem', fontWeight: '700', color: 'var(--text-main)', margin: 0 }}>GPS Data Analytics Dashboard</h2>
                 <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600' }}>Start Date & Time</label>
+                        <label style={{ fontSize: '0.85rem', color: '#4b5563', fontWeight: '500' }}>Start Date & Time</label>
                         <input 
                             type="datetime-local" 
-                            value={startDate} 
-                            onChange={(e) => setStartDate(e.target.value)}
-                            style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }}
+                            value={tempStartDate} 
+                            onChange={(e) => setTempStartDate(e.target.value)}
+                            style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #d1d5db', background: '#fff', color: '#1f2937', outline: 'none', fontSize: '0.9rem', width: '220px', fontFamily: 'monospace' }}
                         />
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                        <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '600' }}>End Date & Time</label>
+                        <label style={{ fontSize: '0.85rem', color: '#4b5563', fontWeight: '500' }}>End Date & Time</label>
                         <input 
                             type="datetime-local" 
-                            value={endDate} 
-                            onChange={(e) => setEndDate(e.target.value)}
-                            style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }}
+                            value={tempEndDate} 
+                            onChange={(e) => setTempEndDate(e.target.value)}
+                            style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #d1d5db', background: '#fff', color: '#1f2937', outline: 'none', fontSize: '0.9rem', width: '220px', fontFamily: 'monospace' }}
                         />
                     </div>
-                    {(startDate || endDate) && (
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '20px' }}>
+                        <button 
+                            className="btn-primary"
+                            onClick={() => { setStartDate(tempStartDate); setEndDate(tempEndDate); }}
+                            style={{ padding: '8px 16px', borderRadius: '6px', fontWeight: 'bold' }}
+                        >
+                            Submit
+                        </button>
                         <button 
                             className="btn-secondary"
-                            onClick={() => { setStartDate(''); setEndDate(''); }}
-                            style={{ padding: '8px 12px', marginTop: '20px' }}
+                            onClick={() => { setTempStartDate(''); setTempEndDate(''); setStartDate(''); setEndDate(''); }}
+                            style={{ padding: '8px 16px', borderRadius: '6px', background: '#fff', border: '1px solid #d1d5db', color: '#374151', fontWeight: '500' }}
                         >
                             Clear
                         </button>
-                    )}
+                    </div>
                 </div>
             </div>
 
