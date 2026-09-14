@@ -1799,6 +1799,16 @@ function App() {
                styles: { fillColor: [r, g, b], textColor: [0, 0, 0], halign: 'center' }
             };
           }
+          
+          const numericColsList = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', 'vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'totalTps', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager', 'epodStatus', 'weighbridgeUsed', 'hrs', 'tripCount', 'netWeight'];
+          
+          if (numericColsList.includes(col.id)) {
+              return {
+                 content: String(val),
+                 styles: { halign: 'center' }
+              };
+          }
+          
           return String(val);
         });
         tableRows.push(rowData);
@@ -1810,7 +1820,7 @@ function App() {
     }
 
     const columnStyles = {};
-    const numericColsList = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', 'vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager', 'epodStatus', 'weighbridgeUsed', 'hrs', 'tripCount', 'netWeight'];
+    const numericColsList = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', 'vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'totalTps', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager', 'epodStatus', 'weighbridgeUsed', 'hrs', 'tripCount', 'netWeight'];
     visibleColumns.forEach((c, index) => {
       if (numericColsList.includes(c.id)) {
          columnStyles[index] = { halign: 'center' };
