@@ -44,6 +44,16 @@ const DEFAULT_FIRST_MILE_EPOD_GROUPED_CONFIG = [
   { id: 'epodPendingPercent', label: 'EPOD Pending (%)', visible: true }
 ];
 
+const DEFAULT_RO_ALLOCATION_CONFIG = [
+  { id: 'district', label: 'District', visible: true },
+  { id: 'roId', label: 'RO ID', visible: true },
+  { id: 'roNumber', label: 'RO Number', visible: true },
+  { id: 'refNo', label: 'Reference Number', visible: true },
+  { id: 'destLoc', label: 'Destination Godown', visible: true },
+  { id: 'targetQty', label: 'Lifting Target Qty Allocated(MT)', visible: true },
+  { id: 'finalQty', label: 'Final_QTY_allocated_TP(MT)', visible: true }
+];
+
 const DEFAULT_MG_CONFIG = [
   { id: 'refNo', label: 'Ref. No', visible: true },
   { id: 'district', label: 'District', visible: true },
@@ -437,6 +447,7 @@ function App() {
   const fileInputRef = useRef(null);
   
   const [firstMileTab, setFirstMileTab] = useState('pending-list');
+  const [roTab, setRoTab] = useState('flat');
   const [vaStartDate, setVaStartDate] = useState('');
   const [vaEndDate, setVaEndDate] = useState('');
   
@@ -495,11 +506,42 @@ function App() {
     localStorage.setItem('activeReportTab', activeReport);
 
     // Set default title
-    if (activeReport === 'first-mile-epod') {
+    if (activeReport === 'ro-allocation-dsm') {
+      let dates = [];
+      if (tpDateFilter && tpDateFilter.length > 0) {
+          dates = tpDateFilter;
+      } else {
+          dates = rawData.map(r => r.tpDate).filter(Boolean);
+      }
+      
+      if (dates.length > 0) {
+          const parsedDates = dates.map(d => {
+              const parts = d.split('-');
+              if (parts.length === 3) return new Date(parts[2], parts[1]-1, parts[0]);
+              return new Date(d);
+          }).filter(d => !isNaN(d.getTime())).sort((a, b) => a - b);
+          
+          if (parsedDates.length > 0) {
+              const startD = parsedDates[0];
+              const endD = parsedDates[parsedDates.length - 1];
+              const monthName = startD.toLocaleString('default', { month: 'long' });
+              const sDay = String(startD.getDate()).padStart(2, '0');
+              const sMonth = String(startD.getMonth() + 1).padStart(2, '0');
+              const sYear = startD.getFullYear();
+              const eDay = String(endD.getDate()).padStart(2, '0');
+              const eMonth = String(endD.getMonth() + 1).padStart(2, '0');
+              const eYear = endD.getFullYear();
+              setReportTitle(`RO Allocation Month of ${monthName} (${sDay}-${sMonth}-${sYear} to ${eDay}-${eMonth}-${eYear})`);
+          } else {
+              setReportTitle('RO Allocation (DSM)');
+          }
+      } else {
+          setReportTitle('RO Allocation (DSM)');
+      }
+    } else if (activeReport === 'first-mile-epod') {
       setReportTitle("First Mile EPOD Pending Report of Till 29th August'25 ( 00:00-23:59)");
     } else if (activeReport === 'last-mile-epod') {
       setReportTitle("Last Mile EPOD Pending Report of Till 30th July'26 ( 00:00-23:59)");
-    } else if (activeReport === 'miller-to-godown') {
       setReportTitle("Miller to Godown Trips");
     } else if (activeReport === 'lifting-report') {
       setReportTitle("Lifting Report");
@@ -523,7 +565,7 @@ function App() {
        setReportTitle("Last Mile IMEI Report");
     } else if (activeReport === 'last-mile-vehicle-assigned') {
        setReportTitle("Last Mile Vehicle Assigned");
-    } else if (activeReport === 'last-mile-commodity') {
+    } else if (activeReport === 'last-mile-commodity' || activeReport === 'ro-allocation-dsm') {
        setReportTitle("Last Mile Commodity Wise Report");
     } else {
        setReportTitle("Godown to Miller Trips");
@@ -535,6 +577,7 @@ function App() {
     if (activeReport === 'first-mile-epod') {
         defaultConf = firstMileTab === 'grouped' ? [...DEFAULT_FIRST_MILE_EPOD_GROUPED_CONFIG] : [...DEFAULT_EPOD_CONFIG];
     }
+    else if (activeReport === 'ro-allocation-dsm') defaultConf = [...DEFAULT_RO_ALLOCATION_CONFIG];
     else if (activeReport === 'last-mile-epod') defaultConf = [...DEFAULT_LAST_MILE_EPOD_CONFIG];
     else if (activeReport === 'last-mile-vehicle-assigned') defaultConf = [...DEFAULT_LAST_MILE_VEHICLE_ASSIGNED_CONFIG];
     else if (activeReport === 'last-mile-imei') defaultConf = [...DEFAULT_LAST_MILE_IMEI_CONFIG];
@@ -1199,6 +1242,7 @@ function App() {
     });
 
     let grandTotalTrips = 0;
+    
     let gtTrips = 0, gtChallan = 0, gtComplete = 0, gtTotalTps = 0;
     let gtTotalTrips = 0, gtMatched = 0, gtMismatched = 0, gtMissing = 0;
     
@@ -1231,7 +1275,8 @@ function App() {
       const numericColumns = [...baseNumericColumns];
       const pivotKeys = visibleColumns.filter(c => !numericColumns.includes(c.id)).map(c => c.id);
       
-      const distTotals = { trips: 0, deliveryChallan: 0, epodComplete: 0, epodPending: 0, totalTrips: 0, totalTps: 0, matched: 0, mismatched: 0, missing: 0 };
+      const distTotals = { trips: 0, deliveryChallan: 0, epodComplete: 0, epodPending: 0, totalTrips: 0, totalTps: 0, matched: 0, mismatched: 0, missing: 0, targetQty: 0, finalQty: 0 };
+      let distSeenRefNo = new Set();
       
       if (activeReport === 'lifting-report' && distRows.length === 0) {
          const dummyRow = { district: dist };
@@ -1254,12 +1299,19 @@ function App() {
               const refB = String(b.refNo || '');
               return refA.localeCompare(refB);
           });
+      } else if (activeReport === 'ro-allocation-dsm') {
+          sortedDistRows = [...distRows].sort((a, b) => {
+              if (a.district !== b.district) return String(a.district || '').localeCompare(String(b.district || ''));
+              if (a.roId !== b.roId) return String(a.roId || '').localeCompare(String(b.roId || ''));
+              if (a.roNumber !== b.roNumber) return String(a.roNumber || '').localeCompare(String(b.roNumber || ''));
+              return String(a.refNo || '').localeCompare(String(b.refNo || ''));
+          });
       }
-      
+
       sortedDistRows.forEach((row, idx) => {
         const getVal = (key) => key === 'refNo' ? (row._ref || row.refNo || '') : (row[key] || '');
         let groupKey = pivotKeys.map(key => getVal(key)).join('|||');
-        if (activeReport === 'last-mile-commodity') {
+        if (activeReport === 'last-mile-commodity' || activeReport === 'ro-allocation-dsm') {
             groupKey += '|||' + idx;
         }
         
@@ -1335,6 +1387,15 @@ function App() {
          distTotals.matched += group.matched || 0;
          distTotals.mismatched += group.mismatched || 0;
          distTotals.missing += group.missing || 0;
+         
+         if (activeReport === 'ro-allocation-dsm') {
+             if (group.refNo && !distSeenRefNo.has(group.refNo)) {
+                 distTotals.targetQty += (Number(group.targetQty) || 0);
+                 distSeenRefNo.add(group.refNo);
+             }
+             distTotals.finalQty += (Number(group.finalQty) || 0);
+         }
+         
         groupedData.push(group);
       });
 
@@ -1368,7 +1429,9 @@ function App() {
           totalTps: distTotals.totalTps,
           matched: distTotals.matched,
           mismatched: distTotals.mismatched,
-          missing: distTotals.missing
+          missing: distTotals.missing,
+          targetQty: distTotals.targetQty,
+          finalQty: distTotals.finalQty
         });
       }
     });
@@ -1408,7 +1471,78 @@ function App() {
        });
     }
 
-    if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-report') {
+    
+      // RO Allocation Subtotals by Reference Number
+      if (activeReport === 'ro-allocation-dsm' && roTab === 'grouped') {
+         let currentRefNo = null;
+         let refTargetTotal = 0;
+         let refFinalTotal = 0;
+
+         const finalGrouped = [];
+         
+         groupedData.forEach((row, i) => {
+             if (currentRefNo !== null && row.refNo !== currentRefNo) {
+                 finalGrouped.push({
+                     isSubtotal: true,
+                     district: `${currentRefNo} Total`,
+                     roId: '',
+                     roNumber: '',
+                     refNo: '',
+                     targetQty: refTargetTotal,
+                     finalQty: refFinalTotal
+                 });
+                 refTargetTotal = 0;
+                 refFinalTotal = 0;
+             }
+             
+             finalGrouped.push(row);
+             
+             // Target Qty is unique per Reference Number, so if it's a new Ref No, we add it.
+             if (row.refNo !== currentRefNo) {
+                 refTargetTotal += (Number(row.targetQty) || 0);
+             }
+             
+             currentRefNo = row.refNo;
+             refFinalTotal += (Number(row.finalQty) || 0);
+             
+             if (i === groupedData.length - 1) {
+                 finalGrouped.push({
+                     isSubtotal: true,
+                     district: `${currentRefNo} Total`,
+                     roId: '',
+                     roNumber: '',
+                     refNo: '',
+                     targetQty: refTargetTotal,
+                     finalQty: refFinalTotal
+                 });
+             }
+         });
+         
+         groupedData.length = 0;
+         finalGrouped.forEach(r => groupedData.push(r));
+      }
+
+      if (activeReport === 'ro-allocation-dsm') {
+         let gtTarget = 0;
+         let gtFinal = 0;
+         let gtSeenRefNo = new Set();
+         groupedData.filter(r => !r.isSubtotal).forEach(r => {
+             if (r.refNo && !gtSeenRefNo.has(r.refNo)) {
+                 gtTarget += (Number(r.targetQty) || 0);
+                 gtSeenRefNo.add(r.refNo);
+             }
+             gtFinal += (Number(r.finalQty) || 0);
+         });
+         groupedData.push({
+             isSubtotal: true,
+             isGrandTotal: true,
+             district: 'GRAND TOTAL',
+             roId: 'GRAND TOTAL',
+             targetQty: gtTarget,
+             finalQty: gtFinal
+         });
+      } else
+if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-report') {
       let gtPending = gtChallan - gtComplete;
       let gtPercent = '';
       if (activeReport === 'last-mile-epod' && gtChallan > 0) {
@@ -1463,7 +1597,7 @@ function App() {
       groupedData.push(grandTotalRow);
     }
     return groupedData;
-  }, [rawData, filterStatus, activeReport, dcMonthFilter, dcDateFilter, epodStatusFilter, visibleColumns, globalSearchTerm, tpDateFilter, wbIdFilter, remarksFilter, imeiStatusFilter, districtFilter, firstMileTab]);
+  }, [rawData, filterStatus, activeReport, dcMonthFilter, dcDateFilter, epodStatusFilter, visibleColumns, globalSearchTerm, tpDateFilter, wbIdFilter, remarksFilter, imeiStatusFilter, districtFilter, firstMileTab, roTab]);
 
   // Reset pagination when data or filters change
   useEffect(() => {
@@ -1562,15 +1696,42 @@ function App() {
     
     let prevLrNo = null;
     let prevRefNo = null;
+    let prevRoId = null;
+    let prevRoNumber = null;
 
     rawExportData.forEach((row, i) => {
       const rowData = {};
-      let sameLr = (activeReport === 'last-mile-commodity' && row.lrNo && row.lrNo === prevLrNo);
+                                  let sameRoDistrict = (activeReport === 'ro-allocation-dsm' && roTab === 'grouped' && row.district && row.district === prevDistrict);
+        let sameRoId = (sameRoDistrict && row.roId === prevRoId);
+        let sameRoNumber = (sameRoId && row.roNumber === prevRoNumber);
+                            let sameRoRef = (activeReport === 'ro-allocation-dsm' && roTab === 'grouped' && row.refNo && row.refNo === prevRefNo && row.roNumber === prevRoNumber);
+          let sameLr = (activeReport === 'last-mile-commodity' && row.lrNo && row.lrNo === prevLrNo);
       let sameRef = (sameLr && row.refNo && row.refNo === prevRefNo);
       
       visibleColumns.forEach((col, colIdx) => {
-         if (activeReport === 'last-mile-commodity') {
-             if (sameLr && lrMergeColIndices.includes(colIdx)) {
+         if (activeReport === 'last-mile-commodity' || activeReport === 'ro-allocation-dsm') {
+                                               if (row.isSubtotal) {
+                                      if (col.id === 'district') return <td key={colIdx} style={{ padding: '10px 8px', fontWeight: 'bold', borderBottom: '1px solid var(--border-color)', backgroundColor: row.isGrandTotal ? 'var(--bg-panel)' : 'var(--card-bg)' }}>{row.district}</td>;
+                                      if (col.id === 'roId') return <td key={colIdx} style={{ padding: '10px 8px', fontWeight: 'bold', borderBottom: '1px solid var(--border-color)', backgroundColor: row.isGrandTotal ? 'var(--bg-panel)' : 'var(--card-bg)' }}>{row.roId}</td>;
+                                      if (col.id === 'refNo') return <td key={colIdx} style={{ padding: '10px 8px', fontWeight: 'bold', borderBottom: '1px solid var(--border-color)', backgroundColor: row.isGrandTotal ? 'var(--bg-panel)' : 'var(--card-bg)', color: 'var(--accent)' }}>{row.refNo}</td>;
+                                      if (col.id === 'targetQty') return <td key={colIdx} style={{ padding: '10px 8px', fontWeight: 'bold', borderBottom: '1px solid var(--border-color)', backgroundColor: row.isGrandTotal ? 'var(--bg-panel)' : 'var(--card-bg)', textAlign: 'center' }}>{Number(row.targetQty).toFixed(4)}</td>;
+                                      if (col.id === 'finalQty') return <td key={colIdx} style={{ padding: '10px 8px', fontWeight: 'bold', borderBottom: '1px solid var(--border-color)', backgroundColor: row.isGrandTotal ? 'var(--bg-panel)' : 'var(--card-bg)', textAlign: 'center' }}>{Number(row.finalQty).toFixed(4)}</td>;
+                                      return <td key={colIdx} style={{ borderBottom: '1px solid var(--border-color)', backgroundColor: row.isGrandTotal ? 'var(--bg-panel)' : 'var(--card-bg)' }}></td>;
+                                  }
+                                  if (row.isSubtotal) {
+                if (col.id === 'district') return row.district;
+                if (col.id === 'roId') return row.roId;
+                if (col.id === 'targetQty') return Number(row.targetQty).toFixed(4);
+                if (col.id === 'finalQty') return Number(row.finalQty).toFixed(4);
+                return '';
+            }
+            if (activeReport === 'ro-allocation-dsm') {
+                                      if (col.id === 'district' && sameRoDistrict) return <td key={colIdx} style={{ padding: '8px', borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--card-bg)' }}></td>;
+                                      if ((col.id === 'refNo' || col.id === 'destLoc' || col.id === 'targetQty') && sameRoRef) {
+                                          return <td key={colIdx} style={{ padding: '8px', borderBottom: '1px solid var(--border-color)', backgroundColor: 'var(--card-bg)' }}></td>;
+                                      }
+                                  }
+                                  if (sameLr && lrMergeColIndices.includes(colIdx)) {
                  rowData[col.label] = '';
              } else if (sameRef && refMergeColIndices.includes(colIdx)) {
                  rowData[col.label] = '';
@@ -1585,9 +1746,11 @@ function App() {
       
       prevLrNo = row.lrNo;
       prevRefNo = row.refNo;
+      prevRoId = row.roId;
+      prevRoNumber = row.roNumber;
     });
 
-    if (activeReport === 'last-mile-commodity') {
+    if (activeReport === 'last-mile-commodity' || activeReport === 'ro-allocation-dsm') {
         const createMergesForColumns = (indices, groupKeyFn) => {
             indices.forEach(colIdx => {
                 let startR = 1; // +1 for header row (0-indexed in Excel)
@@ -1729,6 +1892,8 @@ function App() {
 
     let prevLrNo = null;
     let prevRefNo = null;
+    let prevRoId = null;
+    let prevRoNumber = null;
 
     let i = 0;
     while (i < pdfData.length) {
@@ -1740,7 +1905,7 @@ function App() {
           }
         const fontSize = row.isGrandTotal ? 11 : 9;
         
-        const subtotalCols = ['trips', 'deliveryChallan', 'totalTps', 'epodComplete', 'epodPending', 'epodPendingPercent', 'vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager', 'tripCount', 'netWeight', 'remarks', 'epodStatus', 'weighbridgeUsed', 'totalTrips', 'matched', 'mismatched', 'missing', 'quantity', 'No. of Bags/ Tin/Carton/Pouch', 'Bag/Tin/Carton/Pouch weight (in Kg)', 'distance'];
+        const subtotalCols = ['trips', 'deliveryChallan', 'totalTps', 'epodComplete', 'epodPending', 'epodPendingPercent', 'vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager', 'tripCount', 'netWeight', 'remarks', 'epodStatus', 'weighbridgeUsed', 'totalTrips', 'matched', 'mismatched', 'missing', 'quantity', 'No. of Bags/ Tin/Carton/Pouch', 'Bag/Tin/Carton/Pouch weight (in Kg)', 'distance', 'targetQty', 'finalQty'];
         const firstNumericIndex = visibleColumns.findIndex(c => subtotalCols.includes(c.id));
         const subtotalContent = [];
 
@@ -1778,12 +1943,27 @@ function App() {
         tableRows.push(subtotalContent);
         i++;
       } else {
+        let sameRoDistrict = (activeReport === 'ro-allocation-dsm' && roTab === 'grouped' && row.district && row.district === prevDistrict);
+        let sameRoId = (sameRoDistrict && row.roId === prevRoId);
+        let sameRoNumber = (sameRoId && row.roNumber === prevRoNumber);
+        let sameRoRef = (activeReport === 'ro-allocation-dsm' && roTab === 'grouped' && row.refNo && row.refNo === prevRefNo && row.roNumber === prevRoNumber);
         let sameLr = (activeReport === 'last-mile-commodity' && row.lrNo && row.lrNo === prevLrNo);
         let sameRef = (sameLr && row.refNo && row.refNo === prevRefNo);
         
         const rowData = visibleColumns.map((col, colIdx) => {
-          if (activeReport === 'last-mile-commodity') {
-              if (sameLr && lrMergeColIndices.includes(colIdx)) return '';
+          if (activeReport === 'last-mile-commodity' || activeReport === 'ro-allocation-dsm') {
+                          if (row.isSubtotal) {
+                if (col.id === 'district') return row.district;
+                if (col.id === 'roId') return row.roId;
+                if (col.id === 'targetQty') return Number(row.targetQty).toFixed(4);
+                if (col.id === 'finalQty') return Number(row.finalQty).toFixed(4);
+                return '';
+            }
+            if (activeReport === 'ro-allocation-dsm') {
+                if (col.id === 'district' && sameRoDistrict) return '';
+                if ((col.id === 'refNo' || col.id === 'destLoc' || col.id === 'targetQty') && sameRoRef) return '';
+            }
+            if (sameLr && lrMergeColIndices.includes(colIdx)) return '';
               if (sameRef && refMergeColIndices.includes(colIdx)) return '';
           }
           
@@ -1815,6 +1995,8 @@ function App() {
         
         prevLrNo = row.lrNo;
         prevRefNo = row.refNo;
+      prevRoId = row.roId;
+      prevRoNumber = row.roNumber;
         i++;
       }
     }
@@ -1969,6 +2151,9 @@ function App() {
 
   let lastDist = null;
   let lastSource = null;
+  let lastRoId = null;
+  let lastRoNumber = null;
+  let lastRefNo = null;
 
   const totalPages = Math.max(1, Math.ceil(displayData.length / itemsPerPage));
   const paginatedData = displayData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -2101,6 +2286,14 @@ function App() {
                   <FileText className="nav-icon" size={16} />
                   <span>Lifting Report</span>
                 </div>
+                <div 
+                  className={`nav-item ${activeReport === 'ro-allocation-dsm' ? 'active' : ''}`}
+                  onClick={() => handleMenuClick('ro-allocation-dsm')}
+                >
+                  <FileText className="nav-icon" size={16} />
+                  <span>RO Allocation (DSM)</span>
+                </div>
+
                 <div 
                   className={`nav-item ${activeReport === 'vehicle-assigned' ? 'active' : ''}`}
                   onClick={() => handleMenuClick('vehicle-assigned')}
@@ -2305,7 +2498,7 @@ function App() {
           {activeReport === 'customize-report' && <CustomizeReport />}
 
         {/* Render content based on active report */}
-        {(activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown' || activeReport === 'first-mile-epod' || activeReport === 'last-mile-epod' || activeReport === 'last-mile-imei' || activeReport === 'lifting-report' || activeReport === 'multi-trip-analysis' || activeReport === 'gps-analysis' || activeReport === 'eta-route' || activeReport === 'vehicle-assigned' || activeReport === 'last-mile-vehicle-assigned' || activeReport === 'weighbridge-report' || activeReport === 'penalty-epod' || activeReport === 'last-mile-commodity') && (
+        {(activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown' || activeReport === 'first-mile-epod' || activeReport === 'last-mile-epod' || activeReport === 'last-mile-imei' || activeReport === 'lifting-report' || activeReport === 'multi-trip-analysis' || activeReport === 'gps-analysis' || activeReport === 'eta-route' || activeReport === 'vehicle-assigned' || activeReport === 'last-mile-vehicle-assigned' || activeReport === 'weighbridge-report' || activeReport === 'penalty-epod' || activeReport === 'last-mile-commodity' || activeReport === 'ro-allocation-dsm') && (
           <>
             <div className="page-header">
               <div style={{ flex: 1, maxWidth: '70%' }}>
@@ -2790,7 +2983,7 @@ function App() {
                           selected={districtFilter} 
                           onChange={setDistrictFilter} 
                       />
-                    ) : (activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown') ? (
+                    ) : (activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown' || activeReport === 'ro-allocation-dsm') ? (
                       <>
                         <MultiSelectDropdown 
                           placeholder="Month" 
@@ -2804,17 +2997,19 @@ function App() {
                           selected={dcDateFilter} 
                           onChange={setDcDateFilter} 
                         />
-                        <select 
-                          className="btn-secondary" 
-                          value={filterStatus} 
-                          onChange={(e) => setFilterStatus(e.target.value)}
-                          style={{ outline: 'none', appearance: 'none', paddingRight: '16px', backgroundColor: 'var(--bg-panel)' }}
-                        >
-                          <option value="All">All Trips ({filterCounts.all})</option>
-                          <option value="Start Trip Pending">Start Trip Pending ({filterCounts.startPending})</option>
-                          <option value="End Trip Pending">End Trip Pending (In Transit) ({filterCounts.endPending})</option>
-                          <option value="Completed">Completed ({filterCounts.completed})</option>
-                        </select>
+                        {activeReport !== 'ro-allocation-dsm' && (
+                          <select 
+                            className="btn-secondary" 
+                            value={filterStatus} 
+                            onChange={(e) => setFilterStatus(e.target.value)}
+                            style={{ outline: 'none', appearance: 'none', paddingRight: '16px', backgroundColor: 'var(--bg-panel)' }}
+                          >
+                            <option value="All">All Trips ({filterCounts.all})</option>
+                            <option value="Start Trip Pending">Start Trip Pending ({filterCounts.startPending})</option>
+                            <option value="End Trip Pending">End Trip Pending (In Transit) ({filterCounts.endPending})</option>
+                            <option value="Completed">Completed ({filterCounts.completed})</option>
+                          </select>
+                        )}
                       </>
                     ) : null}
                   </div>
@@ -2966,7 +3161,33 @@ function App() {
                         </table>
                       </div>
                     )}
-                    {activeReport === 'first-mile-epod' && (
+                    
+            {activeReport === 'ro-allocation-dsm' && (
+              <div className="tab-container" style={{ marginBottom: '20px', display: 'flex', gap: '20px', borderBottom: '1px solid var(--border-color)' }}>
+                <button 
+                  className={`tab-btn ${roTab === 'flat' ? 'active' : ''}`}
+                  onClick={() => setRoTab('flat')}
+                  style={{
+                    padding: '10px 20px', background: 'none', border: 'none', borderBottom: roTab === 'flat' ? '2px solid var(--primary-color)' : '2px solid transparent',
+                    color: roTab === 'flat' ? 'var(--primary-color)' : 'var(--text-muted)', fontWeight: roTab === 'flat' ? '600' : 'normal', cursor: 'pointer', fontSize: '1rem'
+                  }}
+                >
+                  Flat View
+                </button>
+                <button 
+                  className={`tab-btn ${roTab === 'grouped' ? 'active' : ''}`}
+                  onClick={() => setRoTab('grouped')}
+                  style={{
+                    padding: '10px 20px', background: 'none', border: 'none', borderBottom: roTab === 'grouped' ? '2px solid var(--primary-color)' : '2px solid transparent',
+                    color: roTab === 'grouped' ? 'var(--primary-color)' : 'var(--text-muted)', fontWeight: roTab === 'grouped' ? '600' : 'normal', cursor: 'pointer', fontSize: '1rem'
+                  }}
+                >
+                  Grouped View (RO ID Totals)
+                </button>
+              </div>
+            )}
+
+            {activeReport === 'first-mile-epod' && (
                       <div className="report-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '0' }}>
                         <button 
                           className={`tab-btn ${firstMileTab === 'pending-list' ? 'active' : ''}`}
@@ -3004,7 +3225,7 @@ function App() {
                             if (row.isSubtotal) {
                               lastDist = null;
                               lastSource = null;
-                              const subtotalCols = ['trips', 'deliveryChallan', 'totalTps', 'epodComplete', 'epodPending', 'epodPendingPercent', 'vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager', 'tripCount', 'netWeight', 'remarks', 'epodStatus', 'weighbridgeUsed', 'totalTrips', 'matched', 'mismatched', 'missing', 'quantity', 'No. of Bags/ Tin/Carton/Pouch', 'Bag/Tin/Carton/Pouch weight (in Kg)', 'distance'];
+                              const subtotalCols = ['trips', 'deliveryChallan', 'totalTps', 'epodComplete', 'epodPending', 'epodPendingPercent', 'vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager', 'tripCount', 'netWeight', 'remarks', 'epodStatus', 'weighbridgeUsed', 'totalTrips', 'matched', 'mismatched', 'missing', 'quantity', 'No. of Bags/ Tin/Carton/Pouch', 'Bag/Tin/Carton/Pouch weight (in Kg)', 'distance', 'targetQty', 'finalQty'];
                               const firstNumericIndex = visibleColumns.findIndex(c => subtotalCols.includes(c.id));
                               const colSpanBeforeNum = firstNumericIndex > 0 ? firstNumericIndex : visibleColumns.length;
                               const sizeStyle = row.isGrandTotal ? '1.15rem' : '1.05rem';
@@ -3057,7 +3278,7 @@ function App() {
                                     case 'sourceLoc': 
                                       content = <span style={{ fontWeight: displaySource ? '500' : 'normal' }}>{displaySource}</span>; 
                                       break;
-                                    case 'destLoc': content = row.destLoc; break;
+                                    
                                     case 'transporter': content = row.transporter; break;
                                     case 'godown': content = row.godown; break;
                                     case 'tpDate': content = row.tpDate; break;
@@ -3271,6 +3492,7 @@ function App() {
                     if (activeReport === 'first-mile-epod') {
                         defaultConf = firstMileTab === 'grouped' ? DEFAULT_FIRST_MILE_EPOD_GROUPED_CONFIG : DEFAULT_EPOD_CONFIG;
                     }
+                    else if (activeReport === 'ro-allocation-dsm') defaultConf = DEFAULT_RO_ALLOCATION_CONFIG;
                     else if (activeReport === 'last-mile-epod') defaultConf = DEFAULT_LAST_MILE_EPOD_CONFIG;
                     else if (activeReport === 'last-mile-vehicle-assigned') defaultConf = DEFAULT_LAST_MILE_VEHICLE_ASSIGNED_CONFIG;
                     else if (activeReport === 'last-mile-imei') defaultConf = DEFAULT_LAST_MILE_IMEI_CONFIG;

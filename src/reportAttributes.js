@@ -1,4 +1,14 @@
 export const DEFAULT_REPORT_ATTRIBUTES = {
+  'ro-allocation-dsm': {
+    'Created At': ['Created At', 'Pick Up Date', 'Lifting Target Date', 'RO date'],
+    'District': ['District', 'district_name', 'TP District'],
+    'RO ID': ['RO ID', 'ro_id'],
+    'RO Number': ['RO Number', 'ro_number'],
+    'Reference Number': ['Reference Number', 'Reference No', 'Ref No'],
+    'Destination Godown': ['Destination Godown', 'dest_loc'],
+    'Lifting Target Qty Allocated': ['Lifting Target Qty Allocated', 'Target Qty', 'target_qty'],
+    'final_quan_allocated_obj': ['final_quan_allocated_obj', 'Final Qty', 'final_qty']
+  },
   'first-mile-epod': {
     'Reference Number': ['Reference Number', 'Reference No', 'Ref No'],
     'EPOD status': ['EPOD status', 'EPOD_status'],

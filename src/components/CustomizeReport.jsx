@@ -15,7 +15,8 @@ const reportNames = {
   'multi-trip-analysis': 'Multi Trip Analysis',
   'weighbridge-report': 'Weighbridge Report',
   'penalty-epod': 'Last Mile EPOD Penalty',
-  'last-mile-commodity': 'Last Mile Commodity Wise'
+  'last-mile-commodity': 'Last Mile Commodity Wise',
+  'ro-allocation-dsm': 'RO Allocation'
 };
 
 // The expected username for admin access

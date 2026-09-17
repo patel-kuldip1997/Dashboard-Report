@@ -708,6 +708,30 @@ self.onmessage = async (e) => {
          return;
       }
 
+      if (activeReport === 'ro-allocation-dsm') {
+         const dateRaw = getVal(row, 'Created At') || getVal(row, 'Pick Up Date') || getVal(row, 'Lifting Target Date') || getVal(row, 'RO date');
+         if (dateRaw) {
+             const dtStr = formatExcelDate(dateRaw);
+             if (dtStr) uniqueTpDates.add(dtStr);
+         }
+         
+         processed.push({
+            ...row,
+            district: getVal(row, 'district_name') || getVal(row, 'District') || '',
+            roId: getVal(row, 'RO ID') || '',
+            roNumber: getVal(row, 'RO Number') || '',
+            refNo: getVal(row, 'Reference Number') || getVal(row, 'Reference No') || '',
+            destLoc: getVal(row, 'Destination Godown') || '',
+            targetQty: getVal(row, 'Lifting Target Qty Allocated') || 0,
+            finalQty: getVal(row, 'final_quan_allocated_obj') || 0,
+            tpDate: formatExcelDate(dateRaw),
+            createDate: formatExcelDate(dateRaw),
+            createMonth: formatExcelDate(dateRaw) ? (function(d){ return d.toLocaleString('default', { month: 'short' }) + ' ' + d.getFullYear() })(new Date(formatExcelDate(dateRaw))) : '',
+            isSubtotal: false
+         });
+         return;
+      }
+
       if (activeReport === 'first-mile-epod') {
          const refNoStr = String(getVal(row, 'Reference No') || getVal(row, 'Reference Number') || '');
          if (refNoStr.includes('_cancel')) return;
