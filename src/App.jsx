@@ -791,7 +791,20 @@ function App() {
       try {
         const saved = localStorage.getItem('customReportAttributes_v3');
         if (saved) {
-           customAttrs = JSON.parse(saved);
+           const parsed = JSON.parse(saved);
+           const merged = JSON.parse(JSON.stringify(parsed));
+           for (const reportKey in DEFAULT_REPORT_ATTRIBUTES) {
+               if (!merged[reportKey]) {
+                   merged[reportKey] = { ...DEFAULT_REPORT_ATTRIBUTES[reportKey] };
+               } else {
+                   for (const attrKey in DEFAULT_REPORT_ATTRIBUTES[reportKey]) {
+                       if (!merged[reportKey][attrKey]) {
+                           merged[reportKey][attrKey] = [...DEFAULT_REPORT_ATTRIBUTES[reportKey][attrKey]];
+                       }
+                   }
+               }
+           }
+           customAttrs = merged;
         }
       } catch(e) {}
 
