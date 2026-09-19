@@ -132,7 +132,7 @@ self.onmessage = async (e) => {
             }
             if (matchCount === 0) {
                 isValid = false;
-                expectedColumns = requiredAttributes.join(', ');
+                expectedColumns = requiredAttributes.join(', ') + ". Found headers: " + headers.slice(0, 10).join(', ');
             }
         }
     } else {
@@ -196,7 +196,7 @@ self.onmessage = async (e) => {
     }
 
     if (!isValid) {
-      self.postMessage({ type: 'error', message: 'Data Not Match! You have uploaded the wrong file for this report.' });
+      self.postMessage({ type: 'error', message: 'Data Not Match! Expected cols: ' + expectedColumns });
       return;
     }
 
@@ -215,20 +215,20 @@ self.onmessage = async (e) => {
     // Helper to get value case-insensitively and trim keys
     // Helper to get value using custom resolved aliases
     const getVal = (row, standardAttribute, ...fallbackAliases) => {
-        // Find aliases for this attribute from custom mapping, or use the standard name if no mapping exists
         let aliases = [standardAttribute];
         if (customAttributes && customAttributes[activeReport] && customAttributes[activeReport][standardAttribute]) {
            aliases = customAttributes[activeReport][standardAttribute];
         }
-        
-        // As a fallback, include any additional arguments (the old hardcoded style) as fallback aliases
+
         if (fallbackAliases && fallbackAliases.length > 0) {
            aliases.push(...fallbackAliases);
         }
+
+        const cleanStr = (s) => String(s).toLowerCase().replace(/[\s_]+/g, '');
+        const lowerKeys = aliases.map(cleanStr);
         
-        const lowerKeys = aliases.map(k => String(k).toLowerCase().trim());
         for (const k in row) {
-            if (lowerKeys.includes(String(k).toLowerCase().trim())) {
+            if (lowerKeys.includes(cleanStr(k))) {
                 return row[k];
             }
         }
@@ -709,6 +709,10 @@ self.onmessage = async (e) => {
       }
 
       if (activeReport === 'ro-allocation-dsm') {
+         const roIdVal = getVal(row, 'RO ID');
+         const roNumVal = getVal(row, 'RO Number');
+         if (!roIdVal && !roNumVal) return;
+
          const dateRaw = getVal(row, 'Created At') || getVal(row, 'Pick Up Date') || getVal(row, 'Lifting Target Date') || getVal(row, 'RO date');
          if (dateRaw) {
              const dtStr = formatExcelDate(dateRaw);

@@ -542,6 +542,7 @@ function App() {
       setReportTitle("First Mile EPOD Pending Report of Till 29th August'25 ( 00:00-23:59)");
     } else if (activeReport === 'last-mile-epod') {
       setReportTitle("Last Mile EPOD Pending Report of Till 30th July'26 ( 00:00-23:59)");
+    } else if (activeReport === 'miller-to-godown') {
       setReportTitle("Miller to Godown Trips");
     } else if (activeReport === 'lifting-report') {
       setReportTitle("Lifting Report");
@@ -565,7 +566,7 @@ function App() {
        setReportTitle("Last Mile IMEI Report");
     } else if (activeReport === 'last-mile-vehicle-assigned') {
        setReportTitle("Last Mile Vehicle Assigned");
-    } else if (activeReport === 'last-mile-commodity' || activeReport === 'ro-allocation-dsm') {
+    } else if (activeReport === 'last-mile-commodity') {
        setReportTitle("Last Mile Commodity Wise Report");
     } else {
        setReportTitle("Godown to Miller Trips");
