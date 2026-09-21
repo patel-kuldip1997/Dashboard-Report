@@ -81,13 +81,73 @@ export default function PenaltyDashboard({ data }) {
       XLSX.writeFile(wb, `Penalty_Report_${suffix}.xlsx`);
     } else if (type === 'pdf') {
       const doc = new jsPDF('landscape');
+      
+      const pageWidth = doc.internal.pageSize.getWidth();
+      doc.setTextColor(0, 0, 0);
+      doc.setFontSize(22);
+      doc.setFont("helvetica", "bold");
+      const companyTitle = localStorage.getItem('companyTitle');
+      const finalTitle = companyTitle === null ? "FarEye Technologies Pvt. Ltd." : companyTitle;
+
+      if (finalTitle.trim() !== '') {
+          doc.text(finalTitle, pageWidth / 2, 18, { align: 'center' });
+      }
+
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      const reportTitle = "Penalty Report";
+      const titleWidth = doc.getTextWidth(reportTitle);
+      const padding = 10;
+      const boxHeight = 8;
+      const boxX = (pageWidth - (titleWidth + padding)) / 2;
+      const boxY = 21;
+
+      doc.setFillColor(240, 240, 240);
+      doc.rect(boxX, boxY, titleWidth + padding, boxHeight, 'F');
+
+      doc.setTextColor(0, 0, 0);
+      doc.text(reportTitle, pageWidth / 2, 27, { align: 'center' });
+
+      doc.setLineWidth(0.5);
+      doc.setDrawColor(200, 200, 200);
+      doc.line(14, 32, pageWidth - 14, 32);
+
       const headers = Object.keys(exportRows[0] || {});
       const dataRows = exportRows.map(row => headers.map(h => row[h] !== undefined ? String(row[h]) : ''));
       autoTable(doc, {
         head: [headers],
         body: dataRows,
         styles: { fontSize: 8 },
-        theme: 'grid'
+        theme: 'grid',
+        startY: 38,
+        didDrawPage: function (data) {
+          doc.setGState(new doc.GState({ opacity: 0.15 }));
+          doc.setFontSize(80);
+          doc.setTextColor(150, 150, 150);
+          doc.setFont("helvetica", "bold");
+
+          const companyTitleStr = localStorage.getItem('companyTitle');
+          const defaultWatermark = companyTitleStr === null ? "FarEye" : (companyTitleStr ? companyTitleStr.split(' ')[0] : "");
+
+          if (defaultWatermark.trim() !== '') {
+              const textWidth = doc.getTextWidth(defaultWatermark);
+              const x = (doc.internal.pageSize.getWidth() - textWidth) / 2;
+              const y = doc.internal.pageSize.getHeight() / 2;
+              doc.text(defaultWatermark, x, y);
+          }
+          doc.setGState(new doc.GState({ opacity: 1.0 }));
+
+          doc.setLineWidth(0.5);
+          doc.setDrawColor(200, 200, 200);
+          doc.line(14, doc.internal.pageSize.getHeight() - 15, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 15);
+          
+          doc.setFontSize(10);
+          doc.setTextColor(100, 100, 100);
+          doc.setFont("helvetica", "normal");
+          doc.text("Page " + data.pageNumber, doc.internal.pageSize.getWidth() - 20, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
+          const today = new Date();
+          doc.text("Generated on: " + today.toLocaleDateString() + " " + today.toLocaleTimeString(), 14, doc.internal.pageSize.getHeight() - 10);
+        }
       });
       doc.save(`Penalty_Report_${suffix}.pdf`);
     }

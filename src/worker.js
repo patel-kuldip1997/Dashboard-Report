@@ -1,3 +1,5 @@
+let FM_TRANSPORT_MAPPING = {};
+
 import * as XLSX from 'xlsx';
 
 const calculatePendingDays = (dateString) => {
@@ -34,7 +36,42 @@ const formatExcelDate = (dateVal) => {
 };
 
 self.onmessage = async (e) => {
-  const { data, trackingData, activeReport, etaApiKey, etaVehicleType, weighbridgeVendors, customAttributes } = e.data;
+  const { data, trackingData, fmMasterData, activeReport, etaApiKey, etaVehicleType, weighbridgeVendors, customAttributes } = e.data;
+
+  // Clear previous mapping to avoid stale state if multiple files are processed
+  FM_TRANSPORT_MAPPING = {};
+
+  if (fmMasterData) {
+      try {
+          const wb2 = XLSX.read(fmMasterData, { type: 'array' });
+          const masterJson = XLSX.utils.sheet_to_json(wb2.Sheets[wb2.SheetNames[0]], { raw: true, defval: '' });
+          masterJson.forEach(row => {
+              let tid = '';
+              let dist = '';
+              let transp = '';
+              
+              for (const key in row) {
+                  const cleanKey = String(key).trim().toLowerCase();
+                  if (cleanKey === 'trans id and district code' || cleanKey === 'trans id' || cleanKey === 'trans_id') {
+                      tid = row[key];
+                  } else if (cleanKey === 'district') {
+                      dist = row[key];
+                  } else if (cleanKey === 'transporter name' || cleanKey === 'transporter' || cleanKey === 'transport' || cleanKey === 'tran') {
+                      transp = row[key];
+                  }
+              }
+              
+              if (tid) {
+                  // Keep string to be safe
+                  tid = String(tid).trim();
+                  FM_TRANSPORT_MAPPING['fm' + tid] = { district: dist, transporter: transp };
+                  FM_TRANSPORT_MAPPING[tid] = { district: dist, transporter: transp };
+              }
+          });
+      } catch(err) {
+          console.error("Failed to parse fmMasterData", err);
+      }
+  }
   
   // Helper to get dynamically resolved aliases for an attribute
   const getAliases = (attributeName) => {
@@ -113,7 +150,13 @@ self.onmessage = async (e) => {
     if (customAttributes && customAttributes[activeReport]) {
         const requiredAttributes = Object.keys(customAttributes[activeReport]);
         // Special case loose validation for some reports
-        if (activeReport === 'first-mile-epod') {
+        if (activeReport === 'first-mile-vehicle-registered') {
+            const hasTruck = headers.includes('truck number') || headers.includes('vehicle number') || headers.includes('truck_number') || headers.includes('vehiclenumber');
+            if (!hasTruck) {
+                isValid = false;
+                expectedColumns = "truck number or vehicle number";
+            }
+        } else if (activeReport === 'first-mile-epod') {
             const hasStatus = getAliases('EPOD status').some(alias => headers.includes(alias.toLowerCase()));
             const hasRef = getAliases('Reference Number').some(alias => headers.includes(alias.toLowerCase()));
             const hasTrack = headers.includes('tracking');
@@ -284,7 +327,8 @@ self.onmessage = async (e) => {
     }
 
     if (activeReport === 'lifting-report') {
-      jsonData.forEach(row => {
+      let lastFmVehicleNo = '';
+    jsonData.forEach(row => {
         const dist = (getVal(row, 'District') || '').trim();
         if (!dist) return;
         
@@ -334,7 +378,8 @@ self.onmessage = async (e) => {
     } else if (activeReport === 'multi-trip-analysis') {
        const tripGroups = {};
        
-       jsonData.forEach(row => {
+       let lastFmVehicleNo = '';
+    jsonData.forEach(row => {
           // Ignore rows containing _cancel
           if (JSON.stringify(row).toLowerCase().includes('_cancel')) return;
 
@@ -497,7 +542,8 @@ self.onmessage = async (e) => {
 
         // 1. Validate and prepare data
         let routesData = [];
-        jsonData.forEach(row => {
+        let lastFmVehicleNo = '';
+    jsonData.forEach(row => {
             let routeCode = getVal(row, 'Route Code', 'Route_Code', 'Route');
             
             let originLat = getVal(row, 'Origin_Lat', 'Origin Lat');
@@ -608,6 +654,7 @@ self.onmessage = async (e) => {
     let lmFpsName = '';
     let lmTransporter = '';
 
+    let lastFmVehicleNo = '';
     jsonData.forEach(row => {
       if (activeReport === 'penalty-epod') {
          const refNoStr = String(getVal(row, 'Reference Number') || getVal(row, 'Reference No') || '').trim();
@@ -1022,19 +1069,58 @@ self.onmessage = async (e) => {
          return;
       }
       
+      if (activeReport === 'first-mile-vehicle-registered') {
+         let vehicleNo = getVal(row, 'Vehicle Number', 'Vehicle No', 'Truck Number', 'truck number');
+         if (vehicleNo !== undefined && vehicleNo !== null && String(vehicleNo).trim() !== '') {
+             lastFmVehicleNo = String(vehicleNo).trim();
+         } else {
+             vehicleNo = lastFmVehicleNo;
+         }
+         
+         if (!vehicleNo || String(vehicleNo).trim() === '') return;
+
+         let district = getVal(row, 'District');
+         let transporter = getVal(row, 'Transporter Name', 'Transporter', 'Transport', 'Tran', 'gps vendor', 'vendor') || '';
+
+         let branchCode = getVal(row, 'trans ID') || getVal(row, 'branch') || getVal(row, 'User Mapping$Branch') || getVal(row, 'User_Mapping$Branch');
+         
+         if (!branchCode && district && String(district).toLowerCase().startsWith('fm')) {
+             branchCode = district;
+         }
+
+         if (branchCode) {
+             const mapping = FM_TRANSPORT_MAPPING[branchCode] || FM_TRANSPORT_MAPPING['fm' + branchCode];
+             if (mapping) {
+                 if (mapping.district && String(mapping.district).trim() !== '') {
+                     district = mapping.district;
+                 }
+                 if (mapping.transporter && String(mapping.transporter).trim() !== '') {
+                     transporter = mapping.transporter;
+                 }
+             }
+         }
+
+         processed.push({ ...row, ...extractDynamicColumns(row),
+            vehicleNo: vehicleNo,
+            district: district || '',
+            transporter: transporter || '',
+            capacity: getVal(row, 'Capacity', 'capacity(mt)', 'truck type') || ''
+         });
+         return;
+      }
+
       if (activeReport === 'vehicle-assigned') {
          const refNoStr = String(getVal(row, 'Reference Number') || '');
          if (refNoStr.toLowerCase().includes('_cancel')) return;
 
-         const district = getVal(row, 'District');
-         const tpDate = formatExcelDate(getVal(row, 'TP date') || getVal(row, 'TP Date') || getVal(row, 'tp date'));
-         if (!district || !tpDate) return;
+         let district = getVal(row, 'District');
+         const tpDate = formatExcelDate(getVal(row, 'TP date') || getVal(row, 'TP Date') || getVal(row, 'tp date') || getVal(row, 'Created At'));
 
          processed.push({ ...row, ...extractDynamicColumns(row),
             refNo: refNoStr,
-            district: district,
-            tpDate: tpDate,
-            vehicleNo: getVal(row, 'Vehicle Number') || getVal(row, 'Vehicle No.') || '',
+            district: district || '',
+            tpDate: tpDate || '',
+            vehicleNo: getVal(row, 'Vehicle Number') || getVal(row, 'Vehicle No.') || getVal(row, 'Truck Number') || '',
             destGodown: getVal(row, 'Destination Godown') || '',
             transporter: getVal(row, 'Transporter Name') || ''
          });
@@ -1165,6 +1251,18 @@ self.onmessage = async (e) => {
         _ref: refNo
       });
     });
+
+    if (activeReport === 'first-mile-vehicle-registered') {
+        const vCounts = {};
+        processed.forEach(r => {
+            const v = (r.vehicleNo || '').trim().toUpperCase();
+            if (v) vCounts[v] = (vCounts[v] || 0) + 1;
+        });
+        processed.forEach(r => {
+            const v = (r.vehicleNo || '').trim().toUpperCase();
+            r.isMultipleMapping = (v && vCounts[v] > 1) ? 'Yes' : 'No';
+        });
+    }
 
     if (processed.length === 0) {
       self.postMessage({ type: 'error', message: 'Data Not Match or no valid records found for this report.' });

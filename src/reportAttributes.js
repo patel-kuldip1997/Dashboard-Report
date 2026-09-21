@@ -46,6 +46,13 @@ export const DEFAULT_REPORT_ATTRIBUTES = {
     'District': ['District', 'TP District'],
     'TP Date': ['TP Date', 'TP date']
   },
+  'first-mile-vehicle-registered': {
+    'Sr. No.': ['Sr. No.'],
+    'Vehicle Number': ['Vehicle Number', 'Vehicle No', 'Truck Number', 'truck number'],
+    'Transporter Name': ['Transporter Name', 'Transporter', 'gps vendor', 'vendor', 'Transport', 'Tran'],
+    'District': ['District', 'TP District', 'User Mapping$Branch', 'User_Mapping$Branch', 'branch', 'trans ID', 'trans_id'],
+    'Capacity': ['Capacity', 'capacity(mt)', 'truck type']
+  },
   'weighbridge-report': {
     'Weighbridge ID': ['Weighbridge ID', 'weighbridge_id'],
     'TP date': ['TP date', 'TP Date'],
