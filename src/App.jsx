@@ -1,9 +1,4 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import PivotTableUIObj from 'react-pivottable/PivotTableUI';
-const PivotTableUI = PivotTableUIObj.default || PivotTableUIObj;
-import TableRenderersObj from 'react-pivottable/TableRenderers';
-const TableRenderers = TableRenderersObj.default || TableRenderersObj;
-import 'react-pivottable/pivottable.css';
 import { UploadCloud, FileSpreadsheet, Download, Building2, Truck, FileText, Filter, AlertCircle, Database, Menu, X, ChevronDown, ChevronRight, FileDown, Settings, GripVertical, History, Trash2, FolderOpen, Search, CheckCircle, Repeat, MapPin, BarChart2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
