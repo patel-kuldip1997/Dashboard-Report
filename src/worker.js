@@ -35,6 +35,15 @@ const formatExcelDate = (dateVal) => {
   return String(dateVal).split(' ')[0];
 };
 
+const cleanImageUrl = (raw) => {
+  if (!raw || typeof raw !== 'string') return '';
+  let str = raw.trim();
+  const match = str.match(/HYPERLINK\s*\(\s*["']([^"']+)["']/i);
+  if (match) str = match[1].trim();
+  str = str.replace(/^["']|["']$/g, '').trim();
+  return str;
+};
+
 self.onmessage = async (e) => {
   const { data, trackingData, fmMasterData, activeReport, etaApiKey, etaVehicleType, weighbridgeVendors, customAttributes } = e.data;
 
@@ -107,12 +116,12 @@ self.onmessage = async (e) => {
         let headerRowIndex = 0;
         for (let i = 0; i < allRows.length; i++) {
             const rowData = allRows[i] || [];
-            // Check if row has at least 3 valid string headers
+            // Check if row has at least 2 valid string headers
             const validHeaders = rowData.filter(cell => cell && String(cell).trim().length > 0);
-            if (validHeaders.length >= 3) {
+            if (validHeaders.length >= 2) {
                 headersRaw = rowData;
                 headerRowIndex = i;
-                break;
+                break; // Stop at the very first header row!
             }
         }
         
@@ -164,8 +173,11 @@ self.onmessage = async (e) => {
                 isValid = false;
                 expectedColumns = requiredAttributes.join(', ');
             }
+        } else if (activeReport === 'epod-photo-analysis') {
+            // Very lenient validation for EPOD photo analysis
+            isValid = true;
         } else {
-            // Strict check: At least ONE standard attribute must have a matching header (very loose check matching original loose logic)
+            // Strict check: At least ONE standard attribute must have a matching header
             let matchCount = 0;
             for (const attr of requiredAttributes) {
                 const aliases = getAliases(attr);
@@ -235,6 +247,8 @@ self.onmessage = async (e) => {
            isValid = false;
            expectedColumns = 'Reference Number, Penalty Hours, Start_Trip, end_trip';
          }
+       } else if (activeReport === 'epod-photo-analysis') {
+         isValid = true;
        }
     }
 
@@ -328,7 +342,7 @@ self.onmessage = async (e) => {
 
     if (activeReport === 'lifting-report') {
       let lastFmVehicleNo = '';
-    jsonData.forEach(row => {
+      jsonData.forEach(row => {
         const dist = (getVal(row, 'District') || '').trim();
         if (!dist) return;
         
@@ -379,7 +393,7 @@ self.onmessage = async (e) => {
        const tripGroups = {};
        
        let lastFmVehicleNo = '';
-    jsonData.forEach(row => {
+       jsonData.forEach(row => {
           // Ignore rows containing _cancel
           if (JSON.stringify(row).toLowerCase().includes('_cancel')) return;
 
@@ -484,8 +498,6 @@ self.onmessage = async (e) => {
        
        self.postMessage({ type: 'success', data: processed });
        return;
-       self.postMessage({ type: 'success', data: processed });
-       return;
     } else if (activeReport === 'eta-route') {
        if (!etaApiKey) {
            self.postMessage({ type: 'error', message: 'API Key is required.' });
@@ -504,13 +516,10 @@ self.onmessage = async (e) => {
         const parseTransitTime = (timeStr) => {
             if (timeStr === undefined || timeStr === null || String(timeStr).trim() === '') return NaN;
             if (typeof timeStr === 'number') {
-                // If it's a small decimal (typical Excel time fraction), convert to minutes.
-                // If it's a large number, it might be raw minutes already.
                 if (timeStr < 10) return Math.round(timeStr * 24 * 60);
                 return timeStr;
             }
             
-            // Check for HH:MM or HH:MM:SS format
             let colonMatch = String(timeStr).trim().match(/^(\d+):(\d+)(?::(\d+))?$/);
             if (colonMatch) {
                 let h = parseInt(colonMatch[1], 10);
@@ -542,8 +551,7 @@ self.onmessage = async (e) => {
 
         // 1. Validate and prepare data
         let routesData = [];
-        let lastFmVehicleNo = '';
-    jsonData.forEach(row => {
+        jsonData.forEach(row => {
             let routeCode = getVal(row, 'Route Code', 'Route_Code', 'Route');
             
             let originLat = getVal(row, 'Origin_Lat', 'Origin Lat');
@@ -604,7 +612,6 @@ self.onmessage = async (e) => {
                let percent = 10 + Math.round((processedCount / totalUnique) * 85);
                self.postMessage({ type: 'progress', percent, message: `Fetching Route Data (${processedCount} of ${totalUnique})...` });
                
-               // small delay to prevent rate limit issues
                await new Promise(r => setTimeout(r, 50));
            }
        } catch (err) {
@@ -656,11 +663,120 @@ self.onmessage = async (e) => {
 
     let lastFmVehicleNo = '';
     jsonData.forEach(row => {
+      if (activeReport === 'epod-photo-analysis') {
+         let district = String(getVal(row, 'District', 'TP District', 'district_name', 'district', 'District Name') || '').trim();
+         let godown = String(getVal(row, 'GSCSCL Godown', 'Godown', 'Destination Godown', 'Lifting Location Name', 'godown_name', 'godown', 'Godown Name', 'Source Godown') || '').trim();
+         let vehicle = String(getVal(row, 'Vehicle', 'Vehicle Number', 'Vehicle No', 'Truck Number', 'vehicle_number', 'truck_number', 'Truck No', 'vehicle', 'Truck') || '').trim();
+         
+         let startTripImage = String(getVal(row, 
+            'Start Trip Image', 'Start Trip Photo', 'Start Photo', 'Start Image',
+            'start_trip_image', 'start_trip_photo', 'Start Trip Photos', 'start trip photo', 
+            'start trip image', 'Start Trip', 'Start Trip Link', 'start_trip_link', 'start_photo', 'start_image'
+         ) || '').trim();
+
+         if (!startTripImage) {
+            for (const key in row) {
+               const k = String(key).toLowerCase();
+               if (k.includes('start') && (k.includes('image') || k.includes('photo') || k.includes('link') || k.includes('pic') || k.includes('url') || k.includes('img'))) {
+                  startTripImage = String(row[key] || '').trim();
+                  break;
+               }
+            }
+         }
+
+         let epodImage = String(getVal(row, 
+            'EPOD Image', 'EPOD Photo', 'Delivered Photo', 'Delivered Image', 'Delivered Photos',
+            'delivered_photo', 'end_trip_image', 'End Trip Image', 'delivered image', 
+            'Delivered Image', 'epod_image', 'End Trip Image - EPOD', 'EPOD Photos', 
+            'EPOD Link', 'epod_link', 'End Trip Photo', 'Delivered Link', 'delivered_image', 'epod_photo'
+         ) || '').trim();
+
+         if (!epodImage) {
+            for (const key in row) {
+               const k = String(key).toLowerCase();
+               if ((k.includes('epod') || k.includes('deliver') || k.includes('end')) && (k.includes('image') || k.includes('photo') || k.includes('link') || k.includes('pic') || k.includes('url') || k.includes('img'))) {
+                  epodImage = String(row[key] || '').trim();
+                  break;
+               }
+            }
+         }
+
+         if (!vehicle) {
+            for (const key in row) {
+               const k = String(key).toLowerCase();
+               if (k.includes('vehicle') || k.includes('truck')) {
+                  vehicle = String(row[key] || '').trim();
+                  break;
+               }
+            }
+         }
+
+         if (!district) {
+            for (const key in row) {
+               const k = String(key).toLowerCase();
+               if (k.includes('district')) {
+                  district = String(row[key] || '').trim();
+                  break;
+               }
+            }
+         }
+
+         if (!godown) {
+            for (const key in row) {
+               const k = String(key).toLowerCase();
+               if (k.includes('godown') || k.includes('destination') || k.includes('location')) {
+                  godown = String(row[key] || '').trim();
+                  break;
+               }
+            }
+         }
+
+         const tripDateRaw = getVal(row, 'Date of Trip', 'Trip Date', 'TP date', 'TP Date', 'DC Creation Date', 'Created At', 'Date', 'Start Trip Date', 'trip_date');
+         let tripDate = formatExcelDate(tripDateRaw) || (tripDateRaw ? String(tripDateRaw).split(' ')[0] : '');
+
+         if (!tripDate) {
+            for (const key in row) {
+               const k = String(key).toLowerCase();
+               if (k.includes('date') || k.includes('time')) {
+                  const val = row[key];
+                  tripDate = formatExcelDate(val) || (val ? String(val).split(' ')[0] : '');
+                  if (tripDate) break;
+               }
+            }
+         }
+
+         let refNo = String(getVal(row, 'Reference Number', 'DC Number', 'Reference No', 'Ref No', 'DC No', 'DC No.', 'Delivery Challan Number', 'Delivery Challan No', 'ref_no', 'dc_no', 'DC', 'Invoice No', 'Invoice Number') || '').trim();
+         if (!refNo) {
+            for (const key in row) {
+               const k = String(key).toLowerCase();
+               if (k.includes('dc') || k.includes('reference') || k.includes('challan') || k.includes('invoice') || k.includes('ref')) {
+                  refNo = String(row[key] || '').trim();
+                  if (refNo) break;
+               }
+            }
+         }
+
+         // Only skip if row is entirely empty
+         const hasAnyData = Object.values(row).some(v => v !== undefined && v !== null && String(v).trim() !== '');
+         if (!hasAnyData) return;
+
+         processed.push({ ...row, ...extractDynamicColumns(row),
+            district: district || 'N/A',
+            godown: godown || 'N/A',
+            vehicle: vehicle || 'N/A',
+            refNo: refNo || 'N/A',
+            startTripImage: cleanImageUrl(startTripImage),
+            epodImage: cleanImageUrl(epodImage),
+            tripDate: tripDate || 'N/A',
+            id: `${vehicle}_${refNo || tripDate}_${processed.length + 1}`
+         });
+         return;
+      }
+
       if (activeReport === 'penalty-epod') {
          const refNoStr = String(getVal(row, 'Reference Number') || getVal(row, 'Reference No') || '').trim();
          const currentDcNo = String(getVal(row, 'DC No.', 'DC No') || '').trim();
          
-         // If reference number is empty but there's a DC number, it belongs to the previous Reference Number
          if (refNoStr === '' && currentDcNo !== '') {
              if (processed.length > 0) {
                  const prev = processed[processed.length - 1];
@@ -717,7 +833,6 @@ self.onmessage = async (e) => {
                  }
              }
          } else {
-            // String parsing logic if they are strings (e.g. DD-MM-YYYY HH:mm)
             const dStart = new Date(startTripStr);
             const dEnd = new Date(endTripStr);
             if (!isNaN(dStart.getTime()) && !isNaN(dEnd.getTime())) {
@@ -749,7 +864,7 @@ self.onmessage = async (e) => {
            totalTime: totalTime,
            finalPenalty: finalPenalty,
            isSubtotal: false,
-           district: 'Penalty Data', // Dummy for sorting/filtering if needed
+           district: 'Penalty Data',
            sortKey: refNoStr
          });
          return;
@@ -797,7 +912,6 @@ self.onmessage = async (e) => {
 
          const epodDateRaw = getVal(row, 'EPOD Date');
          const epodStatusVal = String(getVal(row, 'EPOD status') || '').toUpperCase().trim();
-         // If EPOD Date exists or status says completed/delivered, it's completed
          const isCompleted = (epodDateRaw !== undefined && epodDateRaw !== null && String(epodDateRaw).trim() !== '') || epodStatusVal === 'COMPLETED' || epodStatusVal === 'DELIVERED';
 
          processed.push({ ...row, ...extractDynamicColumns(row),
@@ -808,8 +922,8 @@ self.onmessage = async (e) => {
            status: isCompleted ? 'Completed' : 'Pending',
            epodComplete: isCompleted ? 1 : 0,
            epodPending: isCompleted ? 0 : 1,
-           trips: isCompleted ? 0 : 1, // 'trips' is historically used as pending trips in the old report
-           totalTps: 1, // New field for total TPs
+           trips: isCompleted ? 0 : 1,
+           totalTps: 1,
            _ref: refNoStr
          });
          return;
@@ -855,7 +969,6 @@ self.onmessage = async (e) => {
          const commodity = String(getVal(row, 'Commodity') || '').trim();
          const schemeName = String(getVal(row, 'Scheme name') || getVal(row, 'Scheme Name') || getVal(row, 'Scheme key/Name') || '').trim();
          
-         // If a row is completely blank in standard fields, skip it
          if (!district && !refNo && !commodity && !schemeName) {
              return; 
          }
@@ -889,7 +1002,6 @@ self.onmessage = async (e) => {
              distance = distanceMap[lrNo.toLowerCase()];
          }
          
-         // Mutate row so that exact string matches (e.g. row['Reference Number']) get the filled-down values too
          row['District'] = district;
          row['Reference Number'] = refNo;
          row['LR Number'] = lrNo;
@@ -908,7 +1020,7 @@ self.onmessage = async (e) => {
            transporterName: transporterName,
            commodity: commodity,
            quantity: qty,
-           tripCount: lrNo ? 1 : 0, // Mark 1 for all rows belonging to an LR
+           tripCount: lrNo ? 1 : 0,
            distance: distance
          });
          return;
@@ -922,7 +1034,6 @@ self.onmessage = async (e) => {
           const timestampRaw = getVal(row, 'ist_timestamp');
           let timestamp = timestampRaw;
           if (typeof timestampRaw === 'number') {
-             // Excel date
              const date = new Date(Math.round((timestampRaw - 25569) * 86400 * 1000));
              timestamp = date.toISOString();
           } else if (timestampRaw) {
@@ -951,7 +1062,7 @@ self.onmessage = async (e) => {
          if (!district) return;
          
          const refNo = String(getVal(row, 'Reference Number', 'Delivery Challan Number', 'DC No', 'Reference No') || '').trim();
-         if (refNo.toLowerCase().includes('_cancel')) return; // Ignore cancelled trips
+         if (refNo.toLowerCase().includes('_cancel')) return;
          const hasRef = refNo.length > 0;
          if (!hasRef) return;
          

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { UploadCloud, FileSpreadsheet, Download, Building2, Truck, FileText, Filter, AlertCircle, Database, Menu, X, ChevronDown, ChevronRight, FileDown, Settings, GripVertical, History, Trash2, FolderOpen, Search, CheckCircle, Repeat, MapPin, BarChart2 } from 'lucide-react';
+import { UploadCloud, FileSpreadsheet, Download, Building2, Truck, FileText, Filter, AlertCircle, Database, Menu, X, ChevronDown, ChevronRight, FileDown, Settings, GripVertical, History, Trash2, FolderOpen, Search, CheckCircle, Repeat, MapPin, BarChart2, Camera, Image as ImageIcon } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -9,6 +9,7 @@ import SmsTemplate from './components/SmsTemplate';
 import CustomizeReport from './components/CustomizeReport';
 import PenaltyDashboard from './components/PenaltyDashboard';
 import GpsAnalysisDashboard from './components/GpsAnalysisDashboard';
+import EpodPhotoAnalysisDashboard from './components/EpodPhotoAnalysisDashboard';
 import { DEFAULT_REPORT_ATTRIBUTES } from './reportAttributes';
 
 const DEFAULT_GM_CONFIG = [
@@ -193,6 +194,15 @@ const DEFAULT_LAST_MILE_VEHICLE_ASSIGNED_CONFIG = [
   { id: 'timeOfStartTrip', label: 'Time of Start Trip', visible: true },
   { id: 'timeOfDelivery', label: 'Time of Delivery', visible: true },
   { id: 'updateDeliverDateTime', label: 'Update Deliver Date Time 1', visible: true }
+];
+
+const DEFAULT_EPOD_PHOTO_ANALYSIS_CONFIG = [
+  { id: 'vehicle', label: 'Vehicle Number', visible: true },
+  { id: 'refNo', label: 'DC No / Reference Number', visible: true },
+  { id: 'district', label: 'District Name', visible: true },
+  { id: 'godown', label: 'Godown Name', visible: true },
+  { id: 'startTripImage', label: 'Start Trip Image', visible: true },
+  { id: 'epodImage', label: 'End Trip Image - EPOD', visible: true }
 ];
 
 const DEFAULT_LAST_MILE_IMEI_CONFIG = [
@@ -584,6 +594,8 @@ function App() {
        setReportTitle("Last Mile Vehicle Assigned");
     } else if (activeReport === 'last-mile-commodity') {
        setReportTitle("Last Mile Commodity Wise Report");
+    } else if (activeReport === 'epod-photo-analysis') {
+       setReportTitle("EPOD Photo Analysis");
     } else {
        setReportTitle("Godown to Miller Trips");
     }
@@ -607,6 +619,7 @@ function App() {
     else if (activeReport === 'first-mile-vehicle-registered') defaultConf = [...DEFAULT_FIRST_MILE_VEHICLE_REGISTERED_CONFIG];
     else if (activeReport === 'vehicle-assigned') defaultConf = [...DEFAULT_VEHICLE_ASSIGNED_CONFIG];
     else if (activeReport === 'weighbridge-report') defaultConf = [...DEFAULT_WEIGHBRIDGE_CONFIG];
+    else if (activeReport === 'epod-photo-analysis') defaultConf = [...DEFAULT_EPOD_PHOTO_ANALYSIS_CONFIG];
     
     // Inject custom dynamic columns from localStorage configuration
     try {
@@ -1253,7 +1266,7 @@ function App() {
        return filtered;
     }
 
-    if (activeReport === 'eta-route' || activeReport === 'penalty-epod') {
+    if (activeReport === 'eta-route' || activeReport === 'penalty-epod' || activeReport === 'epod-photo-analysis') {
        return filtered;
     }
 
@@ -3578,6 +3591,13 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                   <span>ETA Route</span>
                 </div>
                 <div 
+                  className={`nav-item ${activeReport === 'epod-photo-analysis' ? 'active' : ''}`}
+                  onClick={() => handleMenuClick('epod-photo-analysis')}
+                >
+                  <Camera className="nav-icon" size={16} />
+                  <span>EPOD Photo Analysis</span>
+                </div>
+                <div 
                   className={`nav-item ${activeReport === 'monthly' ? 'active' : ''}`}
                   onClick={() => handleMenuClick('monthly')}
                 >
@@ -3663,7 +3683,7 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
           {activeReport === 'customize-report' && <CustomizeReport />}
 
         {/* Render content based on active report */}
-        {(activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown' || activeReport === 'first-mile-epod' || activeReport === 'last-mile-epod' || activeReport === 'last-mile-imei' || activeReport === 'lifting-report' || activeReport === 'multi-trip-analysis' || activeReport === 'gps-analysis' || activeReport === 'eta-route' || activeReport === 'vehicle-assigned' || activeReport === 'last-mile-vehicle-assigned' || activeReport === 'first-mile-vehicle-registered' || activeReport === 'weighbridge-report' || activeReport === 'penalty-epod' || activeReport === 'last-mile-commodity' || activeReport === 'ro-allocation-dsm') && (
+        {(activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown' || activeReport === 'first-mile-epod' || activeReport === 'last-mile-epod' || activeReport === 'last-mile-imei' || activeReport === 'lifting-report' || activeReport === 'multi-trip-analysis' || activeReport === 'gps-analysis' || activeReport === 'eta-route' || activeReport === 'vehicle-assigned' || activeReport === 'last-mile-vehicle-assigned' || activeReport === 'first-mile-vehicle-registered' || activeReport === 'weighbridge-report' || activeReport === 'penalty-epod' || activeReport === 'last-mile-commodity' || activeReport === 'ro-allocation-dsm' || activeReport === 'epod-photo-analysis') && (
           <>
             <div className="page-header">
               <div style={{ flex: 1, maxWidth: '70%' }}>
@@ -4244,6 +4264,8 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                   <PenaltyDashboard data={displayData} />
                 ) : activeReport === 'gps-analysis' ? (
                   <GpsAnalysisDashboard data={rawData} />
+                ) : activeReport === 'epod-photo-analysis' ? (
+                  <EpodPhotoAnalysisDashboard data={displayData} rawData={rawData} />
                 ) : activeReport === 'vehicle-assigned' ? (
                   <div className="table-container" style={{ marginTop: 0 }}>
                     <table>
@@ -4860,6 +4882,7 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                     else if (activeReport === 'first-mile-vehicle-registered') defaultConf = DEFAULT_FIRST_MILE_VEHICLE_REGISTERED_CONFIG;
                     else if (activeReport === 'vehicle-assigned') defaultConf = DEFAULT_VEHICLE_ASSIGNED_CONFIG;
                     else if (activeReport === 'weighbridge-report') defaultConf = DEFAULT_WEIGHBRIDGE_CONFIG;
+                    else if (activeReport === 'epod-photo-analysis') defaultConf = DEFAULT_EPOD_PHOTO_ANALYSIS_CONFIG;
                     saveConfig(defaultConf.map(c => ({...c})));
                   }}>Reset</button>
                 <button className="btn-primary" onClick={() => setShowConfigModal(false)}>Done</button>

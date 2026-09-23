@@ -134,5 +134,13 @@ export const DEFAULT_REPORT_ATTRIBUTES = {
     'Commodity ID/Name': ['Commodity ID/Name'],
     'No. of Bags/ Tin/Carton/Pouch': ['No. of Bags/ Tin/Carton/Pouch', 'No. of Bags'],
     'Bag/Tin/Carton/Pouch weight (in Kg)': ['Bag/Tin/Carton/Pouch weight (in Kg)', 'Bag weight']
+  },
+  'epod-photo-analysis': {
+    'District': ['District', 'District Name', 'TP District', 'Godown District', 'district_name', 'district'],
+    'GSCSCL Godown': ['GSCSCL Godown', 'Godown Name', 'Godown', 'Destination Godown', 'Lifting Location Name', 'godown_name', 'godown'],
+    'Vehicle': ['Vehicle', 'Vehicle Number', 'Vehicle No', 'Truck Number', 'vehicle_number', 'truck_number', 'Truck No', 'vehicle', 'Truck'],
+    'Reference Number': ['Reference Number', 'DC Number', 'Reference No', 'Ref No', 'DC No', 'DC No.', 'Delivery Challan Number', 'Delivery Challan No', 'ref_no', 'dc_no', 'DC', 'Invoice No', 'Invoice Number'],
+    'Start Trip Image': ['Start Trip Image', 'Start Trip Photo', 'Start Photo', 'Start Image', 'start_trip_image', 'start_trip_photo', 'Start Trip Photos', 'start trip photo', 'start trip image', 'Start Trip', 'Start Trip Link', 'start_trip_link', 'start_photo', 'start_image'],
+    'EPOD Image': ['EPOD Image', 'Delivered Photo', 'Delivered Image', 'Delivered Photos', 'delivered_photo', 'end_trip_image', 'End Trip Image', 'EPOD Photo', 'delivered image', 'Delivered Image', 'epod_image', 'End Trip Image - EPOD', 'EPOD Photos', 'Delivered Photos', 'EPOD Link', 'epod_link', 'End Trip Photo', 'Delivered Link', 'delivered_image', 'epod_photo']
   }
 };
