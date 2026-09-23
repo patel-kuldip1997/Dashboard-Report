@@ -9,50 +9,53 @@ import {
   Download, 
   AlertTriangle, 
   CheckCircle, 
-  CheckCircle2,
+  CheckCircle2, 
   XCircle, 
   Eye, 
   X, 
-  Layers,
-  ZoomIn,
-  RefreshCw,
-  Image as ImageIcon,
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-  Truck,
-  MapPin,
-  Building2,
-  Calendar,
-  Hash,
-  Copy,
-  ExternalLink,
-  LayoutGrid,
-  List,
-  Sparkles,
-  Maximize2,
-  Check,
-  RotateCcw,
-  SlidersHorizontal
+  Layers, 
+  ZoomIn, 
+  RefreshCw, 
+  Image as ImageIcon, 
+  ChevronLeft, 
+  ChevronRight, 
+  ChevronsLeft, 
+  ChevronsRight, 
+  Truck, 
+  MapPin, 
+  Building2, 
+  Calendar, 
+  Hash, 
+  Copy, 
+  ExternalLink, 
+  LayoutGrid, 
+  List, 
+  Maximize2, 
+  Check, 
+  RotateCcw 
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
-// Helper to clean and extract valid URL string
+// Helper to clean and validate URL string
 const cleanImageUrl = (raw) => {
   if (!raw || typeof raw !== 'string') return '';
   let str = raw.trim();
-  // Extract URL from HYPERLINK formula if present
   const match = str.match(/HYPERLINK\s*\(\s*["']([^"']+)["']/i);
   if (match) str = match[1].trim();
-  // Remove wrapping quotes
   str = str.replace(/^["']|["']$/g, '').trim();
+  const lower = str.toLowerCase();
+  if (!str || lower === 'n/a' || lower === 'na' || lower === 'null' || lower === 'undefined' || lower === '-' || lower === '#n/a' || lower === 'none') {
+    return '';
+  }
+  if (!str.startsWith('http://') && !str.startsWith('https://') && !str.startsWith('data:image') && !str.startsWith('blob:')) {
+    return '';
+  }
   return str;
 };
 
-// Helper to convert blob to Base64
+// Helper to convert blob to Base64 for PDF generation
 const blobToBase64 = (blob) => {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -62,10 +65,10 @@ const blobToBase64 = (blob) => {
   });
 };
 
-// Multi-strategy image loader to guarantee image loading without CORS issues
+// Multi-strategy image loader to guarantee image loading in PDF without CORS issues
 const getBase64ImageFromUrl = async (imageUrl) => {
   const cleanUrl = cleanImageUrl(imageUrl);
-  if (!cleanUrl || cleanUrl.length < 5) return null;
+  if (!cleanUrl || cleanUrl.length < 10) return null;
 
   // Strategy 1: Local Vite image proxy
   try {
@@ -152,21 +155,6 @@ const getBase64ImageFromUrl = async (imageUrl) => {
     // Continue
   }
 
-  // Strategy 6: allorigins fallback
-  try {
-    const alloriginsUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(cleanUrl)}`;
-    const res = await fetch(alloriginsUrl);
-    if (res.ok) {
-      const blob = await res.blob();
-      if (blob && blob.size > 100) {
-        const base64 = await blobToBase64(blob);
-        if (base64) return base64;
-      }
-    }
-  } catch (e) {
-    // End of fallbacks
-  }
-
   return null;
 };
 
@@ -174,7 +162,8 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [districtFilter, setDistrictFilter] = useState('All');
   const [godownFilter, setGodownFilter] = useState('All');
-  const [statusFilter, setStatusFilter] = useState('All'); // All, Both Present, Missing Any, Missing Start, Missing EPOD, Selected Only
+  // Filters: All, Both Present, Missing Any, Missing Start, Missing EPOD, Selected Only
+  const [statusFilter, setStatusFilter] = useState('All'); 
   const [selectedIds, setSelectedIds] = useState(new Set());
   
   // Modal states
@@ -187,7 +176,7 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
 
   // View Layout Modes
   const [viewMode, setViewMode] = useState('grid'); // 'grid' | 'table'
-  const [cardDensity, setCardDensity] = useState('standard'); // 'compact' (200px) | 'standard' (250px) | 'large' (300px)
+  const [cardDensity, setCardDensity] = useState('standard'); // 'compact' | 'standard' | 'large'
 
   // Copy feedback toast
   const [copiedText, setCopiedText] = useState('');
@@ -196,8 +185,39 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(48); // 24, 48, 96, 200
 
+  // 1. Normalize items with an IMMUTABLE _uid so selection IDs match 100% across all pages/views
   const items = useMemo(() => {
-    return data || rawData || [];
+    const rawList = data || rawData || [];
+    return rawList.map((item, idx) => {
+      const vehicle = String(item.vehicle || item['Vehicle'] || item['Vehicle Number'] || item['Vehicle No'] || '').trim() || 'N/A';
+      const refNo = String(item.refNo || item['Reference Number'] || item['DC Number'] || item['DC No'] || item['Ref No'] || item['Delivery Challan Number'] || '').trim() || 'N/A';
+      const district = String(item.district || item['District'] || item['District Name'] || item['TP District'] || '').trim() || 'N/A';
+      const godown = String(item.godown || item['Godown'] || item['Godown Name'] || item['GSCSCL Godown'] || item['Destination Godown'] || '').trim() || 'N/A';
+      const tripDate = String(item.tripDate || item['Date of Trip'] || item['Trip Date'] || item['TP date'] || item['Created At'] || '').trim() || 'N/A';
+      
+      const startTripImage = cleanImageUrl(item.startTripImage || item['Start Trip Image'] || item['Start Trip Photo'] || item['Start Photo'] || item['start_trip_image'] || item['Start Image'] || '');
+      const epodImage = cleanImageUrl(item.epodImage || item['EPOD Image'] || item['Delivered Photo'] || item['Delivered Image'] || item['End Trip Image'] || item['End Trip Image - EPOD'] || item['epod_image'] || item['EPOD Photo'] || '');
+      
+      const hasStart = Boolean(startTripImage && startTripImage.length > 10);
+      const hasEpod = Boolean(epodImage && epodImage.length > 10);
+
+      // Deterministic, immutable unique identifier
+      const uid = item.id ? String(item.id) : `trip_${idx + 1}_${vehicle}_${refNo}`;
+
+      return {
+        ...item,
+        _uid: uid,
+        vehicle,
+        refNo,
+        district,
+        godown,
+        tripDate,
+        startTripImage,
+        epodImage,
+        hasStart,
+        hasEpod
+      };
+    });
   }, [data, rawData]);
 
   // Reset page when filters change
@@ -226,6 +246,26 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
     return Array.from(set).sort();
   }, [items]);
 
+  // Overall Statistics (Single-pass computation)
+  const stats = useMemo(() => {
+    let total = items.length;
+    let bothPresent = 0;
+    let missingStart = 0;
+    let missingEpod = 0;
+    let missingAny = 0;
+
+    for (let i = 0; i < total; i++) {
+      const r = items[i];
+      if (r.hasStart && r.hasEpod) bothPresent++;
+      if (!r.hasStart) missingStart++;
+      if (!r.hasEpod) missingEpod++;
+      if (!r.hasStart || !r.hasEpod) missingAny++;
+    }
+
+    const verifiedPercent = total > 0 ? Math.round((bothPresent / total) * 100) : 0;
+    return { total, bothPresent, missingStart, missingEpod, missingAny, verifiedPercent };
+  }, [items]);
+
   // Filtered items (Optimized single-pass)
   const filteredItems = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -239,16 +279,14 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
       return items;
     }
 
-    return items.filter((item, idx) => {
-      const itemId = item.id || `${item.vehicle}_${item.tripDate}_${idx}`;
-      
+    return items.filter((item) => {
       // Search
       if (hasSearch) {
-        const matchVehicle = (item.vehicle || '').toLowerCase().includes(term);
-        const matchDistrict = (item.district || '').toLowerCase().includes(term);
-        const matchGodown = (item.godown || '').toLowerCase().includes(term);
-        const matchRefNo = (item.refNo || '').toLowerCase().includes(term);
-        const matchDate = (item.tripDate || '').toLowerCase().includes(term);
+        const matchVehicle = item.vehicle.toLowerCase().includes(term);
+        const matchDistrict = item.district.toLowerCase().includes(term);
+        const matchGodown = item.godown.toLowerCase().includes(term);
+        const matchRefNo = item.refNo.toLowerCase().includes(term);
+        const matchDate = item.tripDate.toLowerCase().includes(term);
         if (!matchVehicle && !matchDistrict && !matchGodown && !matchRefNo && !matchDate) return false;
       }
 
@@ -259,14 +297,11 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
       if (hasGodown && item.godown !== godownFilter) return false;
 
       // Status
-      const hasStart = Boolean(item.startTripImage && String(item.startTripImage).trim().length > 5);
-      const hasEpod = Boolean(item.epodImage && String(item.epodImage).trim().length > 5);
-
-      if (statusFilter === 'Both Present' && (!hasStart || !hasEpod)) return false;
-      if (statusFilter === 'Missing Any' && (hasStart && hasEpod)) return false;
-      if (statusFilter === 'Missing Start' && hasStart) return false;
-      if (statusFilter === 'Missing EPOD' && hasEpod) return false;
-      if (statusFilter === 'Selected Only' && !selectedIds.has(itemId)) return false;
+      if (statusFilter === 'Both Present' && (!item.hasStart || !item.hasEpod)) return false;
+      if (statusFilter === 'Missing Any' && (item.hasStart && item.hasEpod)) return false;
+      if (statusFilter === 'Missing Start' && item.hasStart) return false;
+      if (statusFilter === 'Missing EPOD' && item.hasEpod) return false;
+      if (statusFilter === 'Selected Only' && !selectedIds.has(item._uid)) return false;
 
       return true;
     });
@@ -279,35 +314,12 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
     return filteredItems.slice(start, start + pageSize);
   }, [filteredItems, currentPage, pageSize]);
 
-  // Statistics (single pass)
-  const stats = useMemo(() => {
-    let total = items.length;
-    let bothPresent = 0;
-    let missingStart = 0;
-    let missingEpod = 0;
-    let missingAny = 0;
-
-    for (let i = 0; i < total; i++) {
-      const r = items[i];
-      const hasStart = Boolean(r.startTripImage && String(r.startTripImage).trim().length > 5);
-      const hasEpod = Boolean(r.epodImage && String(r.epodImage).trim().length > 5);
-
-      if (hasStart && hasEpod) bothPresent++;
-      if (!hasStart) missingStart++;
-      if (!hasEpod) missingEpod++;
-      if (!hasStart || !hasEpod) missingAny++;
-    }
-
-    const verifiedPercent = total > 0 ? Math.round((bothPresent / total) * 100) : 0;
-    return { total, bothPresent, missingStart, missingEpod, missingAny, verifiedPercent };
-  }, [items]);
-
   // Toggle single selection
-  const toggleSelect = (id) => {
+  const toggleSelect = (uid) => {
     setSelectedIds(prev => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(uid)) next.delete(uid);
+      else next.add(uid);
       return next;
     });
   };
@@ -315,14 +327,13 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
   // Select all on current page
   const handleSelectCurrentPage = () => {
     const next = new Set(selectedIds);
-    paginatedItems.forEach((item, idx) => {
-      const id = item.id || `${item.vehicle}_${item.tripDate}_${idx}`;
-      next.add(id);
+    paginatedItems.forEach((item) => {
+      next.add(item._uid);
     });
     setSelectedIds(next);
   };
 
-  // Select all filtered (supports 2 Lakh items)
+  // Select all filtered records
   const handleSelectAllFiltered = () => {
     if (filteredItems.length > 5000) {
       const confirmAll = window.confirm(`You are selecting all ${filteredItems.length.toLocaleString()} filtered records. Do you want to proceed?`);
@@ -331,27 +342,27 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
     const next = new Set(selectedIds);
     const len = filteredItems.length;
     for (let i = 0; i < len; i++) {
-      const item = filteredItems[i];
-      const id = item.id || `${item.vehicle}_${item.tripDate}_${i}`;
-      next.add(id);
+      next.add(filteredItems[i]._uid);
     }
     setSelectedIds(next);
   };
 
-  // Select missing photos in filtered
+  // Select missing photos in list & switch filter so user sees missing records immediately
   const handleSelectMissingFiltered = () => {
     const next = new Set(selectedIds);
-    const len = filteredItems.length;
+    const len = items.length;
+    let count = 0;
     for (let i = 0; i < len; i++) {
-      const item = filteredItems[i];
-      const hasStart = Boolean(item.startTripImage && String(item.startTripImage).trim().length > 5);
-      const hasEpod = Boolean(item.epodImage && String(item.epodImage).trim().length > 5);
-      if (!hasStart || !hasEpod) {
-        const id = item.id || `${item.vehicle}_${item.tripDate}_${i}`;
-        next.add(id);
+      const item = items[i];
+      if (!item.hasStart || !item.hasEpod) {
+        next.add(item._uid);
+        count++;
       }
     }
     setSelectedIds(next);
+    setStatusFilter('Missing Any');
+    setCopiedText(`Selected ${count.toLocaleString()} trips with missing photos`);
+    setTimeout(() => setCopiedText(''), 3000);
   };
 
   // Deselect all
@@ -378,7 +389,7 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
   // Export to Excel
   const handleExportExcel = () => {
     const exportTargets = selectedIds.size > 0 
-      ? items.filter((item, idx) => selectedIds.has(item.id || `${item.vehicle}_${item.tripDate}_${idx}`))
+      ? items.filter((item) => selectedIds.has(item._uid))
       : filteredItems;
 
     if (exportTargets.length === 0) {
@@ -388,22 +399,26 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
 
     const rows = exportTargets.map((r, i) => ({
       'Sr. No.': i + 1,
-      'Vehicle Number': r.vehicle || '',
-      'DC No / Reference Number': r.refNo || '',
-      'District Name': r.district || '',
-      'Godown Name': r.godown || '',
-      'Start Trip Image Link': cleanImageUrl(r.startTripImage),
-      'EPOD Image Link': cleanImageUrl(r.epodImage),
-      'Start Photo Status': (r.startTripImage && r.startTripImage.length > 5) ? 'Available' : 'Missing',
-      'EPOD Photo Status': (r.epodImage && r.epodImage.length > 5) ? 'Available' : 'Missing'
+      'Vehicle Number': r.vehicle,
+      'DC No / Reference Number': r.refNo,
+      'District Name': r.district,
+      'Godown Name': r.godown,
+      'Trip Date': r.tripDate,
+      'Start Photo Status': r.hasStart ? 'Available' : 'Missing',
+      'EPOD Photo Status': r.hasEpod ? 'Available' : 'Missing',
+      'Start Trip Image Link': r.startTripImage,
+      'EPOD Image Link': r.epodImage
     }));
 
     const ws = XLSX.utils.json_to_sheet(rows);
-    ws['!cols'] = [{ wch: 8 }, { wch: 18 }, { wch: 25 }, { wch: 20 }, { wch: 25 }, { wch: 45 }, { wch: 45 }, { wch: 18 }, { wch: 18 }];
+    ws['!cols'] = [
+      { wch: 8 }, { wch: 18 }, { wch: 25 }, { wch: 20 }, { wch: 25 }, { wch: 15 },
+      { wch: 18 }, { wch: 18 }, { wch: 45 }, { wch: 45 }
+    ];
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "EPOD Photos");
 
-    // Dynamic filename based on selected District and current Date (DD-MM-YYYY)
+    // Dynamic filename: District Name - [DISTRICT] - Date - [DD-MM-YYYY].xlsx
     const today = new Date();
     const day = String(today.getDate()).padStart(2, '0');
     const month = String(today.getMonth() + 1).padStart(2, '0');
@@ -424,7 +439,7 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
   // Export to PDF with selected orientation (portrait or landscape)
   const handleExportPdf = async (orientation = 'portrait') => {
     const exportTargets = selectedIds.size > 0 
-      ? items.filter((item, idx) => selectedIds.has(item.id || `${item.vehicle}_${item.tripDate}_${idx}`))
+      ? items.filter((item) => selectedIds.has(item._uid))
       : filteredItems;
 
     if (exportTargets.length === 0) {
@@ -463,7 +478,7 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
           doc.addPage();
         }
 
-        // Draw Header Banner
+        // Header Banner
         doc.setFillColor(248, 249, 250);
         doc.rect(0, 0, pageWidth, 16, 'F');
         doc.setDrawColor(220, 220, 220);
@@ -475,7 +490,7 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
         doc.setFont("helvetica", "bold");
         doc.text(companyTitle, pageWidth / 2, 10.5, { align: 'center' });
 
-        // Draw Trip Info Box (2x2 table)
+        // Trip Info Box (2x2 table)
         // Row 1: Vehicle Number | DC No / Reference Number
         // Row 2: District Name | Godown Name
         const tableStartY = 19;
@@ -508,13 +523,13 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
         });
 
         const imagesStartY = doc.lastAutoTable.finalY + (isLandscape ? 6 : 8);
-        const colWidth = (pageWidth - 36) / 2; // 2 columns with 8mm gap
+        const colWidth = (pageWidth - 36) / 2;
         const imgBoxHeight = isLandscape ? 130 : 172;
 
         // Fetch & Draw Images with multi-strategy loader
         const [startImgBase64, epodImgBase64] = await Promise.all([
-          getBase64ImageFromUrl(item.startTripImage),
-          getBase64ImageFromUrl(item.epodImage)
+          item.hasStart ? getBase64ImageFromUrl(item.startTripImage) : Promise.resolve(null),
+          item.hasEpod ? getBase64ImageFromUrl(item.epodImage) : Promise.resolve(null)
         ]);
 
         // Left Column: Start Trip Image
@@ -587,7 +602,7 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
         doc.text(watermarkText, (pageWidth - wmWidth) / 2, pageHeight / 2);
         doc.restoreGraphicsState();
 
-        // Footer - removed unwanted text, kept page indicator
+        // Footer
         doc.setDrawColor(220, 220, 220);
         doc.line(14, pageHeight - 10, pageWidth - 14, pageHeight - 10);
         doc.setFontSize(8);
@@ -596,7 +611,7 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
         doc.text(`Page ${index + 1} of ${total}`, pageWidth - 14, pageHeight - 5, { align: 'right' });
       }
 
-      // Dynamic PDF filename based on selected District and current Date (DD-MM-YYYY)
+      // Dynamic PDF filename: District Name - [DISTRICT] - Date - [DD-MM-YYYY].pdf
       const today = new Date();
       const day = String(today.getDate()).padStart(2, '0');
       const month = String(today.getMonth() + 1).padStart(2, '0');
@@ -648,68 +663,65 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
           Showing <strong style={{ color: 'var(--text-main)' }}>{startIdx.toLocaleString()}</strong> – <strong style={{ color: 'var(--text-main)' }}>{endIdx.toLocaleString()}</strong> of <strong style={{ color: 'var(--text-main)' }}>{filteredItems.length.toLocaleString()}</strong> trips
         </div>
 
-        {/* Center: Page controls */}
+        {/* Center: Quick Pagination Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
           <button
             className="btn-secondary"
             onClick={() => setCurrentPage(1)}
             disabled={currentPage === 1}
-            style={{ padding: '6px 8px', fontSize: '0.8rem', borderRadius: '6px' }}
+            style={{ padding: '6px 10px', fontSize: '0.8rem', opacity: currentPage === 1 ? 0.4 : 1 }}
             title="First Page"
           >
             <ChevronsLeft size={16} />
           </button>
+          
           <button
             className="btn-secondary"
             onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
             disabled={currentPage === 1}
-            style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '6px' }}
-            title="Previous Page"
+            style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px', opacity: currentPage === 1 ? 0.4 : 1 }}
           >
             <ChevronLeft size={16} /> Prev
           </button>
 
-          <span style={{ fontSize: '0.88rem', margin: '0 8px', color: 'var(--text-main)', fontWeight: '500' }}>
-            Page <strong style={{ color: 'var(--accent-primary, #6366f1)' }}>{currentPage}</strong> of <strong>{totalPages.toLocaleString()}</strong>
+          <span style={{ fontSize: '0.85rem', color: 'var(--text-main)', margin: '0 8px', fontWeight: '600' }}>
+            Page {currentPage} of {totalPages}
           </span>
 
           <button
             className="btn-secondary"
             onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
             disabled={currentPage === totalPages}
-            style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '6px' }}
-            title="Next Page"
+            style={{ padding: '6px 12px', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px', opacity: currentPage === totalPages ? 0.4 : 1 }}
           >
             Next <ChevronRight size={16} />
           </button>
+
           <button
             className="btn-secondary"
             onClick={() => setCurrentPage(totalPages)}
             disabled={currentPage === totalPages}
-            style={{ padding: '6px 8px', fontSize: '0.8rem', borderRadius: '6px' }}
+            style={{ padding: '6px 10px', fontSize: '0.8rem', opacity: currentPage === totalPages ? 0.4 : 1 }}
             title="Last Page"
           >
             <ChevronsRight size={16} />
           </button>
         </div>
 
-        {/* Right: Page Size & Quick Jump */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            <span>Cards per page:</span>
+        {/* Right: Page Size Selector & View Density */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Page Size:</span>
             <select
               value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setCurrentPage(1);
-              }}
+              onChange={(e) => setPageSize(Number(e.target.value))}
               style={{
-                padding: '5px 8px',
+                padding: '4px 8px',
                 borderRadius: '6px',
                 border: '1px solid var(--border-color)',
                 background: 'var(--bg-panel)',
                 color: 'var(--text-main)',
-                fontSize: '0.85rem',
+                fontSize: '0.82rem',
                 cursor: 'pointer'
               }}
             >
@@ -720,258 +732,193 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
             </select>
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            <span>Go to:</span>
-            <input
-              type="number"
-              min={1}
-              max={totalPages}
-              value={currentPage}
-              onChange={(e) => {
-                const val = parseInt(e.target.value, 10);
-                if (!isNaN(val) && val >= 1 && val <= totalPages) {
-                  setCurrentPage(val);
-                }
-              }}
-              style={{
-                width: '64px',
-                padding: '4px 6px',
-                borderRadius: '6px',
-                border: '1px solid var(--border-color)',
-                background: 'var(--bg-panel)',
-                color: 'var(--text-main)',
-                fontSize: '0.85rem',
-                textAlign: 'center'
-              }}
-            />
-          </div>
+          {viewMode === 'grid' && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', borderLeft: '1px solid var(--border-color)', paddingLeft: '10px' }}>
+              <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Density:</span>
+              <button
+                onClick={() => setCardDensity('compact')}
+                style={{
+                  padding: '3px 7px',
+                  borderRadius: '4px',
+                  fontSize: '0.75rem',
+                  border: '1px solid',
+                  borderColor: cardDensity === 'compact' ? 'var(--accent-primary)' : 'var(--border-color)',
+                  background: cardDensity === 'compact' ? 'var(--accent-primary)' : 'transparent',
+                  color: cardDensity === 'compact' ? '#fff' : 'var(--text-muted)',
+                  cursor: 'pointer'
+                }}
+              >
+                S
+              </button>
+              <button
+                onClick={() => setCardDensity('standard')}
+                style={{
+                  padding: '3px 7px',
+                  borderRadius: '4px',
+                  fontSize: '0.75rem',
+                  border: '1px solid',
+                  borderColor: cardDensity === 'standard' ? 'var(--accent-primary)' : 'var(--border-color)',
+                  background: cardDensity === 'standard' ? 'var(--accent-primary)' : 'transparent',
+                  color: cardDensity === 'standard' ? '#fff' : 'var(--text-muted)',
+                  cursor: 'pointer'
+                }}
+              >
+                M
+              </button>
+              <button
+                onClick={() => setCardDensity('large')}
+                style={{
+                  padding: '3px 7px',
+                  borderRadius: '4px',
+                  fontSize: '0.75rem',
+                  border: '1px solid',
+                  borderColor: cardDensity === 'large' ? 'var(--accent-primary)' : 'var(--border-color)',
+                  background: cardDensity === 'large' ? 'var(--accent-primary)' : 'transparent',
+                  color: cardDensity === 'large' ? '#fff' : 'var(--text-muted)',
+                  cursor: 'pointer'
+                }}
+              >
+                L
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );
   };
 
   return (
-    <div style={{ padding: '2px 0' }}>
+    <div className="dashboard-content" style={{ padding: '0 4px', maxWidth: '100%' }}>
       
-      {/* Toast Notification when text is copied */}
+      {/* Toast Notification */}
       {copiedText && (
         <div style={{
           position: 'fixed',
           bottom: '24px',
           right: '24px',
-          zIndex: 10000,
-          background: 'rgba(15, 23, 42, 0.92)',
-          color: '#fff',
+          backgroundColor: '#1e293b',
+          color: '#ffffff',
           padding: '10px 18px',
           borderRadius: '8px',
+          fontSize: '0.85rem',
+          fontWeight: '500',
           boxShadow: '0 10px 25px rgba(0,0,0,0.3)',
           display: 'flex',
           alignItems: 'center',
           gap: '8px',
-          fontSize: '0.88rem',
-          backdropFilter: 'blur(6px)',
+          zIndex: 99999,
           animation: 'fadeIn 0.2s ease'
         }}>
-          <Check size={16} style={{ color: '#22c55e' }} />
-          <span>Copied {copiedText}</span>
+          <Check size={16} style={{ color: '#10b981' }} />
+          {copiedText}
         </div>
       )}
 
-      {/* Modern Dashboard Header Bar */}
+      {/* Top Header & View Toggles */}
       <div style={{
         display: 'flex',
-        alignItems: 'center',
         justifyContent: 'space-between',
+        alignItems: 'center',
         flexWrap: 'wrap',
-        gap: '16px',
+        gap: '14px',
         marginBottom: '20px'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{
-            width: '40px',
-            height: '40px',
-            borderRadius: '10px',
-            background: 'linear-gradient(135deg, var(--accent-primary, #6366f1) 0%, #a855f7 100%)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#fff',
-            boxShadow: '0 4px 12px rgba(99, 102, 241, 0.25)'
-          }}>
-            <Camera size={22} />
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <h2 style={{ fontSize: '1.45rem', fontWeight: '800', margin: 0, color: 'var(--text-main)', letterSpacing: '-0.02em' }}>
+              EPOD Photo Verification Hub
+            </h2>
           </div>
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '700', color: 'var(--text-main)' }}>
-                EPOD Photo Analysis
-              </h2>
-              <span style={{
-                fontSize: '0.75rem',
-                fontWeight: '600',
-                padding: '2px 8px',
-                borderRadius: '12px',
-                background: 'rgba(99, 102, 241, 0.12)',
-                color: 'var(--accent-primary, #6366f1)'
-              }}>
-                {items.length.toLocaleString()} Total Records
-              </span>
-            </div>
-            <p style={{ margin: '2px 0 0', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-              Side-by-side trip verification: Start Trip photo vs. Delivered EPOD photo
-            </p>
-          </div>
+          <p style={{ margin: '4px 0 0', fontSize: '0.88rem', color: 'var(--text-muted)' }}>
+            Start Trip vehicle number plates, delivered EPOD acknowledgment photos & verification report
+          </p>
         </div>
 
-        {/* View Mode & Card Density Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          {/* Card Density Toggle */}
-          {viewMode === 'grid' && (
-            <div style={{
+        {/* View Mode Toggle (Cards Grid vs Table) */}
+        <div style={{
+          display: 'flex',
+          backgroundColor: 'var(--bg-panel)',
+          border: '1px solid var(--border-color)',
+          borderRadius: '8px',
+          padding: '2px'
+        }}>
+          <button
+            onClick={() => setViewMode('grid')}
+            style={{
               display: 'flex',
               alignItems: 'center',
-              background: 'var(--bg-panel)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '8px',
-              padding: '2px'
-            }}>
-              <button
-                onClick={() => setCardDensity('compact')}
-                style={{
-                  border: 'none',
-                  background: cardDensity === 'compact' ? 'var(--bg-panel-hover, #e2e8f0)' : 'transparent',
-                  color: cardDensity === 'compact' ? 'var(--text-main)' : 'var(--text-muted)',
-                  padding: '5px 9px',
-                  borderRadius: '6px',
-                  fontSize: '0.78rem',
-                  cursor: 'pointer',
-                  fontWeight: cardDensity === 'compact' ? '600' : 'normal'
-                }}
-                title="Compact Card View"
-              >
-                Compact
-              </button>
-              <button
-                onClick={() => setCardDensity('standard')}
-                style={{
-                  border: 'none',
-                  background: cardDensity === 'standard' ? 'var(--bg-panel-hover, #e2e8f0)' : 'transparent',
-                  color: cardDensity === 'standard' ? 'var(--text-main)' : 'var(--text-muted)',
-                  padding: '5px 9px',
-                  borderRadius: '6px',
-                  fontSize: '0.78rem',
-                  cursor: 'pointer',
-                  fontWeight: cardDensity === 'standard' ? '600' : 'normal'
-                }}
-                title="Standard Card View"
-              >
-                Standard
-              </button>
-              <button
-                onClick={() => setCardDensity('large')}
-                style={{
-                  border: 'none',
-                  background: cardDensity === 'large' ? 'var(--bg-panel-hover, #e2e8f0)' : 'transparent',
-                  color: cardDensity === 'large' ? 'var(--text-main)' : 'var(--text-muted)',
-                  padding: '5px 9px',
-                  borderRadius: '6px',
-                  fontSize: '0.78rem',
-                  cursor: 'pointer',
-                  fontWeight: cardDensity === 'large' ? '600' : 'normal'
-                }}
-                title="Large Card View"
-              >
-                Large
-              </button>
-            </div>
-          )}
-
-          {/* Grid vs Table View Mode */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            background: 'var(--bg-panel)',
-            border: '1px solid var(--border-color)',
-            borderRadius: '8px',
-            padding: '2px'
-          }}>
-            <button
-              onClick={() => setViewMode('grid')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                border: 'none',
-                background: viewMode === 'grid' ? 'var(--accent-primary, #6366f1)' : 'transparent',
-                color: viewMode === 'grid' ? '#ffffff' : 'var(--text-muted)',
-                padding: '6px 12px',
-                borderRadius: '6px',
-                fontSize: '0.82rem',
-                cursor: 'pointer',
-                fontWeight: '600',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              <LayoutGrid size={15} />
-              Cards
-            </button>
-            <button
-              onClick={() => setViewMode('table')}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '5px',
-                border: 'none',
-                background: viewMode === 'table' ? 'var(--accent-primary, #6366f1)' : 'transparent',
-                color: viewMode === 'table' ? '#ffffff' : 'var(--text-muted)',
-                padding: '6px 12px',
-                borderRadius: '6px',
-                fontSize: '0.82rem',
-                cursor: 'pointer',
-                fontWeight: '600',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              <List size={15} />
-              Table
-            </button>
-          </div>
+              gap: '6px',
+              padding: '6px 12px',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '0.82rem',
+              fontWeight: '600',
+              cursor: 'pointer',
+              background: viewMode === 'grid' ? 'var(--accent-primary, #6366f1)' : 'transparent',
+              color: viewMode === 'grid' ? '#ffffff' : 'var(--text-muted)',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <LayoutGrid size={15} />
+            Cards View
+          </button>
+          <button
+            onClick={() => setViewMode('table')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '6px 12px',
+              border: 'none',
+              borderRadius: '6px',
+              fontSize: '0.82rem',
+              fontWeight: '600',
+              cursor: 'pointer',
+              background: viewMode === 'table' ? 'var(--accent-primary, #6366f1)' : 'transparent',
+              color: viewMode === 'table' ? '#ffffff' : 'var(--text-muted)',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <List size={15} />
+            Table View
+          </button>
         </div>
       </div>
 
-      {/* Executive KPI Stats Grid */}
+      {/* Executive KPI Cards Grid */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-        gap: '16px',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+        gap: '14px',
         marginBottom: '20px'
       }}>
-        {/* KPI 1: Total */}
+        {/* KPI 1: Total Trips */}
         <div 
           onClick={() => setStatusFilter('All')}
           style={{
             backgroundColor: 'var(--bg-panel)',
             borderRadius: '12px',
             padding: '16px 18px',
-            border: statusFilter === 'All' ? '2px solid #3b82f6' : '1px solid var(--border-color)',
-            borderTop: '4px solid #3b82f6',
-            boxShadow: statusFilter === 'All' ? '0 8px 20px rgba(59, 130, 246, 0.15)' : '0 2px 8px rgba(0,0,0,0.03)',
+            border: statusFilter === 'All' ? '2px solid var(--accent-primary, #6366f1)' : '1px solid var(--border-color)',
+            borderTop: '4px solid var(--accent-primary, #6366f1)',
+            boxShadow: statusFilter === 'All' ? '0 8px 20px rgba(99, 102, 241, 0.15)' : '0 2px 8px rgba(0,0,0,0.03)',
             cursor: 'pointer',
             transition: 'all 0.2s ease'
           }}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Total Trips Analyzed
+              Total Trips
             </span>
-            <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <Truck size={16} />
+            <div style={{ width: '28px', height: '28px', borderRadius: '6px', background: 'rgba(99, 102, 241, 0.12)', color: 'var(--accent-primary, #6366f1)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Layers size={16} />
             </div>
           </div>
           <div style={{ fontSize: '1.75rem', fontWeight: '800', color: 'var(--text-main)', letterSpacing: '-0.02em' }}>
             {stats.total.toLocaleString()}
           </div>
-          <div style={{ fontSize: '0.75rem', color: '#3b82f6', marginTop: '4px', fontWeight: '500' }}>
-            {stats.verifiedPercent}% Photo Verification Rate
+          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+            Across all districts
           </div>
         </div>
 
@@ -1000,8 +947,8 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
           <div style={{ fontSize: '1.75rem', fontWeight: '800', color: '#10b981', letterSpacing: '-0.02em' }}>
             {stats.bothPresent.toLocaleString()}
           </div>
-          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-            Complete Start & EPOD
+          <div style={{ fontSize: '0.75rem', color: '#10b981', marginTop: '4px', fontWeight: '600' }}>
+            {stats.verifiedPercent}% Verification Rate
           </div>
         </div>
 
@@ -1091,7 +1038,7 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
             {selectedIds.size.toLocaleString()}
           </div>
           <div style={{ fontSize: '0.75rem', color: selectedIds.size > 0 ? 'var(--accent-primary, #6366f1)' : 'var(--text-muted)', marginTop: '4px', fontWeight: '500' }}>
-            {selectedIds.size > 0 ? 'Included in PDF export' : 'Select records below'}
+            {selectedIds.size > 0 ? 'Ready for PDF / Excel download' : 'Select records below'}
           </div>
         </div>
       </div>
@@ -1191,11 +1138,11 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
                   borderColor: statusFilter !== 'All' ? 'var(--accent-primary, #6366f1)' : undefined
                 }}
               >
-                <option value="All">All Statuses</option>
-                <option value="Both Present">Both Photos Present</option>
-                <option value="Missing Any">Missing Any Photo</option>
-                <option value="Missing Start">Missing Start Photo</option>
-                <option value="Missing EPOD">Missing EPOD Photo</option>
+                <option value="All">All Statuses ({items.length})</option>
+                <option value="Both Present">Both Photos Present ({stats.bothPresent})</option>
+                <option value="Missing Any">Missing Any Photo ({stats.missingAny})</option>
+                <option value="Missing Start">Missing Start Photo ({stats.missingStart})</option>
+                <option value="Missing EPOD">Missing EPOD Photo ({stats.missingEpod})</option>
                 <option value="Selected Only">Selected Only ({selectedIds.size})</option>
               </select>
 
@@ -1246,15 +1193,23 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
                 All ({filteredItems.length.toLocaleString()})
               </button>
 
-              {/* Select Missing */}
+              {/* Select Missing Button - Selects missing photos AND filters view immediately */}
               <button 
                 className="btn-secondary" 
                 onClick={handleSelectMissingFiltered}
-                style={{ fontSize: '0.82rem', padding: '8px 12px', borderColor: 'var(--warning, #f59e0b)', borderRadius: '8px' }}
-                title="Select records with missing start or EPOD photos"
+                style={{ 
+                  fontSize: '0.82rem', 
+                  padding: '8px 12px', 
+                  borderColor: statusFilter === 'Missing Any' ? '#ef4444' : '#f59e0b', 
+                  backgroundColor: statusFilter === 'Missing Any' ? 'rgba(239, 68, 68, 0.1)' : undefined,
+                  color: statusFilter === 'Missing Any' ? '#ef4444' : '#f59e0b',
+                  borderRadius: '8px',
+                  fontWeight: '600'
+                }}
+                title="Select and filter all trips with missing start or EPOD photos"
               >
-                <AlertTriangle size={14} style={{ color: 'var(--warning, #f59e0b)' }} />
-                Missing
+                <AlertTriangle size={14} />
+                Missing ({stats.missingAny.toLocaleString()})
               </button>
 
               {/* Clear Selection */}
@@ -1311,47 +1266,87 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
             </div>
           </div>
 
-          {/* Active Filter Tags Bar (if any applied) */}
-          {(searchTerm || districtFilter !== 'All' || godownFilter !== 'All' || statusFilter !== 'All') && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-              flexWrap: 'wrap',
-              paddingTop: '10px',
-              borderTop: '1px solid var(--border-color)'
-            }}>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: '600' }}>Active Filters:</span>
-              
-              {districtFilter !== 'All' && (
-                <span style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '6px', background: 'rgba(99, 102, 241, 0.12)', color: 'var(--accent-primary, #6366f1)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                  District: {districtFilter}
-                  <X size={12} style={{ cursor: 'pointer' }} onClick={() => setDistrictFilter('All')} />
-                </span>
-              )}
+          {/* Row 2: Quick Status Filter Pills for Instant 1-Click Filtering */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            flexWrap: 'wrap',
+            paddingTop: '10px',
+            borderTop: '1px solid var(--border-color)'
+          }}>
+            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: '600' }}>Filter View:</span>
+            
+            <button
+              onClick={() => setStatusFilter('All')}
+              style={{
+                padding: '4px 10px',
+                borderRadius: '6px',
+                fontSize: '0.78rem',
+                border: '1px solid',
+                borderColor: statusFilter === 'All' ? 'var(--accent-primary, #6366f1)' : 'var(--border-color)',
+                background: statusFilter === 'All' ? 'var(--accent-primary, #6366f1)' : 'var(--bg-panel)',
+                color: statusFilter === 'All' ? '#ffffff' : 'var(--text-main)',
+                cursor: 'pointer',
+                fontWeight: statusFilter === 'All' ? '700' : 'normal'
+              }}
+            >
+              All Records ({items.length.toLocaleString()})
+            </button>
 
-              {godownFilter !== 'All' && (
-                <span style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '6px', background: 'rgba(99, 102, 241, 0.12)', color: 'var(--accent-primary, #6366f1)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                  Godown: {godownFilter}
-                  <X size={12} style={{ cursor: 'pointer' }} onClick={() => setGodownFilter('All')} />
-                </span>
-              )}
+            <button
+              onClick={() => setStatusFilter('Both Present')}
+              style={{
+                padding: '4px 10px',
+                borderRadius: '6px',
+                fontSize: '0.78rem',
+                border: '1px solid',
+                borderColor: statusFilter === 'Both Present' ? '#10b981' : 'var(--border-color)',
+                background: statusFilter === 'Both Present' ? '#10b981' : 'var(--bg-panel)',
+                color: statusFilter === 'Both Present' ? '#ffffff' : 'var(--text-main)',
+                cursor: 'pointer',
+                fontWeight: statusFilter === 'Both Present' ? '700' : 'normal'
+              }}
+            >
+              Complete ({stats.bothPresent.toLocaleString()})
+            </button>
 
-              {statusFilter !== 'All' && (
-                <span style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '6px', background: 'rgba(99, 102, 241, 0.12)', color: 'var(--accent-primary, #6366f1)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                  Status: {statusFilter}
-                  <X size={12} style={{ cursor: 'pointer' }} onClick={() => setStatusFilter('All')} />
-                </span>
-              )}
+            <button
+              onClick={() => setStatusFilter('Missing Any')}
+              style={{
+                padding: '4px 10px',
+                borderRadius: '6px',
+                fontSize: '0.78rem',
+                border: '1px solid',
+                borderColor: statusFilter === 'Missing Any' ? '#ef4444' : 'var(--border-color)',
+                background: statusFilter === 'Missing Any' ? '#ef4444' : 'var(--bg-panel)',
+                color: statusFilter === 'Missing Any' ? '#ffffff' : '#ef4444',
+                cursor: 'pointer',
+                fontWeight: statusFilter === 'Missing Any' ? '700' : 'normal'
+              }}
+            >
+              Missing Photos ({stats.missingAny.toLocaleString()})
+            </button>
 
-              {searchTerm && (
-                <span style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '6px', background: 'rgba(99, 102, 241, 0.12)', color: 'var(--accent-primary, #6366f1)', display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
-                  Query: "{searchTerm}"
-                  <X size={12} style={{ cursor: 'pointer' }} onClick={() => setSearchTerm('')} />
-                </span>
-              )}
-            </div>
-          )}
+            {selectedIds.size > 0 && (
+              <button
+                onClick={() => setStatusFilter('Selected Only')}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: '6px',
+                  fontSize: '0.78rem',
+                  border: '1px solid',
+                  borderColor: statusFilter === 'Selected Only' ? 'var(--accent-primary, #6366f1)' : 'var(--border-color)',
+                  background: statusFilter === 'Selected Only' ? 'rgba(99, 102, 241, 0.2)' : 'var(--bg-panel)',
+                  color: 'var(--accent-primary, #6366f1)',
+                  cursor: 'pointer',
+                  fontWeight: '700'
+                }}
+              >
+                Selected Trips ({selectedIds.size.toLocaleString()})
+              </button>
+            )}
+          </div>
 
         </div>
       </div>
@@ -1402,17 +1397,12 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
           gridTemplateColumns: 'repeat(auto-fill, minmax(540px, 1fr))',
           gap: '20px'
         }}>
-          {paginatedItems.map((item, idx) => {
-            const itemId = item.id || `${item.vehicle}_${item.tripDate}_${idx}`;
-            const isSelected = selectedIds.has(itemId);
-            const startUrl = cleanImageUrl(item.startTripImage);
-            const epodUrl = cleanImageUrl(item.epodImage);
-            const hasStart = Boolean(startUrl && startUrl.length > 5);
-            const hasEpod = Boolean(epodUrl && epodUrl.length > 5);
+          {paginatedItems.map((item) => {
+            const isSelected = selectedIds.has(item._uid);
 
             return (
               <div 
-                key={itemId}
+                key={item._uid}
                 style={{
                   backgroundColor: 'var(--bg-panel)',
                   borderRadius: '12px',
@@ -1422,276 +1412,291 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
                   boxShadow: isSelected 
                     ? '0 8px 24px rgba(99, 102, 241, 0.18)' 
                     : '0 2px 10px rgba(0,0,0,0.03)',
-                  padding: '18px',
-                  transition: 'all 0.2s ease',
-                  position: 'relative'
+                  overflow: 'hidden',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  transition: 'all 0.2s ease'
                 }}
               >
-                {/* Top Header Card Bar */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                  
+                {/* Card Top Action & Status Bar */}
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '10px 16px',
+                  borderBottom: '1px solid var(--border-color)',
+                  backgroundColor: isSelected ? 'rgba(99, 102, 241, 0.06)' : 'var(--bg-panel-hover, #f8fafc)'
+                }}>
                   {/* Select Checkbox */}
-                  <label 
-                    style={{ 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      gap: '8px', 
-                      cursor: 'pointer', 
-                      userSelect: 'none',
-                      fontWeight: '600',
-                      fontSize: '0.88rem',
-                      color: isSelected ? 'var(--accent-primary, #6366f1)' : 'var(--text-main)'
-                    }}
-                  >
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', margin: 0 }}>
                     <input 
                       type="checkbox"
                       checked={isSelected}
-                      onChange={() => toggleSelect(itemId)}
-                      style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--accent-primary, #6366f1)' }}
+                      onChange={() => toggleSelect(item._uid)}
+                      style={{ width: '16px', height: '16px', accentColor: 'var(--accent-primary, #6366f1)', cursor: 'pointer' }}
                     />
-                    <span>Select for PDF Export</span>
+                    <span style={{ fontSize: '0.85rem', fontWeight: isSelected ? '700' : '500', color: isSelected ? 'var(--accent-primary, #6366f1)' : 'var(--text-main)' }}>
+                      Select for PDF Export
+                    </span>
                   </label>
 
-                  {/* Status Pill & Inspect Button */}
+                  {/* Status Badges & Quick Action */}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    {hasStart && hasEpod ? (
-                      <span style={{ fontSize: '0.75rem', padding: '3px 10px', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {/* Photo Availability Status Badge */}
+                    {item.hasStart && item.hasEpod ? (
+                      <span style={{
+                        fontSize: '0.75rem',
+                        padding: '3px 8px',
+                        borderRadius: '12px',
+                        fontWeight: '600',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        background: 'rgba(16, 185, 129, 0.12)',
+                        color: '#10b981'
+                      }}>
                         <CheckCircle2 size={13} /> Complete
                       </span>
                     ) : (
-                      <span style={{ fontSize: '0.75rem', padding: '3px 10px', borderRadius: '12px', background: 'rgba(239, 68, 68, 0.12)', color: '#ef4444', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                        <AlertTriangle size={13} /> {!hasStart && !hasEpod ? 'Missing Both' : !hasStart ? 'Missing Start' : 'Missing EPOD'}
+                      <span style={{
+                        fontSize: '0.75rem',
+                        padding: '3px 8px',
+                        borderRadius: '12px',
+                        fontWeight: '600',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        background: 'rgba(239, 68, 68, 0.12)',
+                        color: '#ef4444'
+                      }}>
+                        <AlertTriangle size={13} /> {!item.hasStart && !item.hasEpod ? 'Missing Both' : !item.hasStart ? 'Missing Start' : 'Missing EPOD'}
                       </span>
                     )}
 
+                    {/* Dual Inspector Button */}
                     <button
                       onClick={() => setPreviewTrip(item)}
-                      style={{
-                        background: 'transparent',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: '6px',
-                        padding: '3px 8px',
-                        fontSize: '0.75rem',
-                        color: 'var(--text-muted)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px'
-                      }}
-                      title="Inspect side-by-side in full view"
+                      className="btn-secondary"
+                      style={{ padding: '4px 8px', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '4px' }}
+                      title="Open full side-by-side trip inspection lightbox"
                     >
                       <Maximize2 size={12} /> Inspect
                     </button>
                   </div>
                 </div>
 
-                {/* 2x2 Header Table */}
+                {/* Card Trip Metadata Box (2x2 Grid) */}
                 <div style={{
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '8px',
-                  overflow: 'hidden',
-                  marginBottom: '16px',
-                  backgroundColor: 'var(--bg-panel-hover, rgba(0,0,0,0.02))'
+                  padding: '12px 16px',
+                  backgroundColor: 'rgba(248, 250, 252, 0.5)',
+                  borderBottom: '1px solid var(--border-color)',
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '10px 16px'
                 }}>
-                  {/* Row 1: Vehicle & DC No */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1px solid var(--border-color)' }}>
-                    
-                    {/* Vehicle */}
-                    <div style={{ padding: '8px 14px', borderRight: '1px solid var(--border-color)', textAlign: 'center' }}>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '2px' }}>
-                        Vehicle Number
-                      </div>
-                      <div 
-                        style={{ fontSize: '1.05rem', fontWeight: '700', color: 'var(--text-main)', letterSpacing: '0.02em', display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
-                        onClick={() => handleCopyText(item.vehicle, 'Vehicle Number')}
-                        title="Click to copy vehicle number"
-                      >
-                        {item.vehicle || 'N/A'}
-                        {item.vehicle && <Copy size={12} style={{ opacity: 0.5 }} />}
-                      </div>
+                  {/* Vehicle Number */}
+                  <div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                      Vehicle Number
                     </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                      <span style={{ fontSize: '1rem', fontWeight: '800', color: 'var(--text-main)', letterSpacing: '0.02em' }}>
+                        {item.vehicle || 'N/A'}
+                      </span>
+                      {item.vehicle && item.vehicle !== 'N/A' && (
+                        <button
+                          onClick={() => handleCopyText(item.vehicle, 'Vehicle Number')}
+                          style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
+                          title="Copy Vehicle Number"
+                        >
+                          <Copy size={13} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
 
-                    {/* DC No / Reference Number */}
-                    <div style={{ padding: '8px 14px', textAlign: 'center' }}>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '2px' }}>
-                        DC No / Reference Number
-                      </div>
-                      <div 
-                        style={{ fontSize: '1.05rem', fontWeight: '700', color: 'var(--text-main)', display: 'inline-flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}
-                        onClick={() => handleCopyText(item.refNo, 'DC / Ref Number')}
-                        title="Click to copy DC number"
-                      >
+                  {/* DC No / Reference Number */}
+                  <div>
+                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                      DC No / Reference Number
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '2px' }}>
+                      <span style={{ fontSize: '1rem', fontWeight: '800', color: 'var(--text-main)', letterSpacing: '0.02em' }}>
                         {item.refNo || 'N/A'}
-                        {item.refNo && <Copy size={12} style={{ opacity: 0.5 }} />}
+                      </span>
+                      {item.refNo && item.refNo !== 'N/A' && (
+                        <button
+                          onClick={() => handleCopyText(item.refNo, 'DC No')}
+                          style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
+                          title="Copy DC Number"
+                        >
+                          <Copy size={13} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* District Name */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <MapPin size={14} style={{ color: 'var(--accent-primary, #6366f1)', flexShrink: 0 }} />
+                    <div style={{ overflow: 'hidden' }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase' }}>District Name</div>
+                      <div style={{ fontSize: '0.88rem', fontWeight: '700', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {item.district || 'N/A'}
                       </div>
                     </div>
                   </div>
 
-                  {/* Row 2: District Name & Godown Name */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr' }}>
-                    <div style={{ padding: '7px 14px', borderRight: '1px solid var(--border-color)', textAlign: 'center' }}>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '2px' }}>
-                        District Name
-                      </div>
-                      <div style={{ fontSize: '0.92rem', fontWeight: '600', color: 'var(--text-main)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                        <MapPin size={13} style={{ color: 'var(--accent-primary, #6366f1)', opacity: 0.7 }} />
-                        {item.district || 'N/A'}
-                      </div>
-                    </div>
-                    
-                    <div style={{ padding: '7px 14px', textAlign: 'center' }}>
-                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '2px' }}>
-                        Godown Name
-                      </div>
-                      <div style={{ fontSize: '0.92rem', fontWeight: '600', color: 'var(--text-main)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
-                        <Building2 size={13} style={{ color: 'var(--accent-primary, #6366f1)', opacity: 0.7 }} />
+                  {/* Godown Name */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Building2 size={14} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                    <div style={{ overflow: 'hidden' }}>
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontWeight: '600', textTransform: 'uppercase' }}>Godown Name</div>
+                      <div style={{ fontSize: '0.88rem', fontWeight: '700', color: 'var(--text-main)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                         {item.godown || 'N/A'}
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* 2 Photo Columns */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
-                  
-                  {/* Column 1: Start Trip Image */}
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <div 
-                      style={{
-                        width: '100%',
-                        height: imgHeightPx,
-                        backgroundColor: 'rgba(0,0,0,0.03)',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: '8px',
-                        overflow: 'hidden',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        position: 'relative',
-                        cursor: hasStart ? 'pointer' : 'default'
-                      }}
-                      onClick={() => {
-                        if (hasStart) setPreviewImage({ url: startUrl, title: 'Start Trip Image', vehicle: item.vehicle, dcNo: item.refNo });
-                      }}
-                    >
-                      {hasStart ? (
+                {/* Card Photos Comparison Area (2 Columns) */}
+                <div style={{
+                  padding: '16px',
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '14px',
+                  backgroundColor: 'var(--bg-panel)'
+                }}>
+                  {/* Left Column: Start Trip Photo */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{
+                      position: 'relative',
+                      height: imgHeightPx,
+                      borderRadius: '8px',
+                      overflow: 'hidden',
+                      border: '1px solid var(--border-color)',
+                      backgroundColor: 'rgba(0,0,0,0.02)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      {item.hasStart ? (
                         <>
                           <img 
-                            src={startUrl} 
-                            alt="Start Trip" 
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            src={item.startTripImage} 
+                            alt="Start Trip"
                             loading="lazy"
+                            style={{ width: '100%', height: '100%', objectFit: 'contain', backgroundColor: '#0f172a' }}
                             onError={(e) => {
-                              if (!e.target.dataset.retried) {
-                                e.target.dataset.retried = 'true';
-                                e.target.src = `/api/image-proxy?url=${encodeURIComponent(startUrl)}`;
-                                return;
-                              }
+                              e.target.onerror = null;
                               e.target.style.display = 'none';
-                              if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
+                              e.target.parentNode.innerHTML = '<div style="color:#ef4444;font-size:0.8rem;text-align:center;padding:10px;">Failed to load image</div>';
                             }}
                           />
-                          <div style={{ display: 'none', flexDirection: 'column', alignItems: 'center', padding: '12px', textAlign: 'center' }}>
-                            <AlertTriangle size={30} style={{ color: '#f59e0b', marginBottom: '6px' }} />
-                            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Image failed to load</span>
-                            <a href={startUrl} target="_blank" rel="noreferrer" style={{ fontSize: '0.75rem', color: 'var(--accent-primary)', marginTop: '4px' }}>Open Direct Link</a>
-                          </div>
-                          <div style={{
-                            position: 'absolute', bottom: '8px', right: '8px',
-                            background: 'rgba(15, 23, 42, 0.75)', color: '#fff',
-                            borderRadius: '4px', padding: '3px 7px',
-                            display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem',
-                            backdropFilter: 'blur(4px)'
-                          }}>
+                          <button
+                            onClick={() => setPreviewImage({ url: item.startTripImage, title: 'Start Trip Image', vehicle: item.vehicle, dcNo: item.refNo })}
+                            style={{
+                              position: 'absolute',
+                              bottom: '8px',
+                              right: '8px',
+                              padding: '4px 8px',
+                              backgroundColor: 'rgba(15, 23, 42, 0.75)',
+                              color: '#ffffff',
+                              borderRadius: '6px',
+                              border: 'none',
+                              fontSize: '0.75rem',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              backdropFilter: 'blur(4px)'
+                            }}
+                          >
                             <ZoomIn size={12} /> View
-                          </div>
+                          </button>
                         </>
                       ) : (
                         <div style={{ textAlign: 'center', padding: '16px', color: 'var(--text-muted)' }}>
-                          <XCircle size={32} style={{ opacity: 0.35, color: '#ef4444', margin: '0 auto 6px' }} />
-                          <span style={{ fontSize: '0.82rem', display: 'block', fontWeight: '600', color: 'var(--text-main)' }}>No Start Photo</span>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Not uploaded</span>
+                          <XCircle size={32} style={{ color: '#ef4444', opacity: 0.6, margin: '0 auto 6px' }} />
+                          <div style={{ fontSize: '0.8rem', fontWeight: '700', color: '#ef4444' }}>NO PHOTO AVAILABLE</div>
+                          <div style={{ fontSize: '0.72rem', marginTop: '2px' }}>Start trip photo missing</div>
                         </div>
                       )}
                     </div>
-                    <div style={{ marginTop: '8px', fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-main)', textAlign: 'center' }}>
+                    <div style={{ textAlign: 'center', fontSize: '0.82rem', fontWeight: '700', color: 'var(--text-main)' }}>
                       Start Trip Image
                     </div>
                   </div>
 
-                  {/* Column 2: End Trip Image - EPOD */}
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <div 
-                      style={{
-                        width: '100%',
-                        height: imgHeightPx,
-                        backgroundColor: 'rgba(0,0,0,0.03)',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: '8px',
-                        overflow: 'hidden',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        position: 'relative',
-                        cursor: hasEpod ? 'pointer' : 'default'
-                      }}
-                      onClick={() => {
-                        if (hasEpod) setPreviewImage({ url: epodUrl, title: 'End Trip Image - EPOD', vehicle: item.vehicle, dcNo: item.refNo });
-                      }}
-                    >
-                      {hasEpod ? (
+                  {/* Right Column: EPOD Delivered Photo */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    <div style={{
+                      position: 'relative',
+                      height: imgHeightPx,
+                      borderRadius: '8px',
+                      overflow: 'hidden',
+                      border: '1px solid var(--border-color)',
+                      backgroundColor: 'rgba(0,0,0,0.02)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center'
+                    }}>
+                      {item.hasEpod ? (
                         <>
                           <img 
-                            src={epodUrl} 
-                            alt="End Trip EPOD" 
-                            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                            src={item.epodImage} 
+                            alt="EPOD"
                             loading="lazy"
+                            style={{ width: '100%', height: '100%', objectFit: 'contain', backgroundColor: '#0f172a' }}
                             onError={(e) => {
-                              if (!e.target.dataset.retried) {
-                                e.target.dataset.retried = 'true';
-                                e.target.src = `/api/image-proxy?url=${encodeURIComponent(epodUrl)}`;
-                                return;
-                              }
+                              e.target.onerror = null;
                               e.target.style.display = 'none';
-                              if (e.target.nextSibling) e.target.nextSibling.style.display = 'flex';
+                              e.target.parentNode.innerHTML = '<div style="color:#ef4444;font-size:0.8rem;text-align:center;padding:10px;">Failed to load image</div>';
                             }}
                           />
-                          <div style={{ display: 'none', flexDirection: 'column', alignItems: 'center', padding: '12px', textAlign: 'center' }}>
-                            <AlertTriangle size={30} style={{ color: '#f59e0b', marginBottom: '6px' }} />
-                            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Image failed to load</span>
-                            <a href={epodUrl} target="_blank" rel="noreferrer" style={{ fontSize: '0.75rem', color: 'var(--accent-primary)', marginTop: '4px' }}>Open Direct Link</a>
-                          </div>
-                          <div style={{
-                            position: 'absolute', bottom: '8px', right: '8px',
-                            background: 'rgba(15, 23, 42, 0.75)', color: '#fff',
-                            borderRadius: '4px', padding: '3px 7px',
-                            display: 'flex', alignItems: 'center', gap: '4px', fontSize: '0.72rem',
-                            backdropFilter: 'blur(4px)'
-                          }}>
+                          <button
+                            onClick={() => setPreviewImage({ url: item.epodImage, title: 'End Trip Image - EPOD', vehicle: item.vehicle, dcNo: item.refNo })}
+                            style={{
+                              position: 'absolute',
+                              bottom: '8px',
+                              right: '8px',
+                              padding: '4px 8px',
+                              backgroundColor: 'rgba(15, 23, 42, 0.75)',
+                              color: '#ffffff',
+                              borderRadius: '6px',
+                              border: 'none',
+                              fontSize: '0.75rem',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              backdropFilter: 'blur(4px)'
+                            }}
+                          >
                             <ZoomIn size={12} /> View
-                          </div>
+                          </button>
                         </>
                       ) : (
                         <div style={{ textAlign: 'center', padding: '16px', color: 'var(--text-muted)' }}>
-                          <XCircle size={32} style={{ opacity: 0.35, color: '#ef4444', margin: '0 auto 6px' }} />
-                          <span style={{ fontSize: '0.82rem', display: 'block', fontWeight: '600', color: 'var(--text-main)' }}>No EPOD Photo</span>
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Not uploaded</span>
+                          <XCircle size={32} style={{ color: '#ef4444', opacity: 0.6, margin: '0 auto 6px' }} />
+                          <div style={{ fontSize: '0.8rem', fontWeight: '700', color: '#ef4444' }}>NO PHOTO AVAILABLE</div>
+                          <div style={{ fontSize: '0.72rem', marginTop: '2px' }}>EPOD photo missing</div>
                         </div>
                       )}
                     </div>
-                    <div style={{ marginTop: '8px', fontSize: '0.9rem', fontWeight: '600', color: 'var(--text-main)', textAlign: 'center' }}>
+                    <div style={{ textAlign: 'center', fontSize: '0.82rem', fontWeight: '700', color: 'var(--text-main)' }}>
                       End Trip Image - EPOD
                     </div>
                   </div>
-
                 </div>
+
               </div>
             );
           })}
         </div>
       )}
 
-      {/* View Mode 2: Compact Table View */}
+      {/* View Mode 2: Table Analysis View */}
       {viewMode === 'table' && filteredItems.length > 0 && (
         <div style={{
           backgroundColor: 'var(--bg-panel)',
@@ -1707,7 +1712,7 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
                   <th style={{ padding: '12px 16px', width: '50px', textAlign: 'center' }}>
                     <input 
                       type="checkbox"
-                      checked={paginatedItems.length > 0 && paginatedItems.every(i => selectedIds.has(i.id || `${i.vehicle}_${i.tripDate}`))}
+                      checked={paginatedItems.length > 0 && paginatedItems.every(i => selectedIds.has(i._uid))}
                       onChange={handleSelectCurrentPage}
                       style={{ cursor: 'pointer' }}
                     />
@@ -1723,17 +1728,12 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
                 </tr>
               </thead>
               <tbody>
-                {paginatedItems.map((item, idx) => {
-                  const itemId = item.id || `${item.vehicle}_${item.tripDate}_${idx}`;
-                  const isSelected = selectedIds.has(itemId);
-                  const startUrl = cleanImageUrl(item.startTripImage);
-                  const epodUrl = cleanImageUrl(item.epodImage);
-                  const hasStart = Boolean(startUrl && startUrl.length > 5);
-                  const hasEpod = Boolean(epodUrl && epodUrl.length > 5);
+                {paginatedItems.map((item) => {
+                  const isSelected = selectedIds.has(item._uid);
 
                   return (
                     <tr 
-                      key={itemId}
+                      key={item._uid}
                       style={{
                         borderBottom: '1px solid var(--border-color)',
                         backgroundColor: isSelected ? 'rgba(99, 102, 241, 0.05)' : undefined,
@@ -1744,7 +1744,7 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
                         <input 
                           type="checkbox"
                           checked={isSelected}
-                          onChange={() => toggleSelect(itemId)}
+                          onChange={() => toggleSelect(item._uid)}
                           style={{ cursor: 'pointer', accentColor: 'var(--accent-primary, #6366f1)' }}
                         />
                       </td>
@@ -1763,13 +1763,13 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
                       
                       {/* Start Photo Thumbnail */}
                       <td style={{ padding: '8px 16px', textAlign: 'center' }}>
-                        {hasStart ? (
+                        {item.hasStart ? (
                           <div 
                             style={{ width: '48px', height: '48px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-color)', margin: '0 auto', cursor: 'pointer' }}
-                            onClick={() => setPreviewImage({ url: startUrl, title: 'Start Trip Image', vehicle: item.vehicle, dcNo: item.refNo })}
+                            onClick={() => setPreviewImage({ url: item.startTripImage, title: 'Start Trip Image', vehicle: item.vehicle, dcNo: item.refNo })}
                             title="Click to zoom photo"
                           >
-                            <img src={startUrl} alt="Start" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            <img src={item.startTripImage} alt="Start" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           </div>
                         ) : (
                           <span style={{ fontSize: '0.78rem', color: '#ef4444', fontWeight: '600' }}>Missing</span>
@@ -1778,13 +1778,13 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
 
                       {/* EPOD Photo Thumbnail */}
                       <td style={{ padding: '8px 16px', textAlign: 'center' }}>
-                        {hasEpod ? (
+                        {item.hasEpod ? (
                           <div 
                             style={{ width: '48px', height: '48px', borderRadius: '6px', overflow: 'hidden', border: '1px solid var(--border-color)', margin: '0 auto', cursor: 'pointer' }}
-                            onClick={() => setPreviewImage({ url: epodUrl, title: 'End Trip Image - EPOD', vehicle: item.vehicle, dcNo: item.refNo })}
+                            onClick={() => setPreviewImage({ url: item.epodImage, title: 'End Trip Image - EPOD', vehicle: item.vehicle, dcNo: item.refNo })}
                             title="Click to zoom photo"
                           >
-                            <img src={epodUrl} alt="EPOD" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            <img src={item.epodImage} alt="EPOD" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                           </div>
                         ) : (
                           <span style={{ fontSize: '0.78rem', color: '#ef4444', fontWeight: '600' }}>Missing</span>
@@ -1793,13 +1793,13 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
 
                       {/* Status */}
                       <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                        {hasStart && hasEpod ? (
+                        {item.hasStart && item.hasEpod ? (
                           <span style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', fontWeight: '600' }}>
                             Complete
                           </span>
                         ) : (
                           <span style={{ fontSize: '0.75rem', padding: '3px 8px', borderRadius: '12px', background: 'rgba(239, 68, 68, 0.12)', color: '#ef4444', fontWeight: '600' }}>
-                            {!hasStart && !hasEpod ? 'Missing Both' : !hasStart ? 'Missing Start' : 'Missing EPOD'}
+                            {!item.hasStart && !item.hasEpod ? 'Missing Both' : !item.hasStart ? 'Missing Start' : 'Missing EPOD'}
                           </span>
                         )}
                       </td>
@@ -1828,332 +1828,329 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
 
       {/* Full Trip Comparison Lightbox Modal (Side-by-Side Dual View) */}
       {previewTrip && (
-        <div 
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0,0,0,0.85)',
-            zIndex: 9999,
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.85)',
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '24px',
+          backdropFilter: 'blur(6px)'
+        }}>
+          <div style={{
+            backgroundColor: 'var(--bg-panel)',
+            borderRadius: '16px',
+            maxWidth: '1200px',
+            width: '100%',
+            maxHeight: '92vh',
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '24px',
-            backdropFilter: 'blur(6px)'
-          }}
-          onClick={() => setPreviewTrip(null)}
-        >
-          <div 
-            style={{
-              position: 'relative',
-              width: '100%',
-              maxWidth: '1100px',
-              maxHeight: '90vh',
-              backgroundColor: 'var(--bg-panel)',
-              borderRadius: '16px',
-              padding: '20px 24px',
-              boxShadow: '0 25px 60px rgba(0,0,0,0.5)',
+            flexDirection: 'column',
+            overflow: 'hidden',
+            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.4)',
+            border: '1px solid var(--border-color)'
+          }}>
+            {/* Modal Header */}
+            <div style={{
+              padding: '16px 24px',
+              borderBottom: '1px solid var(--border-color)',
               display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '16px', borderBottom: '1px solid var(--border-color)' }}>
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: 'var(--bg-panel-hover, #f8fafc)'
+            }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '700', color: 'var(--text-main)' }}>
-                    Trip Photo Verification: {previewTrip.vehicle}
+                  <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '800', color: 'var(--text-main)' }}>
+                    Trip Inspection: {previewTrip.vehicle || 'N/A'}
                   </h3>
-                  <span style={{ fontSize: '0.78rem', padding: '2px 8px', borderRadius: '6px', background: 'rgba(99, 102, 241, 0.15)', color: 'var(--accent-primary, #6366f1)', fontWeight: '600' }}>
+                  <span style={{ fontSize: '0.8rem', padding: '2px 8px', borderRadius: '6px', background: 'rgba(99, 102, 241, 0.15)', color: 'var(--accent-primary, #6366f1)', fontWeight: '700' }}>
                     DC: {previewTrip.refNo || 'N/A'}
                   </span>
                 </div>
-                <p style={{ margin: '4px 0 0', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                  District: <strong>{previewTrip.district}</strong> | Godown: <strong>{previewTrip.godown}</strong>
-                </p>
+                <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  District: <strong>{previewTrip.district || 'N/A'}</strong> | Godown: <strong>{previewTrip.godown || 'N/A'}</strong> | Date: <strong>{previewTrip.tripDate || 'N/A'}</strong>
+                </div>
               </div>
 
-              <button 
-                onClick={() => setPreviewTrip(null)} 
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-main)', cursor: 'pointer', padding: '4px' }}
-              >
-                <X size={24} />
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <button
+                  onClick={() => {
+                    toggleSelect(previewTrip._uid);
+                  }}
+                  className="btn-secondary"
+                  style={{ fontSize: '0.82rem', padding: '6px 12px' }}
+                >
+                  {selectedIds.has(previewTrip._uid) ? <><Check size={14} /> Selected</> : <><CheckSquare size={14} /> Select for PDF</>}
+                </button>
+                <button 
+                  onClick={() => setPreviewTrip(null)}
+                  style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '4px' }}
+                >
+                  <X size={22} />
+                </button>
+              </div>
             </div>
 
-            {/* Body: Side by Side Full Comparison */}
+            {/* Modal Body: Side-by-Side Photo Comparison */}
             <div style={{
+              padding: '24px',
+              overflowY: 'auto',
               display: 'grid',
               gridTemplateColumns: '1fr 1fr',
-              gap: '20px',
-              padding: '20px 0',
-              overflowY: 'auto',
-              maxHeight: 'calc(90vh - 140px)'
+              gap: '24px',
+              backgroundColor: 'var(--bg-panel)'
             }}>
-              
-              {/* Left: Start Photo */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <span style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--text-main)' }}>Start Trip Photo</span>
-                  {cleanImageUrl(previewTrip.startTripImage) && (
-                    <a href={cleanImageUrl(previewTrip.startTripImage)} target="_blank" rel="noreferrer" style={{ fontSize: '0.78rem', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      Open Original <ExternalLink size={12} />
+              {/* Start Trip Inspector Box */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.95rem', fontWeight: '800', color: 'var(--text-main)' }}>
+                    1. Start Trip Photo (Vehicle Number Plate)
+                  </span>
+                  {previewTrip.hasStart && (
+                    <a 
+                      href={previewTrip.startTripImage} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      style={{ fontSize: '0.78rem', color: 'var(--accent-primary, #6366f1)', display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}
+                    >
+                      <ExternalLink size={13} /> Open Original
                     </a>
                   )}
                 </div>
+
                 <div style={{
-                  width: '100%',
                   height: '420px',
-                  backgroundColor: 'rgba(0,0,0,0.04)',
                   borderRadius: '10px',
-                  border: '1px solid var(--border-color)',
                   overflow: 'hidden',
+                  border: '1px solid var(--border-color)',
+                  backgroundColor: '#0f172a',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center'
                 }}>
-                  {cleanImageUrl(previewTrip.startTripImage) ? (
-                    <img src={cleanImageUrl(previewTrip.startTripImage)} alt="Start Trip" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  {previewTrip.hasStart ? (
+                    <img 
+                      src={previewTrip.startTripImage} 
+                      alt="Start Trip" 
+                      style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                    />
                   ) : (
-                    <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-                      <XCircle size={44} style={{ color: '#ef4444', opacity: 0.4, margin: '0 auto 8px' }} />
-                      <p style={{ fontWeight: '600', margin: 0 }}>Start Trip Photo Missing</p>
+                    <div style={{ textAlign: 'center', color: '#ef4444' }}>
+                      <AlertTriangle size={48} style={{ opacity: 0.8, margin: '0 auto 10px' }} />
+                      <p style={{ fontWeight: '700', margin: 0 }}>Start Trip Photo Missing</p>
+                      <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>No vehicle photo uploaded at start of trip</span>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Right: Delivered EPOD Photo */}
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                  <span style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--text-main)' }}>End Trip Photo - EPOD</span>
-                  {cleanImageUrl(previewTrip.epodImage) && (
-                    <a href={cleanImageUrl(previewTrip.epodImage)} target="_blank" rel="noreferrer" style={{ fontSize: '0.78rem', color: 'var(--accent-primary)', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      Open Original <ExternalLink size={12} />
+              {/* EPOD Delivered Inspector Box */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '0.95rem', fontWeight: '800', color: 'var(--text-main)' }}>
+                    2. End Trip Photo - EPOD (Stamped Acknowledgment)
+                  </span>
+                  {previewTrip.hasEpod && (
+                    <a 
+                      href={previewTrip.epodImage} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      style={{ fontSize: '0.78rem', color: 'var(--accent-primary, #6366f1)', display: 'inline-flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}
+                    >
+                      <ExternalLink size={13} /> Open Original
                     </a>
                   )}
                 </div>
+
                 <div style={{
-                  width: '100%',
                   height: '420px',
-                  backgroundColor: 'rgba(0,0,0,0.04)',
                   borderRadius: '10px',
-                  border: '1px solid var(--border-color)',
                   overflow: 'hidden',
+                  border: '1px solid var(--border-color)',
+                  backgroundColor: '#0f172a',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center'
                 }}>
-                  {cleanImageUrl(previewTrip.epodImage) ? (
-                    <img src={cleanImageUrl(previewTrip.epodImage)} alt="Delivered EPOD" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+                  {previewTrip.hasEpod ? (
+                    <img 
+                      src={previewTrip.epodImage} 
+                      alt="EPOD Delivered" 
+                      style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain' }}
+                    />
                   ) : (
-                    <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-                      <XCircle size={44} style={{ color: '#ef4444', opacity: 0.4, margin: '0 auto 8px' }} />
-                      <p style={{ fontWeight: '600', margin: 0 }}>Delivered EPOD Photo Missing</p>
+                    <div style={{ textAlign: 'center', color: '#ef4444' }}>
+                      <AlertTriangle size={48} style={{ opacity: 0.8, margin: '0 auto 10px' }} />
+                      <p style={{ fontWeight: '700', margin: 0 }}>Delivered EPOD Photo Missing</p>
+                      <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>No signed acknowledgment photo uploaded at delivery</span>
                     </div>
                   )}
                 </div>
               </div>
-
             </div>
 
-            {/* Footer */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '14px', borderTop: '1px solid var(--border-color)' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '0.9rem' }}>
-                <input 
-                  type="checkbox" 
-                  checked={selectedIds.has(previewTrip.id || `${previewTrip.vehicle}_${previewTrip.tripDate}`)}
-                  onChange={() => toggleSelect(previewTrip.id || `${previewTrip.vehicle}_${previewTrip.tripDate}`)}
-                  style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--accent-primary, #6366f1)' }}
-                />
-                <span>Include this trip in PDF report</span>
-              </label>
-
-              <button className="btn-secondary" onClick={() => setPreviewTrip(null)} style={{ padding: '6px 16px' }}>
-                Close
+            {/* Modal Footer */}
+            <div style={{
+              padding: '12px 24px',
+              borderTop: '1px solid var(--border-color)',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              backgroundColor: 'var(--bg-panel-hover, #f8fafc)'
+            }}>
+              <button 
+                className="btn-secondary"
+                onClick={() => setPreviewTrip(null)}
+                style={{ fontSize: '0.85rem', padding: '6px 16px' }}
+              >
+                Close Inspection
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Single Image Preview Modal */}
+      {/* Single Zoom Image Modal */}
       {previewImage && (
         <div 
+          onClick={() => setPreviewImage(null)}
           style={{
             position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0,0,0,0.85)',
-            zIndex: 9999,
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.9)',
+            zIndex: 10000,
             display: 'flex',
-            flexDirection: 'column',
             alignItems: 'center',
             justifyContent: 'center',
             padding: '24px'
           }}
-          onClick={() => setPreviewImage(null)}
         >
           <div 
-            style={{
-              position: 'relative',
-              maxWidth: '90vw',
-              maxHeight: '90vh',
-              backgroundColor: 'var(--bg-panel)',
-              borderRadius: '12px',
-              padding: '16px',
-              boxShadow: '0 20px 50px rgba(0,0,0,0.5)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center'
-            }}
             onClick={(e) => e.stopPropagation()}
+            style={{ position: 'relative', maxWidth: '90vw', maxHeight: '90vh', display: 'flex', flexDirection: 'column', alignItems: 'center' }}
           >
-            <div style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-              <div>
-                <span style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--text-main)' }}>
-                  {previewImage.title}
-                </span>
-                <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginLeft: '12px' }}>
-                  Vehicle: {previewImage.vehicle} {previewImage.dcNo ? `| DC: ${previewImage.dcNo}` : ''}
-                </span>
+            <div style={{
+              backgroundColor: '#1e293b',
+              color: '#ffffff',
+              padding: '8px 16px',
+              borderRadius: '8px',
+              marginBottom: '10px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              width: '100%'
+            }}>
+              <span style={{ fontSize: '0.9rem', fontWeight: '700' }}>
+                {previewImage.title} • {previewImage.vehicle} (DC: {previewImage.dcNo})
+              </span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <a 
+                  href={previewImage.url} 
+                  target="_blank" 
+                  rel="noopener noreferrer" 
+                  style={{ color: '#38bdf8', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '4px', textDecoration: 'none' }}
+                >
+                  <ExternalLink size={14} /> Open Full URL
+                </a>
+                <button 
+                  onClick={() => setPreviewImage(null)} 
+                  style={{ background: 'transparent', border: 'none', color: '#ffffff', cursor: 'pointer' }}
+                >
+                  <X size={20} />
+                </button>
               </div>
-              <button 
-                onClick={() => setPreviewImage(null)} 
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-main)', cursor: 'pointer', padding: '4px' }}
-              >
-                <X size={24} />
-              </button>
             </div>
-
-            <div style={{ maxHeight: '78vh', maxWidth: '85vw', overflow: 'auto', borderRadius: '8px' }}>
-              <img 
-                src={previewImage.url} 
-                alt="Enlarged preview" 
-                style={{ maxHeight: '75vh', maxWidth: '80vw', objectFit: 'contain', display: 'block' }} 
-              />
-            </div>
-
-            <div style={{ marginTop: '12px', display: 'flex', gap: '12px' }}>
-              <a 
-                href={previewImage.url} 
-                target="_blank" 
-                rel="noreferrer" 
-                className="btn-secondary"
-                style={{ fontSize: '0.85rem', padding: '6px 14px' }}
-              >
-                Open Original Link
-              </a>
-            </div>
+            <img 
+              src={previewImage.url} 
+              alt="Zoomed Preview"
+              style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 20px 40px rgba(0,0,0,0.5)' }} 
+            />
           </div>
         </div>
       )}
 
-      {/* PDF Orientation Selection Modal */}
+      {/* PDF Orientation Choice Modal */}
       {showOrientationModal && (
-        <div 
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(0,0,0,0.65)',
-            backdropFilter: 'blur(4px)',
-            zIndex: 9999,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '20px'
-          }}
-          onClick={() => setShowOrientationModal(false)}
-        >
-          <div 
-            style={{
-              backgroundColor: 'var(--bg-panel, #ffffff)',
-              borderRadius: '14px',
-              border: '1px solid var(--border-color, #e2e8f0)',
-              width: '100%',
-              maxWidth: '480px',
-              boxShadow: '0 20px 40px rgba(0,0,0,0.3)',
-              overflow: 'hidden'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Modal Header */}
-            <div style={{
-              padding: '16px 20px',
-              borderBottom: '1px solid var(--border-color, #e2e8f0)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '700', color: 'var(--text-main, #1e293b)' }}>
-                  Download PDF Report
-                </h3>
-                <p style={{ margin: '3px 0 0', fontSize: '0.8rem', color: 'var(--text-muted, #64748b)' }}>
-                  Select page orientation for {selectedIds.size > 0 ? `${selectedIds.size.toLocaleString()} selected trips` : `${filteredItems.length.toLocaleString()} trips`}
-                </p>
-              </div>
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(15, 23, 42, 0.75)',
+          zIndex: 10000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '20px',
+          backdropFilter: 'blur(4px)'
+        }}>
+          <div style={{
+            backgroundColor: 'var(--bg-panel)',
+            borderRadius: '16px',
+            maxWidth: '480px',
+            width: '100%',
+            padding: '24px',
+            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.4)',
+            border: '1px solid var(--border-color)',
+            animation: 'fadeIn 0.2s ease'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: '800', color: 'var(--text-main)' }}>
+                Select PDF Orientation
+              </h3>
               <button 
                 onClick={() => setShowOrientationModal(false)}
-                style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '4px' }}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}
               >
                 <X size={20} />
               </button>
             </div>
 
-            {/* Modal Body: Orientation Options */}
-            <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              
+            <p style={{ margin: '0 0 20px', fontSize: '0.88rem', color: 'var(--text-muted)' }}>
+              Choose the page layout for exporting {selectedIds.size > 0 ? `${selectedIds.size.toLocaleString()} selected` : `${filteredItems.length.toLocaleString()} filtered`} photo report pages:
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '24px' }}>
               {/* Option 1: Portrait */}
               <div 
                 onClick={() => setPdfOrientation('portrait')}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '16px',
-                  padding: '14px 16px',
-                  borderRadius: '10px',
-                  border: pdfOrientation === 'portrait' 
-                    ? '2px solid var(--accent-primary, #6366f1)' 
-                    : '1px solid var(--border-color, #e2e8f0)',
-                  backgroundColor: pdfOrientation === 'portrait'
-                    ? 'rgba(99, 102, 241, 0.08)'
-                    : 'var(--bg-panel-hover, rgba(0,0,0,0.02))',
+                  padding: '16px',
+                  borderRadius: '12px',
+                  border: pdfOrientation === 'portrait' ? '2px solid var(--accent-primary, #6366f1)' : '1px solid var(--border-color)',
+                  backgroundColor: pdfOrientation === 'portrait' ? 'rgba(99, 102, 241, 0.08)' : 'var(--bg-panel)',
                   cursor: 'pointer',
+                  textAlign: 'center',
                   transition: 'all 0.2s ease'
                 }}
               >
-                {/* Visual Icon representation */}
                 <div style={{
-                  width: '38px',
+                  width: '36px',
                   height: '50px',
+                  border: '2px solid',
+                  borderColor: pdfOrientation === 'portrait' ? 'var(--accent-primary, #6366f1)' : 'var(--text-muted)',
                   borderRadius: '4px',
-                  border: pdfOrientation === 'portrait' ? '2px solid var(--accent-primary, #6366f1)' : '2px solid var(--text-muted, #94a3b8)',
-                  backgroundColor: pdfOrientation === 'portrait' ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
+                  margin: '0 auto 10px',
                   display: 'flex',
-                  flexDirection: 'column',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '4px',
-                  padding: '4px',
-                  flexShrink: 0
+                  backgroundColor: pdfOrientation === 'portrait' ? 'rgba(99, 102, 241, 0.15)' : 'transparent'
                 }}>
-                  <div style={{ width: '20px', height: '3px', background: pdfOrientation === 'portrait' ? 'var(--accent-primary, #6366f1)' : 'var(--text-muted, #94a3b8)', borderRadius: '2px' }}></div>
-                  <div style={{ width: '20px', height: '22px', border: `1px dashed ${pdfOrientation === 'portrait' ? 'var(--accent-primary, #6366f1)' : 'var(--text-muted, #94a3b8)'}`, borderRadius: '2px' }}></div>
+                  <ImageIcon size={16} style={{ color: pdfOrientation === 'portrait' ? 'var(--accent-primary, #6366f1)' : 'var(--text-muted)' }} />
                 </div>
-
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
-                    <span style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-main, #1e293b)' }}>
-                      Portrait (ઊભું / Vertical)
-                    </span>
-                    <span style={{ fontSize: '0.72rem', padding: '2px 6px', borderRadius: '4px', background: 'rgba(99, 102, 241, 0.15)', color: 'var(--accent-primary, #6366f1)', fontWeight: '600' }}>
-                      Recommended
-                    </span>
-                  </div>
-                  <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted, #64748b)', lineHeight: '1.3' }}>
-                    Standard A4 Portrait layout. Best for single-page print and mobile/tablet reading.
-                  </p>
+                <div style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--text-main)' }}>
+                  Portrait (ઊભી)
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Standard A4 Vertical
                 </div>
               </div>
 
@@ -2161,81 +2158,66 @@ export default function EpodPhotoAnalysisDashboard({ data, rawData }) {
               <div 
                 onClick={() => setPdfOrientation('landscape')}
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '16px',
-                  padding: '14px 16px',
-                  borderRadius: '10px',
-                  border: pdfOrientation === 'landscape' 
-                    ? '2px solid var(--accent-primary, #6366f1)' 
-                    : '1px solid var(--border-color, #e2e8f0)',
-                  backgroundColor: pdfOrientation === 'landscape'
-                    ? 'rgba(99, 102, 241, 0.08)'
-                    : 'var(--bg-panel-hover, rgba(0,0,0,0.02))',
+                  padding: '16px',
+                  borderRadius: '12px',
+                  border: pdfOrientation === 'landscape' ? '2px solid var(--accent-primary, #6366f1)' : '1px solid var(--border-color)',
+                  backgroundColor: pdfOrientation === 'landscape' ? 'rgba(99, 102, 241, 0.08)' : 'var(--bg-panel)',
                   cursor: 'pointer',
+                  textAlign: 'center',
                   transition: 'all 0.2s ease'
                 }}
               >
-                {/* Visual Icon representation */}
                 <div style={{
                   width: '50px',
-                  height: '38px',
+                  height: '36px',
+                  border: '2px solid',
+                  borderColor: pdfOrientation === 'landscape' ? 'var(--accent-primary, #6366f1)' : 'var(--text-muted)',
                   borderRadius: '4px',
-                  border: pdfOrientation === 'landscape' ? '2px solid var(--accent-primary, #6366f1)' : '2px solid var(--text-muted, #94a3b8)',
-                  backgroundColor: pdfOrientation === 'landscape' ? 'rgba(99, 102, 241, 0.2)' : 'transparent',
+                  margin: '7px auto 17px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  gap: '4px',
-                  padding: '4px',
-                  flexShrink: 0
+                  backgroundColor: pdfOrientation === 'landscape' ? 'rgba(99, 102, 241, 0.15)' : 'transparent'
                 }}>
-                  <div style={{ width: '18px', height: '22px', border: `1px dashed ${pdfOrientation === 'landscape' ? 'var(--accent-primary, #6366f1)' : 'var(--text-muted, #94a3b8)'}`, borderRadius: '2px' }}></div>
-                  <div style={{ width: '18px', height: '22px', border: `1px dashed ${pdfOrientation === 'landscape' ? 'var(--accent-primary, #6366f1)' : 'var(--text-muted, #94a3b8)'}`, borderRadius: '2px' }}></div>
+                  <ImageIcon size={16} style={{ color: pdfOrientation === 'landscape' ? 'var(--accent-primary, #6366f1)' : 'var(--text-muted)' }} />
                 </div>
-
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2px' }}>
-                    <span style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--text-main, #1e293b)' }}>
-                      Landscape (આડું / Horizontal)
-                    </span>
-                  </div>
-                  <p style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-muted, #64748b)', lineHeight: '1.3' }}>
-                    Wide A4 Landscape layout. Best for widescreen desktop view & side-by-side comparison.
-                  </p>
+                <div style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--text-main)' }}>
+                  Landscape (આડી)
+                </div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                  Wide A4 Horizontal
                 </div>
               </div>
-
             </div>
 
-            {/* Modal Footer */}
-            <div style={{
-              padding: '14px 20px',
-              borderTop: '1px solid var(--border-color, #e2e8f0)',
-              display: 'flex',
-              justifyContent: 'flex-end',
-              gap: '10px',
-              backgroundColor: 'var(--bg-panel-hover, rgba(0,0,0,0.02))'
-            }}>
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
               <button 
-                className="btn-secondary" 
+                className="btn-secondary"
                 onClick={() => setShowOrientationModal(false)}
-                style={{ fontSize: '0.88rem', padding: '8px 16px' }}
+                style={{ padding: '8px 16px', fontSize: '0.85rem' }}
               >
                 Cancel
               </button>
               <button 
-                className="btn-primary" 
+                className="btn-primary"
                 onClick={() => handleExportPdf(pdfOrientation)}
-                style={{ fontSize: '0.88rem', padding: '8px 20px', display: 'flex', alignItems: 'center', gap: '8px' }}
+                style={{
+                  padding: '8px 20px',
+                  fontSize: '0.85rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: 'linear-gradient(135deg, var(--accent-primary, #6366f1) 0%, #4f46e5 100%)'
+                }}
               >
-                <FileDown size={16} />
-                Generate & Download PDF
+                <FileDown size={15} />
+                Generate {pdfOrientation === 'landscape' ? 'Landscape' : 'Portrait'} PDF
               </button>
             </div>
           </div>
         </div>
       )}
+
     </div>
   );
 }

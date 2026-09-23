@@ -41,6 +41,13 @@ const cleanImageUrl = (raw) => {
   const match = str.match(/HYPERLINK\s*\(\s*["']([^"']+)["']/i);
   if (match) str = match[1].trim();
   str = str.replace(/^["']|["']$/g, '').trim();
+  const lower = str.toLowerCase();
+  if (!str || lower === 'n/a' || lower === 'na' || lower === 'null' || lower === 'undefined' || lower === '-' || lower === '#n/a' || lower === 'none') {
+    return '';
+  }
+  if (!str.startsWith('http://') && !str.startsWith('https://') && !str.startsWith('data:image') && !str.startsWith('blob:')) {
+    return '';
+  }
   return str;
 };
 
