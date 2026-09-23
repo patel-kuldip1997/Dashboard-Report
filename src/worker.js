@@ -653,6 +653,109 @@ self.onmessage = async (e) => {
        return;
     }
 
+    if (activeReport === 'epod-photo-analysis') {
+      const totalRows = jsonData.length;
+      const sampleRow = jsonData[0] || {};
+      const allKeys = Object.keys(sampleRow);
+
+      const findKey = (priorityList, fallbackCheck) => {
+        for (const p of priorityList) {
+          const match = allKeys.find(k => k && k.trim().toLowerCase() === p.toLowerCase());
+          if (match) return match;
+        }
+        if (fallbackCheck) {
+          const match = allKeys.find(k => k && fallbackCheck(k.toLowerCase()));
+          if (match) return match;
+        }
+        return null;
+      };
+
+      const districtKey = findKey(
+        ['District', 'District Name', 'TP District', 'Godown District', 'district_name', 'district'],
+        k => k.includes('district')
+      );
+
+      const godownKey = findKey(
+        ['GSCSCL Godown', 'Godown Name', 'Godown', 'Destination Godown', 'Lifting Location Name', 'Source Godown', 'godown_name', 'godown'],
+        k => k.includes('godown') || k.includes('destination') || k.includes('location')
+      );
+
+      const vehicleKey = findKey(
+        ['Vehicle', 'Vehicle Number', 'Vehicle No', 'Truck Number', 'vehicle_number', 'truck_number', 'Truck No', 'vehicle', 'Truck'],
+        k => k.includes('vehicle') || k.includes('truck')
+      );
+
+      const startImgKey = findKey(
+        ['Start Trip Image', 'Start Trip Photo', 'Start Photo', 'Start Image', 'start_trip_image', 'start_trip_photo', 'Start Trip Photos', 'start trip photo', 'start trip image', 'Start Trip', 'Start Trip Link', 'start_trip_link', 'start_photo', 'start_image'],
+        k => k.includes('start') && (k.includes('image') || k.includes('photo') || k.includes('link') || k.includes('pic') || k.includes('url') || k.includes('img'))
+      );
+
+      const epodImgKey = findKey(
+        ['EPOD Image', 'Delivered Photo', 'Delivered Image', 'Delivered Photos', 'delivered_photo', 'end_trip_image', 'End Trip Image', 'EPOD Photo', 'delivered image', 'Delivered Image', 'epod_image', 'End Trip Image - EPOD', 'EPOD Photos', 'EPOD Link', 'epod_link', 'End Trip Photo', 'Delivered Link', 'delivered_image', 'epod_photo'],
+        k => (k.includes('epod') || k.includes('deliver') || k.includes('end')) && (k.includes('image') || k.includes('photo') || k.includes('link') || k.includes('pic') || k.includes('url') || k.includes('img'))
+      );
+
+      const refNoKey = findKey(
+        ['Reference Number', 'DC Number', 'Reference No', 'Ref No', 'DC No', 'DC No.', 'Delivery Challan Number', 'Delivery Challan No', 'ref_no', 'dc_no', 'DC', 'Invoice No', 'Invoice Number'],
+        k => k.includes('dc') || k.includes('reference') || k.includes('challan') || k.includes('invoice') || k.includes('ref')
+      );
+
+      const dateKey = findKey(
+        ['Date of Trip', 'Trip Date', 'TP date', 'TP Date', 'DC Creation Date', 'Created At', 'Date', 'Start Trip Date', 'trip_date'],
+        k => k.includes('date') || k.includes('time')
+      );
+
+      let lastReportTime = Date.now();
+
+      for (let i = 0; i < totalRows; i++) {
+        const row = jsonData[i];
+        if (!row) continue;
+
+        const vehicle = vehicleKey ? String(row[vehicleKey] || '').trim() : '';
+        const district = districtKey ? String(row[districtKey] || '').trim() : '';
+        const godown = godownKey ? String(row[godownKey] || '').trim() : '';
+        const refNo = refNoKey ? String(row[refNoKey] || '').trim() : '';
+        const startTripImage = startImgKey ? cleanImageUrl(String(row[startImgKey] || '')) : '';
+        const epodImage = epodImgKey ? cleanImageUrl(String(row[epodImgKey] || '')) : '';
+
+        let tripDate = '';
+        if (dateKey && row[dateKey]) {
+          tripDate = formatExcelDate(row[dateKey]) || String(row[dateKey]).split(' ')[0];
+        }
+
+        // Only skip if row is entirely empty
+        if (!vehicle && !district && !godown && !refNo && !startTripImage && !epodImage) {
+          continue;
+        }
+
+        processed.push({
+          id: `${vehicle || 'V'}_${refNo || tripDate || i}_${i + 1}`,
+          district: district || 'N/A',
+          godown: godown || 'N/A',
+          vehicle: vehicle || 'N/A',
+          refNo: refNo || 'N/A',
+          startTripImage: startTripImage || '',
+          epodImage: epodImage || '',
+          tripDate: tripDate || 'N/A'
+        });
+
+        // Periodic progress reporting for large datasets (e.g., 2 Lakh rows)
+        if (i % 25000 === 0 || Date.now() - lastReportTime > 600) {
+          lastReportTime = Date.now();
+          const percent = 60 + Math.round((i / totalRows) * 38);
+          self.postMessage({
+            type: 'progress',
+            percent,
+            message: `Processing EPOD Photos (${i.toLocaleString()} of ${totalRows.toLocaleString()} rows)...`
+          });
+        }
+      }
+
+      self.postMessage({ type: 'progress', percent: 99, message: 'Finalizing EPOD Data...' });
+      self.postMessage({ type: 'success', data: processed });
+      return;
+    }
+
     let lmDist = '';
     let lmRefNo = '';
     let lmLrNo = '';
@@ -663,115 +766,6 @@ self.onmessage = async (e) => {
 
     let lastFmVehicleNo = '';
     jsonData.forEach(row => {
-      if (activeReport === 'epod-photo-analysis') {
-         let district = String(getVal(row, 'District', 'TP District', 'district_name', 'district', 'District Name') || '').trim();
-         let godown = String(getVal(row, 'GSCSCL Godown', 'Godown', 'Destination Godown', 'Lifting Location Name', 'godown_name', 'godown', 'Godown Name', 'Source Godown') || '').trim();
-         let vehicle = String(getVal(row, 'Vehicle', 'Vehicle Number', 'Vehicle No', 'Truck Number', 'vehicle_number', 'truck_number', 'Truck No', 'vehicle', 'Truck') || '').trim();
-         
-         let startTripImage = String(getVal(row, 
-            'Start Trip Image', 'Start Trip Photo', 'Start Photo', 'Start Image',
-            'start_trip_image', 'start_trip_photo', 'Start Trip Photos', 'start trip photo', 
-            'start trip image', 'Start Trip', 'Start Trip Link', 'start_trip_link', 'start_photo', 'start_image'
-         ) || '').trim();
-
-         if (!startTripImage) {
-            for (const key in row) {
-               const k = String(key).toLowerCase();
-               if (k.includes('start') && (k.includes('image') || k.includes('photo') || k.includes('link') || k.includes('pic') || k.includes('url') || k.includes('img'))) {
-                  startTripImage = String(row[key] || '').trim();
-                  break;
-               }
-            }
-         }
-
-         let epodImage = String(getVal(row, 
-            'EPOD Image', 'EPOD Photo', 'Delivered Photo', 'Delivered Image', 'Delivered Photos',
-            'delivered_photo', 'end_trip_image', 'End Trip Image', 'delivered image', 
-            'Delivered Image', 'epod_image', 'End Trip Image - EPOD', 'EPOD Photos', 
-            'EPOD Link', 'epod_link', 'End Trip Photo', 'Delivered Link', 'delivered_image', 'epod_photo'
-         ) || '').trim();
-
-         if (!epodImage) {
-            for (const key in row) {
-               const k = String(key).toLowerCase();
-               if ((k.includes('epod') || k.includes('deliver') || k.includes('end')) && (k.includes('image') || k.includes('photo') || k.includes('link') || k.includes('pic') || k.includes('url') || k.includes('img'))) {
-                  epodImage = String(row[key] || '').trim();
-                  break;
-               }
-            }
-         }
-
-         if (!vehicle) {
-            for (const key in row) {
-               const k = String(key).toLowerCase();
-               if (k.includes('vehicle') || k.includes('truck')) {
-                  vehicle = String(row[key] || '').trim();
-                  break;
-               }
-            }
-         }
-
-         if (!district) {
-            for (const key in row) {
-               const k = String(key).toLowerCase();
-               if (k.includes('district')) {
-                  district = String(row[key] || '').trim();
-                  break;
-               }
-            }
-         }
-
-         if (!godown) {
-            for (const key in row) {
-               const k = String(key).toLowerCase();
-               if (k.includes('godown') || k.includes('destination') || k.includes('location')) {
-                  godown = String(row[key] || '').trim();
-                  break;
-               }
-            }
-         }
-
-         const tripDateRaw = getVal(row, 'Date of Trip', 'Trip Date', 'TP date', 'TP Date', 'DC Creation Date', 'Created At', 'Date', 'Start Trip Date', 'trip_date');
-         let tripDate = formatExcelDate(tripDateRaw) || (tripDateRaw ? String(tripDateRaw).split(' ')[0] : '');
-
-         if (!tripDate) {
-            for (const key in row) {
-               const k = String(key).toLowerCase();
-               if (k.includes('date') || k.includes('time')) {
-                  const val = row[key];
-                  tripDate = formatExcelDate(val) || (val ? String(val).split(' ')[0] : '');
-                  if (tripDate) break;
-               }
-            }
-         }
-
-         let refNo = String(getVal(row, 'Reference Number', 'DC Number', 'Reference No', 'Ref No', 'DC No', 'DC No.', 'Delivery Challan Number', 'Delivery Challan No', 'ref_no', 'dc_no', 'DC', 'Invoice No', 'Invoice Number') || '').trim();
-         if (!refNo) {
-            for (const key in row) {
-               const k = String(key).toLowerCase();
-               if (k.includes('dc') || k.includes('reference') || k.includes('challan') || k.includes('invoice') || k.includes('ref')) {
-                  refNo = String(row[key] || '').trim();
-                  if (refNo) break;
-               }
-            }
-         }
-
-         // Only skip if row is entirely empty
-         const hasAnyData = Object.values(row).some(v => v !== undefined && v !== null && String(v).trim() !== '');
-         if (!hasAnyData) return;
-
-         processed.push({ ...row, ...extractDynamicColumns(row),
-            district: district || 'N/A',
-            godown: godown || 'N/A',
-            vehicle: vehicle || 'N/A',
-            refNo: refNo || 'N/A',
-            startTripImage: cleanImageUrl(startTripImage),
-            epodImage: cleanImageUrl(epodImage),
-            tripDate: tripDate || 'N/A',
-            id: `${vehicle}_${refNo || tripDate}_${processed.length + 1}`
-         });
-         return;
-      }
 
       if (activeReport === 'penalty-epod') {
          const refNoStr = String(getVal(row, 'Reference Number') || getVal(row, 'Reference No') || '').trim();
