@@ -1,0 +1,285 @@
+  const displayData = useMemo(() => {
+    if (rawData.length === 0) return [];
+
+    let filtered = rawData;
+    
+    if (activeReport === 'last-mile-epod') {
+       if (dcMonthFilter !== null) {
+          filtered = filtered.filter(row => dcMonthFilter.includes(row.dcMonth));
+       }
+       if (dcDateFilter !== null) {
+          filtered = filtered.filter(row => dcDateFilter.includes(row.dcCreationDate));
+       }
+       // We DO NOT filter rawData by epodStatusFilter here. 
+       // We want the total counts to remain intact. We will filter the displayed groups later.
+    } else if (activeReport === 'lifting-report') {
+       if (tpDateFilter !== null) {
+          filtered = filtered.filter(row => tpDateFilter.includes(row.tpDate));
+       }
+    } else {
+       if (filterStatus === 'Start Trip Pending') {
+         filtered = rawData.filter(row => row.isStartPending);
+       } else if (filterStatus === 'End Trip Pending') {
+         filtered = rawData.filter(row => row.isEndPending);
+       } else if (filterStatus === 'Completed') {
+         filtered = rawData.filter(row => row.status === 'Completed');
+       }
+    }
+
+    const groupedData = [];
+    const distGroups = {};
+
+    if (activeReport === 'lifting-report') {
+       const GUJARAT_DISTRICTS = [
+          'Ahmedabad', 'GirSomnath', 'Junagadh', 'VavTharad', 'Dang', 'Botad',
+          'Chottaudepur', 'Surendranagar', 'Rajkot', 'Anand', 'Jamnagar', 
+          'Gandhinagar', 'Porbandar', 'AhmedabadCity', 'Navasari', 'Tapi',
+          'Morbi', 'Kutch', 'Bhavanagar', 'Arvalli', 'DevbhumiDwarka',
+          'Mahisagar', 'Panchmahal', 'Sabarkantha', 'Narmada', 'Baroda',
+          'Bharuch', 'Valsad', 'Amreli', 'Kheda', 'Patan', 'Banaskantha',
+          'Mehsana', 'Surat', 'Dahod'
+       ];
+       GUJARAT_DISTRICTS.forEach(d => distGroups[d] = []);
+       rawData.forEach(r => { if (r.district && !distGroups[r.district]) distGroups[r.district] = []; });
+    }
+
+    filtered.forEach(item => {
+      if (!distGroups[item.district]) distGroups[item.district] = [];
+      distGroups[item.district].push(item);
+    });
+
+    let grandTotalTrips = 0;
+    let gtTrips = 0, gtChallan = 0, gtComplete = 0;
+    
+    const liftingNumerics = ['vehicleAssigned', 'dosTpCreated', 'manualTpCreated', 'tpsGenerated', 'liftedQty', 'tripsTracked', 'untracked', 'epodDriver', 'pendingEpodDriver', 'percentEpodDriver', 'epodManager', 'pendingEpodManager', 'percentEpodManager'];
+
+    Object.keys(distGroups).sort().forEach(dist => {
+      const distRows = distGroups[dist];
+      
+      // Pivot Table Style Grouping
+      const pivotGroups = {};
+      const numericColumns = ['trips', 'deliveryChallan', 'epodComplete', 'epodPending', 'epodPendingPercent', ...liftingNumerics];
+      const pivotKeys = visibleColumns.filter(c => !numericColumns.includes(c.id)).map(c => c.id);
+      
+      const distTotals = { trips: 0, deliveryChallan: 0, epodComplete: 0, epodPending: 0 };
+      
+      const validGroupKeys = new Set();
+      
+      if (activeReport === 'lifting-report' && distRows.length === 0) {
+         const dummyRow = { district: dist };
+         const getVal = (key) => dummyRow[key] || '';
+         const groupKey = pivotKeys.map(key => getVal(key)).join('|||');
+         
+         validGroupKeys.add(groupKey);
+         pivotGroups[groupKey] = {
+             district: dist,
+             vehicleSet: new Set()
+         };
+         numericColumns.forEach(metric => pivotGroups[groupKey][metric] = 0);
+      }
+      
+      distRows.forEach(row => {
+        const getVal = (key) => key === 'refNo' ? (row._ref || row.refNo || '') : (row[key] || '');
+        const groupKey = pivotKeys.map(key => getVal(key)).join('|||');
+        
+        // Track if this group matches the EPOD Status filter
+        if (activeReport !== 'last-mile-epod' || epodStatusFilter === null || epodStatusFilter.includes(row.epodStatusRaw)) {
+            validGroupKeys.add(groupKey);
+        }
+        
+        if (!pivotGroups[groupKey]) {
+          pivotGroups[groupKey] = {
+             refNo: getVal('refNo'),
+             district: getVal('district'),
+             sourceLoc: getVal('sourceLoc'),
+             destLoc: getVal('destLoc'),
+             godown: getVal('godown'),
+             transporter: getVal('transporter'),
+             tpDate: getVal('tpDate'),
+             createdAt: getVal('createdAt'),
+             startDate: getVal('startDate'),
+             endDate: getVal('endDate'),
+             pendingDays: getVal('pendingDays'),
+             status: getVal('status'),
+             vehicleSet: new Set()
+          };
+          numericColumns.forEach(metric => {
+            pivotGroups[groupKey][metric] = 0;
+          });
+        }
+        
+        numericColumns.forEach(metric => {
+          if (row[metric] !== undefined && !metric.toLowerCase().includes('percent')) {
+             const val = Number(row[metric]) || 0;
+             pivotGroups[groupKey][metric] += val;
+          }
+        });
+        
+        // Fallback for trips if not present but needed for legacy reports
+        if (row.trips === undefined && row.deliveryChallan === undefined && activeReport !== 'last-mile-epod') {
+           pivotGroups[groupKey].trips += 1;
+        }
+
+        if (activeReport === 'lifting-report' && row.vehicleAssignedRaw) {
+           pivotGroups[groupKey].vehicleSet.add(row.vehicleAssignedRaw);
+        }
+      });
+
+      // Explicitly apply user formulas for Pivot Groups
+      Object.keys(pivotGroups).forEach(groupKey => {
+        const group = pivotGroups[groupKey];
+        
+        if (activeReport === 'last-mile-epod') {
+           gtTrips += (group.trips || 0);
+           gtChallan += (group.deliveryChallan || 0);
+           gtComplete += (group.epodComplete || 0);
+        }
+
+        if (!validGroupKeys.has(groupKey)) return; // Skip groups that don't match the EPOD Status filter
+        
+        group.epodPending = group.deliveryChallan - group.epodComplete;
+        if (group.deliveryChallan > 0) {
+           group.epodPendingPercent = ((group.epodPending / group.deliveryChallan) * 100).toFixed(0) + '%';
+        } else {
+           group.epodPendingPercent = '0%';
+        }
+        
+        if (activeReport === 'lifting-report') {
+           const tps = group.tpsGenerated || 0;
+           group.pendingEpodDriver = Math.max(0, tps - group.epodDriver);
+           group.percentEpodDriver = tps > 0 ? ((group.epodDriver / tps) * 100).toFixed(0) + '%' : '0%';
+           
+           group.pendingEpodManager = Math.max(0, tps - group.epodManager);
+           group.percentEpodManager = tps > 0 ? ((group.epodManager / tps) * 100).toFixed(0) + '%' : '0%';
+        }
+
+         if (activeReport === 'lifting-report') {
+            group.vehicleAssigned = group.vehicleSet.size;
+         }
+
+         distTotals.trips += group.trips || 0;
+         distTotals.deliveryChallan += group.deliveryChallan || 0;
+         distTotals.epodComplete += group.epodComplete || 0;
+        groupedData.push(group);
+      });
+
+      if ((distTotals.trips > 0 || distTotals.deliveryChallan > 0 || activeReport === 'lifting-report') && activeReport !== 'lifting-report') {
+        let percent = '';
+        if (activeReport === 'last-mile-epod' && distTotals.deliveryChallan > 0) {
+           percent = ((distTotals.epodPending / distTotals.deliveryChallan) * 100).toFixed(0) + '%';
+        }
+        groupedData.push({
+          isSubtotal: true,
+          district: `${dist} Total`,
+          sourceLoc: '',
+          destLoc: '',
+          godown: '',
+          transporter: '',
+          tpDate: '',
+          createdAt: '',
+          startDate: '',
+          endDate: '',
+          pendingDays: '',
+          status: '',
+          refNo: '',
+          trips: distTotals.trips,
+          deliveryChallan: distTotals.deliveryChallan,
+          epodComplete: distTotals.epodComplete,
+          epodPending: distTotals.epodPending,
+          epodPendingPercent: percent
+        });
+      }
+    });
+
+    // Sort and add Sr. No for lifting-report
+    if (activeReport === 'lifting-report') {
+       groupedData.sort((a, b) => (a.liftedQty || 0) - (b.liftedQty || 0));
+       let sr = 1;
+       groupedData.forEach(r => {
+          if (!r.isSubtotal) r.srNo = sr++;
+       });
+    }
+
+    // Grand totals logic
+    let gtLifting = {};
+    if (activeReport === 'lifting-report') {
+       liftingNumerics.forEach(m => gtLifting[m] = 0);
+       groupedData.forEach(r => {
+          if (!r.isSubtotal) {
+             liftingNumerics.forEach(m => {
+                if (!m.toLowerCase().includes('percent')) {
+                   gtLifting[m] += (r[m] || 0);
+                }
+             });
+          }
+       });
+    } else if (activeReport === 'last-mile-epod') {
+       let baseData = rawData;
+       if (dcMonthFilter && dcMonthFilter.length > 0) {
+          baseData = baseData.filter(r => dcMonthFilter.includes(r.dcMonth));
+       }
+       if (dcDateFilter && dcDateFilter.length > 0) {
+          baseData = baseData.filter(r => dcDateFilter.includes(r.dcCreationDate));
+       }
+          
+       baseData.forEach(r => {
+          gtTrips += (r.trips || 0);
+          gtChallan += (r.deliveryChallan || 0);
+          gtComplete += (r.epodComplete || 0);
+       });
+    } else {
+       groupedData.filter(r => r.isSubtotal && !r.isGrandTotal).forEach(r => {
+          gtTrips += (r.trips || 0);
+          gtChallan += (r.deliveryChallan || 0);
+          gtComplete += (r.epodComplete || 0);
+       });
+    }
+
+    if (gtTrips > 0 || gtChallan > 0 || activeReport === 'lifting-report') {
+      const gtPending = gtChallan - gtComplete;
+      let gtPercent = '';
+      if (activeReport === 'last-mile-epod' && gtChallan > 0) {
+         gtPercent = ((gtPending / gtChallan) * 100).toFixed(0) + '%';
+      }
+      
+      let grandTotalRow = {
+        isSubtotal: true,
+        isGrandTotal: true,
+        district: 'GRAND TOTAL',
+        sourceLoc: '',
+        destLoc: '',
+        godown: '',
+        transporter: '',
+        tpDate: '',
+        createdAt: '',
+        startDate: '',
+        endDate: '',
+        pendingDays: '',
+        status: '',
+        refNo: '',
+        trips: gtTrips,
+        deliveryChallan: gtChallan,
+        epodComplete: gtComplete,
+        epodPending: gtPending,
+        epodPendingPercent: gtPercent
+      };
+      
+      if (activeReport === 'lifting-report') {
+         const tps = gtLifting.tpsGenerated || 0;
+         gtLifting.pendingEpodDriver = Math.max(0, tps - gtLifting.epodDriver);
+         gtLifting.percentEpodDriver = tps > 0 ? ((gtLifting.epodDriver / tps) * 100).toFixed(0) + '%' : '0%';
+         
+         gtLifting.pendingEpodManager = Math.max(0, tps - gtLifting.epodManager);
+         gtLifting.percentEpodManager = tps > 0 ? ((gtLifting.epodManager / tps) * 100).toFixed(0) + '%' : '0%';
+         
+         // Format liftedQty to fixed 4
+         gtLifting.liftedQty = Number(gtLifting.liftedQty.toFixed(4));
+         
+         Object.assign(grandTotalRow, gtLifting);
+      }
+      
+      groupedData.push(grandTotalRow);
+    }
+
+    return groupedData;
+  }, [rawData, filterStatus, activeReport, dcMonthFilter, dcDateFilter, epodStatusFilter, visibleColumns]);
