@@ -617,11 +617,7 @@ self.onmessage = async (e) => {
                
                processedCount++;
                let percent = 10 + Math.round((processedCount / totalUnique) * 85);
-<<<<<<< HEAD
-               self.postMessage({ type: 'progress', percent, message: `Fetching Route Data (${processedCount} of ${totalUnique})...` });
-=======
                self.postMessage({ type: 'progress', percent, message: `Fetching ETAs for ${routesData.length} Rows (API ${processedCount} of ${totalUnique})...` });
->>>>>>> 172141fc6d005af504346e2a9783786ba521c4b4
                
                await new Promise(r => setTimeout(r, 50));
            }
@@ -646,23 +642,19 @@ self.onmessage = async (e) => {
                }
            }
            
-<<<<<<< HEAD
-            processed.push({ ...row, ...extractDynamicColumns(row),
-=======
-            processed.push({ ...r.originalRow, ...extractDynamicColumns(r.originalRow),
->>>>>>> 172141fc6d005af504346e2a9783786ba521c4b4
-                routeCode: r.routeCode,
-                origin: r.orig,
-                destination: r.dest,
-                actualTime: isNaN(r.actualTime) ? 'N/A' : r.actualTime,
-                googleEta: cache.mins !== null ? cache.mins : 'N/A',
-                distance: cache.km !== null ? cache.km : 'N/A',
-                vehicleType: etaVehicleType,
-                tripStatus: status,
-                isSubtotal: false,
-                sortKey: `${idx}`
-            });
-        });
+           processed.push({ ...r.originalRow, ...extractDynamicColumns(r.originalRow),
+               routeCode: r.routeCode,
+               origin: r.orig,
+               destination: r.dest,
+               actualTime: isNaN(r.actualTime) ? 'N/A' : r.actualTime,
+               googleEta: cache.mins !== null ? cache.mins : 'N/A',
+               distance: cache.km !== null ? cache.km : 'N/A',
+               vehicleType: etaVehicleType,
+               tripStatus: status,
+               isSubtotal: false,
+               sortKey: `${idx}`
+           });
+       });
 
        self.postMessage({ type: 'success', data: processed });
        return;
