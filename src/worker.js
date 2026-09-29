@@ -617,7 +617,11 @@ self.onmessage = async (e) => {
                
                processedCount++;
                let percent = 10 + Math.round((processedCount / totalUnique) * 85);
+<<<<<<< HEAD
                self.postMessage({ type: 'progress', percent, message: `Fetching Route Data (${processedCount} of ${totalUnique})...` });
+=======
+               self.postMessage({ type: 'progress', percent, message: `Fetching ETAs for ${routesData.length} Rows (API ${processedCount} of ${totalUnique})...` });
+>>>>>>> 172141fc6d005af504346e2a9783786ba521c4b4
                
                await new Promise(r => setTimeout(r, 50));
            }
@@ -642,7 +646,11 @@ self.onmessage = async (e) => {
                }
            }
            
+<<<<<<< HEAD
             processed.push({ ...row, ...extractDynamicColumns(row),
+=======
+            processed.push({ ...r.originalRow, ...extractDynamicColumns(r.originalRow),
+>>>>>>> 172141fc6d005af504346e2a9783786ba521c4b4
                 routeCode: r.routeCode,
                 origin: r.orig,
                 destination: r.dest,
