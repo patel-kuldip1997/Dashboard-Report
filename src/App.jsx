@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { UploadCloud, FileSpreadsheet, Download, Building2, Truck, FileText, Filter, AlertCircle, Database, Menu, X, ChevronDown, ChevronRight, FileDown, Settings, GripVertical, History, Trash2, FolderOpen, Search, CheckCircle, Repeat, MapPin, BarChart2, Camera, Image as ImageIcon } from 'lucide-react';
+import { UploadCloud, FileSpreadsheet, Download, Building2, Truck, FileText, Filter, AlertCircle, Database, Menu, X, ChevronDown, ChevronRight, FileDown, Settings, GripVertical, History, Trash2, FolderOpen, Search, CheckCircle, Repeat, MapPin, BarChart2, Camera, Image as ImageIcon, Save, RotateCcw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -525,79 +525,89 @@ function App() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(100);
 
+  const getDefaultReportTitle = (reportKey, tab, dataList, dateFilter) => {
+    if (reportKey === 'ro-allocation-dsm') {
+      let dates = (dateFilter && dateFilter.length > 0) ? dateFilter : (dataList || []).map(r => r.tpDate).filter(Boolean);
+      if (dates.length > 0) {
+        const parsedDates = dates.map(d => {
+          const parts = d.split('-');
+          if (parts.length === 3) return new Date(parts[2], parts[1]-1, parts[0]);
+          return new Date(d);
+        }).filter(d => !isNaN(d.getTime())).sort((a, b) => a - b);
+        if (parsedDates.length > 0) {
+          const startD = parsedDates[0];
+          const endD = parsedDates[parsedDates.length - 1];
+          const monthName = startD.toLocaleString('default', { month: 'long' });
+          const sDay = String(startD.getDate()).padStart(2, '0');
+          const sMonth = String(startD.getMonth() + 1).padStart(2, '0');
+          const sYear = startD.getFullYear();
+          const eDay = String(endD.getDate()).padStart(2, '0');
+          const eMonth = String(endD.getMonth() + 1).padStart(2, '0');
+          const eYear = endD.getFullYear();
+          return `RO Allocation Month of ${monthName} (${sDay}-${sMonth}-${sYear} to ${eDay}-${eMonth}-${eYear})`;
+        }
+      }
+      return 'RO Allocation (DSM)';
+    } else if (reportKey === 'first-mile-epod') {
+      return "First Mile EPOD Pending Report of Till 29th August'25 ( 00:00-23:59)";
+    } else if (reportKey === 'last-mile-epod') {
+      return "Last Mile EPOD Pending Report of Till 30th July'26 ( 00:00-23:59)";
+    } else if (reportKey === 'miller-to-godown') {
+      return "Miller to Godown Trips";
+    } else if (reportKey === 'lifting-report') {
+      return "Lifting Report";
+    } else if (reportKey === 'first-mile-vehicle-registered') {
+      return "First Mile Vehicle Registered";
+    } else if (reportKey === 'multi-trip-analysis') {
+      return "Multi-Trip Analysis";
+    } else if (reportKey === 'gps-analysis') {
+      return "GPS Data Analysis";
+    } else if (reportKey === 'eta-route') {
+      return "ETA Route Analytics";
+    } else if (reportKey === 'vehicle-assigned') {
+      return "First Mile - Vehicle Assignment Report";
+    } else if (reportKey === 'weighbridge-report') {
+      return "Weighbridge Report";
+    } else if (reportKey === 'penalty-epod') {
+      return "Last Mile EPOD Penalty";
+    } else if (reportKey === 'sms-template') {
+      return "SMS Templates";
+    } else if (reportKey === 'last-mile-imei') {
+      return "Last Mile IMEI Report";
+    } else if (reportKey === 'last-mile-vehicle-assigned') {
+      return "Last Mile Vehicle Assigned";
+    } else if (reportKey === 'last-mile-commodity') {
+      return "Last Mile Commodity Wise Report";
+    } else if (reportKey === 'epod-photo-analysis') {
+      return "EPOD Photo Analysis";
+    }
+    return "Godown to Miller Trips";
+  };
+
+  const handleSaveReportTitle = () => {
+    if (!reportTitle || !reportTitle.trim()) return;
+    localStorage.setItem(`custom_report_title_${activeReport}`, reportTitle.trim());
+    showToast(`Title header saved! It will be remembered automatically.`, 'success');
+  };
+
+  const handleResetReportTitle = () => {
+    localStorage.removeItem(`custom_report_title_${activeReport}`);
+    const def = getDefaultReportTitle(activeReport, firstMileTab, rawData, tpDateFilter);
+    setReportTitle(def);
+    showToast('Title reset to default template.', 'info');
+  };
+
   useEffect(() => {
     // Persist active tab
     localStorage.setItem('activeReportTab', activeReport);
 
-    // Set default title
-    if (activeReport === 'ro-allocation-dsm') {
-      let dates = [];
-      if (tpDateFilter && tpDateFilter.length > 0) {
-          dates = tpDateFilter;
-      } else {
-          dates = rawData.map(r => r.tpDate).filter(Boolean);
-      }
-      
-      if (dates.length > 0) {
-          const parsedDates = dates.map(d => {
-              const parts = d.split('-');
-              if (parts.length === 3) return new Date(parts[2], parts[1]-1, parts[0]);
-              return new Date(d);
-          }).filter(d => !isNaN(d.getTime())).sort((a, b) => a - b);
-          
-          if (parsedDates.length > 0) {
-              const startD = parsedDates[0];
-              const endD = parsedDates[parsedDates.length - 1];
-              const monthName = startD.toLocaleString('default', { month: 'long' });
-              const sDay = String(startD.getDate()).padStart(2, '0');
-              const sMonth = String(startD.getMonth() + 1).padStart(2, '0');
-              const sYear = startD.getFullYear();
-              const eDay = String(endD.getDate()).padStart(2, '0');
-              const eMonth = String(endD.getMonth() + 1).padStart(2, '0');
-              const eYear = endD.getFullYear();
-              setReportTitle(`RO Allocation Month of ${monthName} (${sDay}-${sMonth}-${sYear} to ${eDay}-${eMonth}-${eYear})`);
-          } else {
-              setReportTitle('RO Allocation (DSM)');
-          }
-      } else {
-          setReportTitle('RO Allocation (DSM)');
-      }
-    } else if (activeReport === 'first-mile-epod') {
-      setReportTitle("First Mile EPOD Pending Report of Till 29th August'25 ( 00:00-23:59)");
-    } else if (activeReport === 'last-mile-epod') {
-      setReportTitle("Last Mile EPOD Pending Report of Till 30th July'26 ( 00:00-23:59)");
-    } else if (activeReport === 'miller-to-godown') {
-      setReportTitle("Miller to Godown Trips");
-    } else if (activeReport === 'lifting-report') {
-      setReportTitle("Lifting Report");
-    } else if (activeReport === 'first-mile-vehicle-registered') {
-      setReportTitle("First Mile Vehicle Registered");
-    } else if (activeReport === 'history') {
-      // Handled separately or leave as is
-    } else if (activeReport === 'multi-trip-analysis') {
-       setReportTitle("Multi-Trip Analysis");
-    } else if (activeReport === 'gps-analysis') {
-       setReportTitle("GPS Data Analysis");
-    } else if (activeReport === 'eta-route') {
-       setReportTitle("ETA Route Analytics");
-    } else if (activeReport === 'vehicle-assigned') {
-       setReportTitle("First Mile - Vehicle Assignment Report");
-    } else if (activeReport === 'weighbridge-report') {
-       setReportTitle("Weighbridge Report");
-    } else if (activeReport === 'penalty-epod') {
-      setReportTitle("Last Mile EPOD Penalty");
-    } else if (activeReport === 'sms-template') {
-       setReportTitle("SMS Templates");
-    } else if (activeReport === 'last-mile-imei') {
-       setReportTitle("Last Mile IMEI Report");
-    } else if (activeReport === 'last-mile-vehicle-assigned') {
-       setReportTitle("Last Mile Vehicle Assigned");
-    } else if (activeReport === 'last-mile-commodity') {
-       setReportTitle("Last Mile Commodity Wise Report");
-    } else if (activeReport === 'epod-photo-analysis') {
-       setReportTitle("EPOD Photo Analysis");
+    // Set title: If user saved a custom template title, load it; otherwise load default title
+    const customTitleKey = `custom_report_title_${activeReport}`;
+    const savedCustomTitle = localStorage.getItem(customTitleKey);
+    if (savedCustomTitle && savedCustomTitle.trim()) {
+      setReportTitle(savedCustomTitle);
     } else {
-       setReportTitle("Godown to Miller Trips");
+      setReportTitle(getDefaultReportTitle(activeReport, firstMileTab, rawData, tpDateFilter));
     }
 
     const storageKey = activeReport === 'first-mile-epod' && firstMileTab === 'grouped' ? `reportConfig_first-mile-epod-grouped_v3` : `reportConfig_${activeReport}_v3`;
@@ -3686,30 +3696,54 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
         {(activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown' || activeReport === 'first-mile-epod' || activeReport === 'last-mile-epod' || activeReport === 'last-mile-imei' || activeReport === 'lifting-report' || activeReport === 'multi-trip-analysis' || activeReport === 'gps-analysis' || activeReport === 'eta-route' || activeReport === 'vehicle-assigned' || activeReport === 'last-mile-vehicle-assigned' || activeReport === 'first-mile-vehicle-registered' || activeReport === 'weighbridge-report' || activeReport === 'penalty-epod' || activeReport === 'last-mile-commodity' || activeReport === 'ro-allocation-dsm' || activeReport === 'epod-photo-analysis') && (
           <>
             <div className="page-header">
-              <div style={{ flex: 1, maxWidth: '70%' }}>
-                <input 
-                  type="text" 
-                  value={reportTitle} 
-                  onChange={(e) => setReportTitle(e.target.value)}
-                  style={{
-                    fontSize: '1.8rem',
-                    fontWeight: '700',
-                    color: 'var(--text-main)',
-                    background: 'transparent',
-                    border: '1px dashed transparent',
-                    borderBottom: '1px dashed rgba(255,255,255,0.3)',
-                    width: '100%',
-                    padding: '4px 8px',
-                    outline: 'none',
-                    fontFamily: 'Outfit, sans-serif',
-                    transition: 'all 0.2s ease',
-                    marginBottom: '4px'
-                  }}
-                  onFocus={(e) => { e.target.style.background = 'rgba(255,255,255,0.05)'; e.target.style.borderBottom = '1px dashed var(--accent-primary)'; }}
-                  onBlur={(e) => { e.target.style.background = 'transparent'; e.target.style.borderBottom = '1px dashed transparent'; }}
-                  title="Click to edit report title"
-                />
-                <p className="page-subtitle" style={{ paddingLeft: '8px' }}>Upload raw Excel data to generate and clean reports</p>
+              <div style={{ flex: 1, maxWidth: '72%' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <div style={{ position: 'relative', flex: 1, minWidth: '280px' }}>
+                    <input 
+                      type="text" 
+                      value={reportTitle} 
+                      onChange={(e) => setReportTitle(e.target.value)}
+                      style={{
+                        fontSize: '1.65rem',
+                        fontWeight: '700',
+                        color: 'var(--text-main)',
+                        background: 'transparent',
+                        border: '1px dashed transparent',
+                        borderBottom: '1px dashed rgba(255,255,255,0.3)',
+                        width: '100%',
+                        padding: '4px 8px',
+                        outline: 'none',
+                        fontFamily: 'Outfit, sans-serif',
+                        transition: 'all 0.2s ease'
+                      }}
+                      onFocus={(e) => { e.target.style.background = 'rgba(255,255,255,0.05)'; e.target.style.borderBottom = '1px dashed var(--accent-primary)'; }}
+                      onBlur={(e) => { e.target.style.background = 'transparent'; e.target.style.borderBottom = '1px dashed transparent'; }}
+                      title="Click to edit report title"
+                    />
+                  </div>
+                  <button 
+                    className="btn-secondary" 
+                    onClick={handleSaveReportTitle}
+                    style={{ padding: '6px 12px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '5px', borderRadius: '6px' }}
+                    title="Save this customized title template permanently so you only need to change the date in future"
+                  >
+                    <Save size={14} />
+                    Save Title
+                  </button>
+                  {localStorage.getItem(`custom_report_title_${activeReport}`) && (
+                    <button 
+                      className="btn-secondary" 
+                      onClick={handleResetReportTitle}
+                      style={{ padding: '6px 10px', fontSize: '0.82rem', color: 'var(--text-muted)', borderRadius: '6px' }}
+                      title="Reset title back to default"
+                    >
+                      <RotateCcw size={14} />
+                    </button>
+                  )}
+                </div>
+                <p className="page-subtitle" style={{ paddingLeft: '8px', marginTop: '4px' }}>
+                  Upload raw Excel data to generate and clean reports. Click <strong>Save Title</strong> to remember your customized header format.
+                </p>
               </div>
               {rawData.length > 0 && (
                 <div style={{ display: 'flex', gap: '12px' }}>
