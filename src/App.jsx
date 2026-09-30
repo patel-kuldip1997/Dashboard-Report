@@ -64,7 +64,8 @@ const DEFAULT_MG_CONFIG = [
   { id: 'startDate', label: 'Start Trip Date', visible: true },
   { id: 'endDate', label: 'End Trip Date', visible: true },
   { id: 'pendingDays', label: 'Pending Days', visible: true },
-  { id: 'status', label: 'Status', visible: true },
+  { id: 'epodStatus', label: 'Godown EPOD Status', visible: true },
+  { id: 'status', label: 'Driver Status', visible: true },
   { id: 'trips', label: 'Total Trips', visible: true }
 ];
 
@@ -481,6 +482,8 @@ function App() {
   // Column Configuration State
   const [columnConfig, setColumnConfig] = useState([]);
   const [showConfigModal, setShowConfigModal] = useState(false);
+  const [showPdfOrientationModal, setShowPdfOrientationModal] = useState(false);
+  const [pdfOrientation, setPdfOrientation] = useState('landscape');
   const [draggedItemIndex, setDraggedItemIndex] = useState(null);
   const [reportTitle, setReportTitle] = useState('');
   
@@ -667,6 +670,14 @@ function App() {
       const cleanConfig = finalConfig.filter(c => defaultConf.find(dc => dc.id === c.id));
       if (cleanConfig.length !== finalConfig.length) modified = true;
       
+      cleanConfig.forEach(c => {
+         const dc = defaultConf.find(d => d.id === c.id);
+         if (dc && !c.isCustom && c.label !== dc.label) {
+            c.label = dc.label;
+            modified = true;
+         }
+      });
+      
       setColumnConfig(cleanConfig);
       if (modified) {
          localStorage.setItem(storageKey, JSON.stringify(cleanConfig));
@@ -726,11 +737,16 @@ function App() {
           baseData = baseData.filter(row => dcDateFilter.includes(row.createDate));
        }
     }
-    const counts = { all: baseData.length, startPending: 0, endPending: 0, completed: 0 };
+    const counts = { all: baseData.length, startPending: 0, endPending: 0, completed: 0, epodPending: 0 };
     baseData.forEach(row => {
-      if (row.status === 'Completed') counts.completed++;
+      if (row.epodStatus === 'EPOD Completed' || (row.epodStatus === undefined && row.status === 'Completed')) {
+        counts.completed++;
+      }
       if (row.isStartPending) counts.startPending++;
       if (row.isEndPending) counts.endPending++;
+      if (row.epodStatus === 'Pending EPOD' || (row.epodStatus === undefined && row.isEndPending)) {
+        counts.epodPending++;
+      }
     });
     return counts;
   }, [rawData, dcMonthFilter, dcDateFilter, activeReport]);
@@ -1345,8 +1361,10 @@ function App() {
          filtered = filtered.filter(row => row.isStartPending);
        } else if (filterStatus === 'End Trip Pending') {
          filtered = filtered.filter(row => row.isEndPending);
+       } else if (filterStatus === 'EPOD Pending') {
+         filtered = filtered.filter(row => row.epodStatus === 'Pending EPOD' || (row.epodStatus === undefined && row.isEndPending));
        } else if (filterStatus === 'Completed') {
-         filtered = filtered.filter(row => row.status === 'Completed');
+         filtered = filtered.filter(row => row.epodStatus === 'EPOD Completed' || (row.epodStatus === undefined && row.status === 'Completed'));
        }
     }
 
@@ -2751,42 +2769,51 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
     XLSX.writeFile(wb, `GSCSCL_${safeTitle}.xlsx`);
   };
 
-  const exportPDF = () => {
+  const handleOpenPdfModal = () => {
+    if (displayData.length === 0) return;
+    const defaultForReport = (activeReport === 'lifting-report' || activeReport === 'vehicle-assigned' || activeReport === 'multi-trip-analysis' || activeReport === 'last-mile-imei' || activeReport === 'last-mile-vehicle-assigned' || activeReport === 'last-mile-commodity' || activeReport === 'ro-allocation-dsm' || visibleColumns.length > 7) ? 'landscape' : 'portrait';
+    setPdfOrientation(defaultForReport);
+    setShowPdfOrientationModal(true);
+  };
+
+  const exportPDF = (selectedOrientation) => {
     if (displayData.length === 0) return;
 
-    const orientation = (activeReport === 'lifting-report' || activeReport === 'vehicle-assigned' || activeReport === 'multi-trip-analysis' || activeReport === 'last-mile-imei' || activeReport === 'last-mile-vehicle-assigned') ? 'landscape' : 'portrait';
+    const isLandscape = (selectedOrientation || pdfOrientation) === 'landscape';
+    const orientation = isLandscape ? 'landscape' : 'portrait';
     const doc = new jsPDF({ orientation, format: 'a4' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
     
     const drawHeader = () => {
-      const pageWidth = doc.internal.pageSize.getWidth();
       doc.setTextColor(0, 0, 0);
-      doc.setFontSize(22);
+      doc.setFontSize(20);
       doc.setFont("helvetica", "bold");
       const companyTitle = localStorage.getItem('companyTitle');
       // Default to FarEye if null, but if it is empty string ('') that means user explicitly removed it.
       const finalTitle = companyTitle === null ? "FarEye Technologies Pvt. Ltd." : companyTitle;
       
       if (finalTitle.trim() !== '') {
-          doc.text(finalTitle, pageWidth / 2, 18, { align: 'center' });
+          doc.text(finalTitle, pageWidth / 2, 17, { align: 'center' });
       }
 
-      doc.setFontSize(14);
+      doc.setFontSize(13);
       doc.setFont("helvetica", "bold");
       const titleWidth = doc.getTextWidth(reportTitle);
       const padding = 10;
       const boxHeight = 8;
       const boxX = (pageWidth - (titleWidth + padding)) / 2;
-      const boxY = 21;
+      const boxY = 20;
       
       doc.setFillColor(240, 240, 240);
       doc.rect(boxX, boxY, titleWidth + padding, boxHeight, 'F');
 
       doc.setTextColor(0, 0, 0);
-      doc.text(reportTitle, pageWidth / 2, 27, { align: 'center' });
+      doc.text(reportTitle, pageWidth / 2, 26, { align: 'center' });
       
       doc.setLineWidth(0.5);
       doc.setDrawColor(200, 200, 200);
-      doc.line(14, 32, pageWidth - 14, 32);
+      doc.line(10, 31, pageWidth - 10, 31);
     };
 
     drawHeader();
@@ -3037,15 +3064,43 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
       }
     });
 
+    // Dynamic responsive font and padding calculation
+    const numCols = visibleColumns.length;
+    let baseFontSize = 7.5;
+    let basePadding = 1.5;
+    if (orientation === 'portrait') {
+      if (numCols > 10) {
+        baseFontSize = 5.5;
+        basePadding = 0.8;
+      } else if (numCols > 7) {
+        baseFontSize = 6.5;
+        basePadding = 1.0;
+      } else {
+        baseFontSize = 7.5;
+        basePadding = 1.5;
+      }
+    } else {
+      if (numCols > 12) {
+        baseFontSize = 6.5;
+        basePadding = 1.0;
+      } else if (numCols > 8) {
+        baseFontSize = 7.5;
+        basePadding = 1.5;
+      } else {
+        baseFontSize = 8.5;
+        basePadding = 2.0;
+      }
+    }
+
     if (activeReport !== 'vehicle-assigned') {
       autoTable(doc, {
             head: headConfig,
             body: tableRows,
-            startY: 35,
-            styles: { fontSize: 7.5, cellPadding: 1.5, textColor: [50, 50, 50], lineColor: [0, 0, 0], lineWidth: 0.1 },
-            headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
+            startY: 34,
+            styles: { fontSize: baseFontSize, cellPadding: basePadding, textColor: [50, 50, 50], lineColor: [0, 0, 0], lineWidth: 0.1, overflow: 'linebreak' },
+            headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle', fontSize: baseFontSize },
             columnStyles: columnStyles,
-            margin: { left: 10, right: 10, top: 10, bottom: 15 },
+            margin: { left: 8, right: 8, top: 10, bottom: 15 },
             didDrawPage: function (data) {
               // Draw Watermark ON TOP of the table using opacity
               doc.setGState(new doc.GState({ opacity: 0.15 }));
@@ -3059,8 +3114,8 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
               
               if (defaultWatermark.trim() !== '') {
                   const textWidth = doc.getTextWidth(defaultWatermark);
-                  const x = (doc.internal.pageSize.getWidth() - textWidth) / 2;
-                  const y = doc.internal.pageSize.getHeight() / 2;
+                  const x = (pageWidth - textWidth) / 2;
+                  const y = pageHeight / 2;
                   
                   doc.text(defaultWatermark, x, y);
               }
@@ -3069,13 +3124,13 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
               // Footer: Page Number
               doc.setLineWidth(0.5);
               doc.setDrawColor(200, 200, 200);
-              doc.line(14, doc.internal.pageSize.getHeight() - 15, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 15);
+              doc.line(8, pageHeight - 12, pageWidth - 8, pageHeight - 12);
               
-              doc.setFontSize(10);
+              doc.setFontSize(9);
               doc.setFont("helvetica", "normal");
               doc.setTextColor(100, 100, 100);
               const str = "Page " + data.pageNumber;
-              doc.text(str, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
+              doc.text(str, pageWidth - 8, pageHeight - 8, { align: 'right' });
             }
           });
     }
@@ -3758,7 +3813,7 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                     <History size={18} />
                     Save to History
                   </button>
-                  <button className="btn-secondary" onClick={exportPDF}>
+                  <button className="btn-secondary" onClick={handleOpenPdfModal} title="Download Report as PDF (Portrait / Landscape)">
                     <FileDown size={18} />
                     Download PDF
                   </button>
@@ -4058,22 +4113,28 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
               )}
               
               {(activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown') && displayData.length > 0 && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '24px' }}>
-                  <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '10px', borderLeft: '4px solid #3b82f6' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+                  <div className="glass-panel" onClick={() => setFilterStatus('All')} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '8px', borderLeft: '4px solid #3b82f6', cursor: 'pointer', transition: 'all 0.2s' }} title="Click to filter All Trips">
                     <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: '600' }}>Total Trips Analyzed</span>
-                    <span style={{ fontSize: '2.2rem', fontWeight: '600', color: 'var(--text-main)', lineHeight: '1' }}>{filterCounts.all}</span>
+                    <span style={{ fontSize: '2rem', fontWeight: '600', color: 'var(--text-main)', lineHeight: '1' }}>{filterCounts.all}</span>
                   </div>
-                  <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '10px', borderLeft: '4px solid #f59e0b' }}>
+                  <div className="glass-panel" onClick={() => setFilterStatus('Start Trip Pending')} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '8px', borderLeft: '4px solid #f59e0b', cursor: 'pointer', transition: 'all 0.2s' }} title="Click to filter Start Trip Pending">
                     <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: '600' }}>Start Trip Pending</span>
-                    <span style={{ fontSize: '2.2rem', fontWeight: '600', color: 'var(--text-main)', lineHeight: '1' }}>{filterCounts.startPending}</span>
+                    <span style={{ fontSize: '2rem', fontWeight: '600', color: 'var(--text-main)', lineHeight: '1' }}>{filterCounts.startPending}</span>
                   </div>
-                  <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '10px', borderLeft: '4px solid #ff6b6b' }}>
+                  <div className="glass-panel" onClick={() => setFilterStatus('End Trip Pending')} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '8px', borderLeft: '4px solid #ff6b6b', cursor: 'pointer', transition: 'all 0.2s' }} title="Click to filter End Trip Pending">
                     <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: '600' }}>End Trip Pending (In Transit)</span>
-                    <span style={{ fontSize: '2.2rem', fontWeight: '600', color: 'var(--text-main)', lineHeight: '1' }}>{filterCounts.endPending}</span>
+                    <span style={{ fontSize: '2rem', fontWeight: '600', color: 'var(--text-main)', lineHeight: '1' }}>{filterCounts.endPending}</span>
                   </div>
-                  <div className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '10px', borderLeft: '4px solid #2ed573' }}>
+                  {activeReport === 'miller-to-godown' && (
+                    <div className="glass-panel" onClick={() => setFilterStatus('EPOD Pending')} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '8px', borderLeft: '4px solid #ec4899', cursor: 'pointer', transition: 'all 0.2s' }} title="Click to filter EPOD Pending">
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: '600' }}>EPOD Pending</span>
+                      <span style={{ fontSize: '2rem', fontWeight: '600', color: 'var(--text-main)', lineHeight: '1' }}>{filterCounts.epodPending}</span>
+                    </div>
+                  )}
+                  <div className="glass-panel" onClick={() => setFilterStatus('Completed')} style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '8px', borderLeft: '4px solid #2ed573', cursor: 'pointer', transition: 'all 0.2s' }} title="Click to filter Trips Completed">
                     <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: '600' }}>Trips Completed</span>
-                    <span style={{ fontSize: '2.2rem', fontWeight: '600', color: 'var(--text-main)', lineHeight: '1' }}>{filterCounts.completed}</span>
+                    <span style={{ fontSize: '2rem', fontWeight: '600', color: 'var(--text-main)', lineHeight: '1' }}>{filterCounts.completed}</span>
                   </div>
                 </div>
               )}
@@ -4247,6 +4308,9 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                             <option value="All">All Trips ({filterCounts.all})</option>
                             <option value="Start Trip Pending">Start Trip Pending ({filterCounts.startPending})</option>
                             <option value="End Trip Pending">End Trip Pending (In Transit) ({filterCounts.endPending})</option>
+                            {activeReport === 'miller-to-godown' && (
+                              <option value="EPOD Pending">EPOD Pending ({filterCounts.epodPending})</option>
+                            )}
                             <option value="Completed">Completed ({filterCounts.completed})</option>
                           </select>
                         )}
@@ -4700,6 +4764,11 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                                       content = row.endDate === 'PENDING' ? <span className="status-badge status-warning">PENDING</span> : row.endDate; 
                                       break;
                                     case 'pendingDays': content = row.pendingDays; break;
+                                    case 'epodStatus': {
+                                      const isComp = String(row.epodStatus || '').toLowerCase().includes('complete');
+                                      content = <span className={`status-badge ${isComp ? 'status-success' : 'status-warning'}`}>{row.epodStatus || 'Pending EPOD'}</span>;
+                                      break;
+                                    }
                                     case 'status': 
                                       content = <span className={`status-badge ${statusClass}`}>{row.status}</span>; 
                                       break;
@@ -4920,6 +4989,126 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                     saveConfig(defaultConf.map(c => ({...c})));
                   }}>Reset</button>
                 <button className="btn-primary" onClick={() => setShowConfigModal(false)}>Done</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* PDF Export Orientation Modal */}
+        {showPdfOrientationModal && (
+          <div className="modal-overlay" onClick={(e) => { if (e.target.className === 'modal-overlay') setShowPdfOrientationModal(false); }}>
+            <div className="modal-content" style={{ maxWidth: '440px', padding: '24px', borderRadius: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '700', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <FileDown size={20} style={{ color: 'var(--accent-primary, #6366f1)' }} />
+                  PDF Export Orientation
+                </h3>
+                <button onClick={() => setShowPdfOrientationModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}>
+                  <X size={18} />
+                </button>
+              </div>
+              
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '20px', lineHeight: '1.4' }}>
+                તમારા રિપોર્ટ માટે યોગ્ય PDF ઓરિએન્ટેશન (Orientation) પસંદ કરો:
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', marginBottom: '24px' }}>
+                {/* Portrait Option */}
+                <div 
+                  onClick={() => setPdfOrientation('portrait')}
+                  style={{
+                    padding: '16px',
+                    borderRadius: '12px',
+                    border: pdfOrientation === 'portrait' ? '2px solid var(--accent-primary, #6366f1)' : '1px solid var(--border-color)',
+                    backgroundColor: pdfOrientation === 'portrait' ? 'rgba(99, 102, 241, 0.08)' : 'var(--bg-panel)',
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <div style={{
+                    width: '36px',
+                    height: '48px',
+                    border: '2px solid',
+                    borderColor: pdfOrientation === 'portrait' ? 'var(--accent-primary, #6366f1)' : 'var(--text-muted)',
+                    borderRadius: '4px',
+                    margin: '0 auto 10px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: pdfOrientation === 'portrait' ? 'rgba(99, 102, 241, 0.15)' : 'transparent'
+                  }}>
+                    <FileText size={18} style={{ color: pdfOrientation === 'portrait' ? 'var(--accent-primary, #6366f1)' : 'var(--text-muted)' }} />
+                  </div>
+                  <div style={{ fontSize: '0.92rem', fontWeight: '700', color: 'var(--text-main)' }}>
+                    Portrait (ઊભી)
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    Standard A4 Vertical
+                  </div>
+                </div>
+
+                {/* Landscape Option */}
+                <div 
+                  onClick={() => setPdfOrientation('landscape')}
+                  style={{
+                    padding: '16px',
+                    borderRadius: '12px',
+                    border: pdfOrientation === 'landscape' ? '2px solid var(--accent-primary, #6366f1)' : '1px solid var(--border-color)',
+                    backgroundColor: pdfOrientation === 'landscape' ? 'rgba(99, 102, 241, 0.08)' : 'var(--bg-panel)',
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <div style={{
+                    width: '50px',
+                    height: '36px',
+                    border: '2px solid',
+                    borderColor: pdfOrientation === 'landscape' ? 'var(--accent-primary, #6366f1)' : 'var(--text-muted)',
+                    borderRadius: '4px',
+                    margin: '7px auto 17px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: pdfOrientation === 'landscape' ? 'rgba(99, 102, 241, 0.15)' : 'transparent'
+                  }}>
+                    <FileText size={18} style={{ color: pdfOrientation === 'landscape' ? 'var(--accent-primary, #6366f1)' : 'var(--text-muted)' }} />
+                  </div>
+                  <div style={{ fontSize: '0.92rem', fontWeight: '700', color: 'var(--text-main)' }}>
+                    Landscape (આડી)
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '4px' }}>
+                    Wide A4 Horizontal
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                <button 
+                  className="btn-secondary"
+                  onClick={() => setShowPdfOrientationModal(false)}
+                  style={{ padding: '8px 16px', fontSize: '0.85rem' }}
+                >
+                  Cancel
+                </button>
+                <button 
+                  className="btn-primary"
+                  onClick={() => {
+                    setShowPdfOrientationModal(false);
+                    exportPDF(pdfOrientation);
+                  }}
+                  style={{
+                    padding: '8px 20px',
+                    fontSize: '0.85rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <FileDown size={15} />
+                  Download {pdfOrientation === 'landscape' ? 'Landscape' : 'Portrait'} PDF
+                </button>
               </div>
             </div>
           </div>

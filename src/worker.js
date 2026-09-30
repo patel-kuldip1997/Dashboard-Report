@@ -1327,12 +1327,44 @@ self.onmessage = async (e) => {
       }
 
       let status = 'Unknown';
-      if (isStartPending) {
-         status = 'Start Trip Pending';
-      } else if (isEndPending) {
-         status = 'End Trip Pending';
+      const rawDriverStatus = getVal(row, 'Driver Status', 'Driver status', 'Trip Status');
+      if (rawDriverStatus !== undefined && String(rawDriverStatus).trim() !== '') {
+         const strDriver = String(rawDriverStatus).trim();
+         if (/start.*pending/i.test(strDriver)) {
+            status = 'Start Trip Pending';
+         } else if (/end.*pending|transit/i.test(strDriver)) {
+            status = 'End Trip Pending';
+         } else if (/complete|deliver|done/i.test(strDriver)) {
+            status = 'Completed';
+         } else {
+            status = strDriver;
+         }
       } else {
-         status = 'Completed';
+         if (isStartPending) {
+            status = 'Start Trip Pending';
+         } else if (isEndPending) {
+            status = 'End Trip Pending';
+         } else {
+            status = 'Completed';
+         }
+      }
+
+      let epodStatus = 'Pending EPOD';
+      const rawEpodVal = getVal(row, 'Godown EPOD Status', 'EPOD Status', 'EPOD status');
+      if (rawEpodVal !== undefined) {
+         const strVal = String(rawEpodVal).trim().toLowerCase();
+         if (strVal === 'deliver' || strVal.includes('deliver') || strVal === 'completed' || strVal === 'complete') {
+            epodStatus = 'EPOD Completed';
+         } else {
+            // (Blanks), check_location1, PENDING, etc. are all Pending EPOD
+            epodStatus = 'Pending EPOD';
+         }
+      } else {
+         if (!isEndPending && endDate && endDate !== 'PENDING') {
+            epodStatus = 'EPOD Completed';
+         } else {
+            epodStatus = 'Pending EPOD';
+         }
       }
 
       let createMonth = '';
@@ -1357,6 +1389,7 @@ self.onmessage = async (e) => {
         endDate: formattedEndDate,
         pendingDays,
         status,
+        epodStatus,
         isStartPending,
         isEndPending,
         trips: 1,

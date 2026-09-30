@@ -92,7 +92,9 @@ export const DEFAULT_REPORT_ATTRIBUTES = {
     'District': ['District', 'TP District'],
     'Vehicle Number': ['Vehicle Number', 'Vehicle No'],
     'TP Date': ['TP Date', 'TP date'],
-    'Final Quantity Allocated': ['Final Quantity Allocated', 'Net Weight']
+    'Final Quantity Allocated': ['Final Quantity Allocated', 'Net Weight'],
+    'Godown EPOD Status': ['Godown EPOD Status', 'EPOD Status', 'EPOD status', 'epod_status'],
+    'Driver Status': ['Driver Status', 'Driver status', 'Trip Status', 'Status', 'driver_status']
   },
   'multi-trip-analysis': {
     'Vehicle Number': ['Vehicle Number', 'Vehicle No', 'Truck No'],

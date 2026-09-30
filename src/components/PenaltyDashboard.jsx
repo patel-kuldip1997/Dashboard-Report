@@ -80,49 +80,67 @@ export default function PenaltyDashboard({ data }) {
       XLSX.utils.book_append_sheet(wb, ws, "Penalty Data");
       XLSX.writeFile(wb, `Penalty_Report_${suffix}.xlsx`);
     } else if (type === 'pdf') {
-      const doc = new jsPDF('landscape');
+      const isLandscape = orientation === 'landscape';
+      const doc = new jsPDF({ orientation: isLandscape ? 'landscape' : 'portrait', format: 'a4' });
       
       const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
       doc.setTextColor(0, 0, 0);
-      doc.setFontSize(22);
+      doc.setFontSize(20);
       doc.setFont("helvetica", "bold");
       const companyTitle = localStorage.getItem('companyTitle');
       const finalTitle = companyTitle === null ? "FarEye Technologies Pvt. Ltd." : companyTitle;
 
       if (finalTitle.trim() !== '') {
-          doc.text(finalTitle, pageWidth / 2, 18, { align: 'center' });
+          doc.text(finalTitle, pageWidth / 2, 17, { align: 'center' });
       }
 
-      doc.setFontSize(14);
+      doc.setFontSize(13);
       doc.setFont("helvetica", "bold");
       const reportTitle = "Penalty Report";
       const titleWidth = doc.getTextWidth(reportTitle);
       const padding = 10;
       const boxHeight = 8;
       const boxX = (pageWidth - (titleWidth + padding)) / 2;
-      const boxY = 21;
+      const boxY = 20;
 
       doc.setFillColor(240, 240, 240);
       doc.rect(boxX, boxY, titleWidth + padding, boxHeight, 'F');
 
       doc.setTextColor(0, 0, 0);
-      doc.text(reportTitle, pageWidth / 2, 27, { align: 'center' });
+      doc.text(reportTitle, pageWidth / 2, 26, { align: 'center' });
 
       doc.setLineWidth(0.5);
       doc.setDrawColor(200, 200, 200);
-      doc.line(14, 32, pageWidth - 14, 32);
+      doc.line(10, 31, pageWidth - 10, 31);
 
       const headers = Object.keys(exportRows[0] || {});
       const dataRows = exportRows.map(row => headers.map(h => row[h] !== undefined ? String(row[h]) : ''));
+      
+      const baseFontSize = isLandscape ? 7.5 : 6.5;
+      const basePadding = isLandscape ? 1.5 : 1.0;
+
       autoTable(doc, {
         head: [headers],
         body: dataRows,
-        styles: { fontSize: 8 },
+        styles: { 
+          fontSize: baseFontSize,
+          cellPadding: basePadding,
+          overflow: 'linebreak',
+          lineColor: [200, 200, 200],
+          lineWidth: 0.1
+        },
+        headStyles: {
+          fillColor: [240, 240, 240],
+          textColor: [0, 0, 0],
+          fontStyle: 'bold'
+        },
         theme: 'grid',
-        startY: 38,
+        startY: 36,
+        margin: { left: 10, right: 10, bottom: 18 },
         didDrawPage: function (data) {
           doc.setGState(new doc.GState({ opacity: 0.15 }));
-          doc.setFontSize(80);
+          doc.setFontSize(isLandscape ? 80 : 60);
           doc.setTextColor(150, 150, 150);
           doc.setFont("helvetica", "bold");
 
@@ -139,17 +157,17 @@ export default function PenaltyDashboard({ data }) {
 
           doc.setLineWidth(0.5);
           doc.setDrawColor(200, 200, 200);
-          doc.line(14, doc.internal.pageSize.getHeight() - 15, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 15);
+          doc.line(10, doc.internal.pageSize.getHeight() - 14, doc.internal.pageSize.getWidth() - 10, doc.internal.pageSize.getHeight() - 14);
           
-          doc.setFontSize(10);
+          doc.setFontSize(8.5);
           doc.setTextColor(100, 100, 100);
           doc.setFont("helvetica", "normal");
-          doc.text("Page " + data.pageNumber, doc.internal.pageSize.getWidth() - 20, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
+          doc.text("Page " + data.pageNumber, doc.internal.pageSize.getWidth() - 12, doc.internal.pageSize.getHeight() - 8, { align: 'right' });
           const today = new Date();
-          doc.text("Generated on: " + today.toLocaleDateString() + " " + today.toLocaleTimeString(), 14, doc.internal.pageSize.getHeight() - 10);
+          doc.text("Generated on: " + today.toLocaleDateString() + " " + today.toLocaleTimeString(), 10, doc.internal.pageSize.getHeight() - 8);
         }
       });
-      doc.save(`Penalty_Report_${suffix}.pdf`);
+      doc.save(`Penalty_Report_${suffix}_${orientation}.pdf`);
     }
   };
 
@@ -280,13 +298,23 @@ export default function PenaltyDashboard({ data }) {
                     </div>
                     
                     <div style={{ padding: '8px 12px', fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-muted)', background: 'rgba(0,0,0,0.05)' }}>
-                      Download as PDF
+                      Download as PDF (Landscape)
                     </div>
-                    <div className="nav-item" onClick={() => handleExport('pdf', false)} style={{ padding: '10px 16px', cursor: 'pointer' }}>
-                      Grouped View (One row per trip)
+                    <div className="nav-item" onClick={() => handleExport('pdf', false, 'landscape')} style={{ padding: '10px 16px', cursor: 'pointer' }}>
+                      Grouped View (Landscape)
                     </div>
-                    <div className="nav-item" onClick={() => handleExport('pdf', true)} style={{ padding: '10px 16px', cursor: 'pointer' }}>
-                      Split View (Original DC rows)
+                    <div className="nav-item" onClick={() => handleExport('pdf', true, 'landscape')} style={{ padding: '10px 16px', cursor: 'pointer' }}>
+                      Split View (Landscape)
+                    </div>
+
+                    <div style={{ padding: '8px 12px', fontSize: '0.8rem', fontWeight: 'bold', color: 'var(--text-muted)', background: 'rgba(0,0,0,0.05)' }}>
+                      Download as PDF (Portrait)
+                    </div>
+                    <div className="nav-item" onClick={() => handleExport('pdf', false, 'portrait')} style={{ padding: '10px 16px', cursor: 'pointer' }}>
+                      Grouped View (Portrait)
+                    </div>
+                    <div className="nav-item" onClick={() => handleExport('pdf', true, 'portrait')} style={{ padding: '10px 16px', cursor: 'pointer' }}>
+                      Split View (Portrait)
                     </div>
                   </div>
                 )}
