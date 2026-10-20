@@ -114,7 +114,105 @@ self.onmessage = async (e) => {
     let firstHeadersRaw = [];
     let totalRowsCount = 0;
 
-    wb.SheetNames.forEach((wsname, idx) => {
+    // Intelligent sheet and header detection based on activeReport attributes
+    let targetAliases = [];
+    if (customAttributes && customAttributes[activeReport]) {
+        Object.keys(customAttributes[activeReport]).forEach(attr => {
+            const aliases = getAliases(attr);
+            aliases.forEach(a => targetAliases.push(String(a || '').toLowerCase().replace(/[\s_]+/g, '')));
+        });
+    }
+
+    let bestSheetName = null;
+    let bestHeaderRowIndex = -1;
+    let bestHeaders = [];
+    let bestScore = -1;
+    let bestColCount = 0;
+
+    for (const wsname of wb.SheetNames) {
+        const cleanWs = String(wsname || '').trim().toLowerCase();
+        if (cleanWs.includes('pivot') || cleanWs.includes('summary')) continue;
+        const ws = wb.Sheets[wsname];
+        if (!ws) continue;
+        const allRows = XLSX.utils.sheet_to_json(ws, { header: 1 });
+        if (!allRows || allRows.length === 0) continue;
+
+        const maxScan = Math.min(allRows.length, 50);
+        for (let r = 0; r < maxScan; r++) {
+            const rowData = allRows[r] || [];
+            const validCells = rowData.filter(cell => cell !== undefined && cell !== null && String(cell).trim().length > 0);
+            if (validCells.length < 2) continue;
+
+            const cleanCells = rowData.map(c => String(c || '').toLowerCase().replace(/[\s_]+/g, ''));
+            let matchCount = 0;
+            targetAliases.forEach(alias => {
+                if (alias && cleanCells.includes(alias)) matchCount++;
+            });
+
+            const genericKeywords = ['district', 'godown', 'reference', 'status', 'challan', 'trip', 'vehicle', 'date', 'month', 'imei', 'qty', 'weight', 'route', 'destination', 'location'];
+            let genericCount = 0;
+            genericKeywords.forEach(kw => {
+                if (cleanCells.some(c => c.includes(kw))) genericCount++;
+            });
+
+            const score = matchCount * 10 + genericCount + (validCells.length > 15 ? 30 : 0);
+            if (score > bestScore || (score === bestScore && validCells.length > bestColCount)) {
+                bestScore = score;
+                bestColCount = validCells.length;
+                bestSheetName = wsname;
+                bestHeaderRowIndex = r;
+                bestHeaders = rowData;
+            }
+        }
+    }
+
+    if (bestSheetName && bestScore > 0 && bestHeaderRowIndex !== -1) {
+        firstHeadersRaw = bestHeaders;
+        const ws = wb.Sheets[bestSheetName];
+        const jsonDataRaw = XLSX.utils.sheet_to_json(ws, { range: bestHeaderRowIndex });
+        allJsonDataRaw = allJsonDataRaw.concat(jsonDataRaw);
+        totalRowsCount += jsonDataRaw.length;
+
+        // Check if subsequent sheets share identical headers and concatenate data
+        const cleanBestHeaders = bestHeaders.map(h => String(h || '').trim().toLowerCase());
+        wb.SheetNames.forEach(wsname => {
+            if (wsname === bestSheetName) return;
+            const wsOther = wb.Sheets[wsname];
+            if (!wsOther) return;
+            const otherRows = XLSX.utils.sheet_to_json(wsOther, { header: 1 });
+            if (!otherRows || otherRows.length <= bestHeaderRowIndex) return;
+            const otherHeaders = (otherRows[bestHeaderRowIndex] || []).map(h => String(h || '').trim().toLowerCase());
+            let matchesOther = 0;
+            cleanBestHeaders.forEach((bh, i) => {
+                if (bh && otherHeaders[i] === bh) matchesOther++;
+            });
+            if (matchesOther >= Math.min(3, cleanBestHeaders.filter(Boolean).length)) {
+                const otherJson = XLSX.utils.sheet_to_json(wsOther, { range: bestHeaderRowIndex });
+                allJsonDataRaw = allJsonDataRaw.concat(otherJson);
+                totalRowsCount += otherJson.length;
+            }
+        });
+    } else {
+        // Fallback for legacy files
+        const firstWs = wb.Sheets[wb.SheetNames[0]];
+        if (firstWs) {
+            const allRows = XLSX.utils.sheet_to_json(firstWs, { header: 1 });
+            let headerRowIndex = 0;
+            for (let i = 0; i < allRows.length; i++) {
+                const rowData = allRows[i] || [];
+                const valid = rowData.filter(cell => cell !== undefined && cell !== null && String(cell).trim().length > 0);
+                if (valid.length >= 2) {
+                    firstHeadersRaw = rowData;
+                    headerRowIndex = i;
+                    break;
+                }
+            }
+            allJsonDataRaw = XLSX.utils.sheet_to_json(firstWs, { range: headerRowIndex });
+            totalRowsCount = allJsonDataRaw.length;
+        }
+    }
+
+    if (false) wb.SheetNames.forEach((wsname, idx) => {
         const ws = wb.Sheets[wsname];
         const allRows = XLSX.utils.sheet_to_json(ws, { header: 1 });
         if (allRows.length === 0) return;
@@ -188,7 +286,8 @@ self.onmessage = async (e) => {
             let matchCount = 0;
             for (const attr of requiredAttributes) {
                 const aliases = getAliases(attr);
-                if (aliases.some(alias => headers.includes(alias.toLowerCase()))) {
+                const cleanH = s => String(s || '').toLowerCase().replace(/[\s_]+/g, '');
+                if (aliases.some(alias => headers.some(h => cleanH(h) === cleanH(alias)))) {
                     matchCount++;
                 }
             }
@@ -288,7 +387,7 @@ self.onmessage = async (e) => {
            aliases.push(...fallbackAliases);
         }
 
-        const cleanStr = (s) => String(s).toLowerCase().replace(/[\s_]+/g, '');
+        const cleanStr = (s) => String(s).toLowerCase().replace(/[^a-z0-9]/g, '');
         const lowerKeys = aliases.map(cleanStr);
         
         for (const k in row) {
@@ -308,10 +407,22 @@ self.onmessage = async (e) => {
         return dynamicProps;
     };
     
-    const jsonData = jsonDataRaw;
+    const jsonData = jsonDataRaw; /*
+    
+    const tripEndAliases = [
+       'trip_end_datetime', 'Trip End Datetime', 'Trip End Date Time', 'trip_end_date_time', 
+       'end_trip_datetime', 'End Trip Date Time', 'End Trip Date', 'Trip End Time', 'end_trip_time', 
+       'End Date Time', 'Trip End'
+    ];
+    const cleanTripAliases = tripEndAliases.map(a => String(a).toLowerCase().replace(/[^a-z0-9]/g, ''));
+    const fileHasTripEndCol = (firstHeadersRaw || []).some(h => 
+       cleanTripAliases.includes(String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''))
+    ) || (jsonData.length > 0 && jsonData.some(r => 
+       Object.keys(r).some(k => cleanTripAliases.includes(String(k || '').toLowerCase().replace(/[^a-z0-9]/g, '')))
+    ));
     
     // Parse tracking data if provided
-    let trackingMap = null;
+    */ let trackingMap = null;
     let distanceMap = null;
     if (trackingData) {
       try {
@@ -348,7 +459,12 @@ self.onmessage = async (e) => {
     }
 
     if (activeReport === 'lifting-report') {
-      let lastFmVehicleNo = '';
+
+
+
+    // cleaned
+
+    let lastFmVehicleNo = '';
       jsonData.forEach(row => {
         const dist = (getVal(row, 'District') || '').trim();
         if (!dist) return;
@@ -399,7 +515,12 @@ self.onmessage = async (e) => {
     } else if (activeReport === 'multi-trip-analysis') {
        const tripGroups = {};
        
-       let lastFmVehicleNo = '';
+ 
+
+
+    // cleaned
+
+    let lastFmVehicleNo = '';
        jsonData.forEach(row => {
           // Ignore rows containing _cancel
           if (JSON.stringify(row).toLowerCase().includes('_cancel')) return;
@@ -442,7 +563,7 @@ self.onmessage = async (e) => {
           }
           
           tripGroups[key].push({ ...extractDynamicColumns(row),
-             district: getVal(row, 'District') || '',
+          district: getVal(row, 'District') || '',
              tpDate: tpDate,
              hrs: hrs,
              refNo: getVal(row, 'Reference Number') || '',
@@ -771,6 +892,18 @@ self.onmessage = async (e) => {
     let lmFpsName = '';
     let lmTransporter = '';
 
+    const tripEndAliases = [
+       'trip_end_datetime', 'Trip End Datetime', 'Trip End Date Time', 'trip_end_date_time', 
+       'end_trip_datetime', 'End Trip Date Time', 'End Trip Date', 'Trip End Time', 'end_trip_time', 
+       'End Date Time', 'Trip End'
+    ];
+    const cleanTripAliases = tripEndAliases.map(a => String(a).toLowerCase().replace(/[^a-z0-9]/g, ''));
+    const fileHasTripEndCol = (firstHeadersRaw || []).some(h => 
+       cleanTripAliases.includes(String(h || '').toLowerCase().replace(/[^a-z0-9]/g, ''))
+    ) || (jsonData.length > 0 && jsonData.some(r => 
+       Object.keys(r).some(k => cleanTripAliases.includes(String(k || '').toLowerCase().replace(/[^a-z0-9]/g, '')))
+    ));
+
     let lastFmVehicleNo = '';
     jsonData.forEach(row => {
 
@@ -931,29 +1064,90 @@ self.onmessage = async (e) => {
       }
 
       if (activeReport === 'last-mile-epod') {
-         const district = String(getVal(row, 'District') || '').trim();
+         const district = String(getVal(row, 'District', 'TP District', 'Godown District', 'district_name', 'district') || '').trim() || 'Unknown';
          if (!district) return;
 
          const refNo = String(getVal(row, 'Reference Number') || getVal(row, 'Reference No') || getVal(row, 'Ref No') || '').trim();
-         if (refNo.toLowerCase().includes('_cancel')) return;
+         // if (refNo.toLowerCase().includes('_cancel')) return;
          const hasRef = refNo.length > 0;
 
          const epodStatus = String(getVal(row, 'EPOD Status') || '').toUpperCase().trim();
          const isComplete = epodStatus === 'DELIVERED' || epodStatus === 'COMPLETED';
+          const lrNo = String(getVal(row, 'LR Number', 'LR No', 'LR No.', 'lr_number', 'lr_no', 'LR', 'LR NO', 'LR NO.', 'lr', 'LR#', 'trip_id', 'trip_no', 'Trip ID', 'Trip No', 'Trip Number', 'trip_number', 'LR_Number', 'LR_No', 'lr_num') || '').trim();
          
-         const dcMonth = getVal(row, 'DC Month') !== undefined ? String(getVal(row, 'DC Month')).trim() : '';
+         let dcMonth = getVal(row, 'DC Month') !== undefined ? String(getVal(row, 'DC Month')).trim() : '';
          const dcDate = getVal(row, 'DC Creation Date') !== undefined ? formatExcelDate(getVal(row, 'DC Creation Date')) : '';
+          if (!dcMonth && dcDate && dcDate.length >= 7) {
+             dcMonth = dcDate.substring(0, 7);
+          }
          const statusRaw = String(getVal(row, 'EPOD Status') || '(blank)').trim() || '(blank)';
 
          if (dcMonth) uniqueDcMonths.add(dcMonth);
+
+         const godownName = String(getVal(row, 'GSCSCL Godown', 'Godown Name', 'Godown', 'Destination Godown', 'Lifting Location Name', 'godown_name', 'godown', 'Taluka Godown') || '').trim();
+
+         const rawTripStatus = String(
+            getVal(row, 'Trip Status', 'Current Status', 'Driver Status', 'Trip State', 'Stage', 'Delivery Status', 'Trip Current Status') || ''
+         ).trim();
+         
+         const cleanTripStatus = rawTripStatus.toLowerCase();
+          const rawTripEndTime = getVal(row, 'trip_end_datetime', 'Trip End Datetime', 'Trip End Date Time', 'trip_end_date_time', 'end_trip_datetime', 'End Trip Date Time', 'End Trip Date', 'Trip End Time', 'end_trip_time', 'End Date Time', 'Trip End');
+          let hasTripEndTime = false;
+          let isTripEndTimePresent = false;
+          if (rawTripEndTime !== undefined && rawTripEndTime !== null) {
+             const strEndTime = String(rawTripEndTime).trim().toLowerCase();
+             isTripEndTimePresent = true;
+             if (strEndTime !== '' && strEndTime !== 'nat' && strEndTime !== 'null' && strEndTime !== '(blank)' && strEndTime !== '-' && strEndTime !== 'none' && strEndTime !== 'undefined') {
+                hasTripEndTime = true;
+             }
+          }
+         let isActiveTrip = 0;
+         let isClosedTrip = 0;
+
+         if (fileHasTripEndCol) {
+             if (hasTripEndTime) {
+                isClosedTrip = 1;
+             } else {
+                isActiveTrip = 1;
+             }
+          } else if (cleanTripStatus.includes('transit') || cleanTripStatus.includes('lm-transp') || cleanTripStatus.startsWith('start') || cleanTripStatus === 'active' || cleanTripStatus === 'running' || cleanTripStatus === 'open') {
+            isActiveTrip = 1;
+         } else if (cleanTripStatus.startsWith('end') || cleanTripStatus.includes('clos') || cleanTripStatus.includes('deliver') || cleanTripStatus.includes('complet')) {
+            isClosedTrip = 1;
+         } else {
+            for (const key in row) {
+               const valStr = String(row[key] || '').trim().toLowerCase();
+               if (valStr === 'end' || valStr.startsWith('end trip') || valStr.startsWith('trip closu') || valStr === 'closed' || valStr === 'completed') {
+                  isClosedTrip = 1;
+                  break;
+               } else if (valStr.startsWith('lm-transp') || valStr.includes('in-transit') || valStr.includes('in transit')) {
+                  isActiveTrip = 1;
+                  break;
+               }
+            }
+            if (!isActiveTrip && !isClosedTrip) {
+               if (isComplete) {
+                  isClosedTrip = 1;
+               } else {
+                  isActiveTrip = 1;
+               }
+            }
+         }
          if (dcDate) uniqueDcDates.add(dcDate);
          uniqueEpodStatuses.add(statusRaw);
 
          processed.push({ ...row, ...extractDynamicColumns(row),
            district: getVal(row, 'District') || '',
-           godown: getVal(row, 'GSCSCL Godown') || '',
+           godown: godownName,
+           godownName: godownName,
            transporter: getVal(row, 'Transporter Name') || '',
            deliveryChallan: hasRef ? 1 : 0,
+            lrNo: lrNo,
+            lrNumber: lrNo,
+           tripStatus: rawTripStatus || (isClosedTrip ? 'Closed' : 'Active'),
+           isActiveTrip: isActiveTrip,
+           isClosedTrip: isClosedTrip,
+           totalTripCount: 1,
            epodComplete: (hasRef && isComplete) ? 1 : 0,
            epodPending: (hasRef && !isComplete) ? 1 : 0,
            dcMonth: dcMonth,
@@ -1012,7 +1206,7 @@ self.onmessage = async (e) => {
          row['Transporter Name'] = transporterName;
 
          processed.push({ ...row, ...extractDynamicColumns(row),
-           district: district,
+           district: getVal(row, 'District') || '',
            refNo: refNo,
            lrNo: lrNo,
            fpsAreaId: fpsAreaId,
@@ -1063,7 +1257,7 @@ self.onmessage = async (e) => {
          if (!district) return;
          
          const refNo = String(getVal(row, 'Reference Number', 'Delivery Challan Number', 'DC No', 'Reference No') || '').trim();
-         if (refNo.toLowerCase().includes('_cancel')) return;
+         // if (refNo.toLowerCase().includes('_cancel')) return;
          const hasRef = refNo.length > 0;
          if (!hasRef) return;
          
@@ -1171,7 +1365,7 @@ self.onmessage = async (e) => {
 
          processed.push({ ...row, ...extractDynamicColumns(row),
             tpDate: tpDate,
-            district: district,
+            district: getVal(row, 'District') || '',
             destGodown: destGodown,
             weighbridgeVendor: weighbridgeName,
             weighbridgeId: weighbridgeId,

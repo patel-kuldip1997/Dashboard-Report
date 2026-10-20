@@ -61,9 +61,13 @@ export const DEFAULT_REPORT_ATTRIBUTES = {
     'EPOD status': ['EPOD status']
   },
   'last-mile-epod': {
-    'District': ['District', 'TP District', 'Godown District'],
-    'DC Month': ['DC Month'],
-    'DC Creation Date': ['DC Creation Date', 'DC Date', 'Creation Date'],
+    'District': ['District', 'TP District', 'Godown District', 'district', 'district_name'],
+    'GSCSCL Godown': ['GSCSCL Godown', 'Godown Name', 'Godown', 'Destination Godown', 'Lifting Location Name', 'godown_name', 'godown', 'Taluka Godown'],
+    'Trip Status': ['Trip Status', 'Current Status', 'Status', 'Driver Status', 'Trip State', 'Stage', 'Delivery Status', 'Trip Current Status', 'trip_status', 'driver_status'],
+    'trip_end_datetime': ['trip_end_datetime', 'Trip End Datetime', 'Trip End Date Time', 'trip_end_date_time', 'end_trip_datetime', 'End Trip Date Time', 'End Trip Date', 'Trip End Time', 'end_trip_time', 'End Date Time', 'Trip End'],
+    'LR Number': ['LR Number', 'LR No', 'LR No.', 'lr_number', 'lr_no', 'LR', 'LR NO', 'LR NO.', 'lr', 'LR#', 'trip_id', 'trip_no', 'Trip ID', 'Trip No', 'Trip Number'],
+    'DC Month': ['DC Month', 'dc_month', 'Month'],
+    'DC Creation Date': ['DC Creation Date', 'DC Date', 'Creation Date', 'dc_creation_date', 'Trip Date', 'Date'],
     'Reference Number': ['Reference Number', 'Delivery Challan Number', 'DC No', 'Reference No'],
     'EPOD Status': ['EPOD Status', 'Status'],
     'IMEI At Start': ['IMEI At Start', 'Start IMEI', 'IMEI_Start'],
@@ -71,8 +75,8 @@ export const DEFAULT_REPORT_ATTRIBUTES = {
   },
   'last-mile-imei': {
     'Reference Number': ['Reference Number', 'Delivery Challan Number', 'DC No', 'Reference No'],
-    'District': ['District', 'TP District', 'Godown District'],
-    'DC Creation Date': ['DC Creation Date', 'DC Date', 'Creation Date'],
+    'District': ['District', 'TP District', 'Godown District', 'district', 'district_name'],
+    'DC Creation Date': ['DC Creation Date', 'DC Date', 'Creation Date', 'dc_creation_date', 'Trip Date', 'Date'],
     'GSCSCL Godown': ['GSCSCL Godown', 'Godown'],
     'Transporter Name': ['Transporter Name', 'Transporter', 'DSD Transporter Name'],
     'IMEI At Start': ['IMEI At Start', 'Start IMEI', 'IMEI_Start'],
