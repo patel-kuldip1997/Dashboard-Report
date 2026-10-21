@@ -1,8 +1,22 @@
 import React, { useState, useMemo } from 'react';
 import { Search, Truck, CheckCircle2, Clock, MapPin, Building } from 'lucide-react';
 
-export default function LastMileTripsSummary({ data, calculateLastMileGodownTrips }) {
+export default function LastMileTripsSummary({ data, calculateLastMileGodownTrips, visibleColumns }) {
   const [searchTerm, setSearchTerm] = useState('');
+
+  const DEFAULT_COLS = [
+    { id: 'srNo', label: 'Sr. No.', visible: true },
+    { id: 'district', label: 'District', visible: true },
+    { id: 'godownName', label: 'Godown Name', visible: true },
+    { id: 'totalTrips', label: 'Total Trips', visible: true },
+    { id: 'activeTrips', label: 'Active Trips (In-transit)', visible: true },
+    { id: 'closedTrips', label: 'Closed Trips', visible: true }
+  ];
+
+  const cols = (visibleColumns && visibleColumns.length > 0) ? visibleColumns : DEFAULT_COLS;
+  const metricCols = ['totalTrips', 'activeTrips', 'closedTrips'];
+  const firstMetricIndex = cols.findIndex(c => metricCols.includes(c.id));
+  const leadingColSpan = firstMetricIndex > 0 ? firstMetricIndex : (firstMetricIndex === -1 ? cols.length : 1);
 
   const { rows, grandTotal } = useMemo(() => {
     return calculateLastMileGodownTrips(data);
@@ -116,119 +130,253 @@ export default function LastMileTripsSummary({ data, calculateLastMileGodownTrip
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
             <tr style={{ background: 'var(--bg-panel-hover)', borderBottom: '2px solid var(--border-color)' }}>
-              <th style={{ padding: '12px 10px', textAlign: 'center', width: '65px', fontWeight: '600' }}>Sr. No.</th>
-              <th style={{ padding: '12px 14px', textAlign: 'left', fontWeight: '600', width: '22%' }}>District</th>
-              <th style={{ padding: '12px 14px', textAlign: 'left', fontWeight: '600' }}>Godown Name</th>
-              <th style={{ padding: '12px 14px', textAlign: 'center', fontWeight: '600', width: '15%' }}>Total Trips</th>
-              <th style={{ padding: '12px 14px', textAlign: 'center', fontWeight: '600', width: '18%' }}>Active Trips (In-transit)</th>
-              <th style={{ padding: '12px 14px', textAlign: 'center', fontWeight: '600', width: '15%' }}>Closed Trips</th>
+              {cols.map(col => {
+                let align = 'left';
+                let widthStyle = {};
+                if (col.id === 'srNo') {
+                  align = 'center';
+                  widthStyle = { width: '65px' };
+                } else if (col.id === 'district') {
+                  widthStyle = { width: '22%' };
+                } else if (col.id === 'totalTrips' || col.id === 'closedTrips') {
+                  align = 'center';
+                  widthStyle = { width: '15%' };
+                } else if (col.id === 'activeTrips') {
+                  align = 'center';
+                  widthStyle = { width: '18%' };
+                }
+                return (
+                  <th 
+                    key={col.id} 
+                    style={{ 
+                      padding: col.id === 'srNo' ? '12px 10px' : '12px 14px', 
+                      textAlign: align, 
+                      fontWeight: '600',
+                      ...widthStyle 
+                    }}
+                  >
+                    {col.label}
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
             {filteredRows.length === 0 ? (
               <tr>
-                <td colSpan={6} style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                <td colSpan={cols.length} style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)' }}>
                   No godown trips found matching your filter.
                 </td>
               </tr>
             ) : (
               filteredRows.map((row, idx) => {
                 if (row.isGrandTotal) {
-                  return (
-                    <tr key={`gt-${idx}`} className="subtotal-row grand-total-row" style={{ fontWeight: 'bold', borderTop: '2px solid var(--border-color)', background: 'var(--bg-panel)' }}>
-                      <td colSpan={3} style={{ padding: '14px', textAlign: 'center', fontSize: '1.05rem', letterSpacing: '0.5px' }}>
-                        GRAND TOTAL
-                      </td>
-                      <td style={{ padding: '14px', textAlign: 'center', fontSize: '1.05rem', fontWeight: '700' }}>
-                        {row.totalTrips.toLocaleString()}
-                      </td>
-                      <td style={{ padding: '14px', textAlign: 'center', fontSize: '1.05rem', fontWeight: '700', color: '#f59e0b' }}>
-                        {row.activeTrips.toLocaleString()}
-                      </td>
-                      <td style={{ padding: '14px', textAlign: 'center', fontSize: '1.05rem', fontWeight: '700', color: '#10b981' }}>
-                        {row.closedTrips.toLocaleString()}
-                      </td>
-                    </tr>
-                  );
+                  if (firstMetricIndex > 0) {
+                    return (
+                      <tr key={`gt-${idx}`} className="subtotal-row grand-total-row" style={{ fontWeight: 'bold', borderTop: '2px solid var(--border-color)', background: 'var(--bg-panel)' }}>
+                        <td colSpan={leadingColSpan} style={{ padding: '14px', textAlign: 'center', fontSize: '1.05rem', letterSpacing: '0.5px' }}>
+                          GRAND TOTAL
+                        </td>
+                        {cols.slice(firstMetricIndex).map(col => {
+                          if (col.id === 'totalTrips') {
+                            return (
+                              <td key={col.id} style={{ padding: '14px', textAlign: 'center', fontSize: '1.05rem', fontWeight: '700' }}>
+                                {row.totalTrips.toLocaleString()}
+                              </td>
+                            );
+                          }
+                          if (col.id === 'activeTrips') {
+                            return (
+                              <td key={col.id} style={{ padding: '14px', textAlign: 'center', fontSize: '1.05rem', fontWeight: '700', color: '#f59e0b' }}>
+                                {row.activeTrips.toLocaleString()}
+                              </td>
+                            );
+                          }
+                          if (col.id === 'closedTrips') {
+                            return (
+                              <td key={col.id} style={{ padding: '14px', textAlign: 'center', fontSize: '1.05rem', fontWeight: '700', color: '#10b981' }}>
+                                {row.closedTrips.toLocaleString()}
+                              </td>
+                            );
+                          }
+                          return <td key={col.id} style={{ padding: '14px' }}></td>;
+                        })}
+                      </tr>
+                    );
+                  } else {
+                    return (
+                      <tr key={`gt-${idx}`} className="subtotal-row grand-total-row" style={{ fontWeight: 'bold', borderTop: '2px solid var(--border-color)', background: 'var(--bg-panel)' }}>
+                        {cols.map(col => {
+                          if (col.id === 'district' || (col.id === 'srNo' && !cols.some(c => c.id === 'district'))) {
+                            return <td key={col.id} style={{ padding: '14px', textAlign: 'center', fontSize: '1.05rem', letterSpacing: '0.5px' }}>GRAND TOTAL</td>;
+                          }
+                          if (col.id === 'totalTrips') {
+                            return <td key={col.id} style={{ padding: '14px', textAlign: 'center', fontSize: '1.05rem', fontWeight: '700' }}>{row.totalTrips.toLocaleString()}</td>;
+                          }
+                          if (col.id === 'activeTrips') {
+                            return <td key={col.id} style={{ padding: '14px', textAlign: 'center', fontSize: '1.05rem', fontWeight: '700', color: '#f59e0b' }}>{row.activeTrips.toLocaleString()}</td>;
+                          }
+                          if (col.id === 'closedTrips') {
+                            return <td key={col.id} style={{ padding: '14px', textAlign: 'center', fontSize: '1.05rem', fontWeight: '700', color: '#10b981' }}>{row.closedTrips.toLocaleString()}</td>;
+                          }
+                          return <td key={col.id} style={{ padding: '14px' }}></td>;
+                        })}
+                      </tr>
+                    );
+                  }
                 }
 
                 if (row.isSubtotal) {
                   prevDistrict = null;
                   const hasMultiGodownTrips = row.godownSumTotal !== undefined && row.godownSumTotal !== row.totalTrips;
-                  return (
-                    <tr key={`sub-${idx}`} className="subtotal-row" style={{ fontWeight: 'bold', background: 'rgba(255, 90, 31, 0.04)', borderBottom: '1px solid var(--border-color)' }}>
-                      <td colSpan={3} style={{ padding: '10px 14px', textAlign: 'left', fontSize: '0.95rem' }}>
-                        <span>{row.district}</span>
-                        {hasMultiGodownTrips && (
-                          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: '500', marginLeft: '10px', background: 'rgba(0,0,0,0.04)', padding: '2px 8px', borderRadius: '4px' }}>
-                            (Unique LRs: {row.totalTrips} | Godowns Total: {row.godownSumTotal})
-                          </span>
-                        )}
-                      </td>
-                      <td style={{ padding: '10px 14px', textAlign: 'center', fontSize: '0.95rem', fontWeight: '700' }}>
-                        {row.totalTrips}
-                      </td>
-                      <td style={{ padding: '10px 14px', textAlign: 'center', fontSize: '0.95rem', fontWeight: '700', color: '#f59e0b' }}>
-                        {row.activeTrips}
-                      </td>
-                      <td style={{ padding: '10px 14px', textAlign: 'center', fontSize: '0.95rem', fontWeight: '700', color: '#10b981' }}>
-                        {row.closedTrips}
-                      </td>
-                    </tr>
-                  );
+                  if (firstMetricIndex > 0) {
+                    return (
+                      <tr key={`sub-${idx}`} className="subtotal-row" style={{ fontWeight: 'bold', background: 'rgba(255, 90, 31, 0.04)', borderBottom: '1px solid var(--border-color)' }}>
+                        <td colSpan={leadingColSpan} style={{ padding: '10px 14px', textAlign: 'left', fontSize: '0.95rem' }}>
+                          <span>{row.district}</span>
+                          {hasMultiGodownTrips && (
+                            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: '500', marginLeft: '10px', background: 'rgba(0,0,0,0.04)', padding: '2px 8px', borderRadius: '4px' }}>
+                              (Unique LRs: {row.totalTrips} | Godowns Total: {row.godownSumTotal})
+                            </span>
+                          )}
+                        </td>
+                        {cols.slice(firstMetricIndex).map(col => {
+                          if (col.id === 'totalTrips') {
+                            return (
+                              <td key={col.id} style={{ padding: '10px 14px', textAlign: 'center', fontSize: '0.95rem', fontWeight: '700' }}>
+                                {row.totalTrips}
+                              </td>
+                            );
+                          }
+                          if (col.id === 'activeTrips') {
+                            return (
+                              <td key={col.id} style={{ padding: '10px 14px', textAlign: 'center', fontSize: '0.95rem', fontWeight: '700', color: '#f59e0b' }}>
+                                {row.activeTrips}
+                              </td>
+                            );
+                          }
+                          if (col.id === 'closedTrips') {
+                            return (
+                              <td key={col.id} style={{ padding: '10px 14px', textAlign: 'center', fontSize: '0.95rem', fontWeight: '700', color: '#10b981' }}>
+                                {row.closedTrips}
+                              </td>
+                            );
+                          }
+                          return <td key={col.id} style={{ padding: '10px 14px' }}></td>;
+                        })}
+                      </tr>
+                    );
+                  } else {
+                    return (
+                      <tr key={`sub-${idx}`} className="subtotal-row" style={{ fontWeight: 'bold', background: 'rgba(255, 90, 31, 0.04)', borderBottom: '1px solid var(--border-color)' }}>
+                        {cols.map(col => {
+                          if (col.id === 'district' || (col.id === 'srNo' && !cols.some(c => c.id === 'district'))) {
+                            return (
+                              <td key={col.id} style={{ padding: '10px 14px', textAlign: 'left', fontSize: '0.95rem' }}>
+                                <span>{row.district}</span>
+                                {hasMultiGodownTrips && (
+                                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: '500', marginLeft: '10px', background: 'rgba(0,0,0,0.04)', padding: '2px 8px', borderRadius: '4px' }}>
+                                    (Unique LRs: {row.totalTrips} | Godowns Total: {row.godownSumTotal})
+                                  </span>
+                                )}
+                              </td>
+                            );
+                          }
+                          if (col.id === 'totalTrips') {
+                            return <td key={col.id} style={{ padding: '10px 14px', textAlign: 'center', fontSize: '0.95rem', fontWeight: '700' }}>{row.totalTrips}</td>;
+                          }
+                          if (col.id === 'activeTrips') {
+                            return <td key={col.id} style={{ padding: '10px 14px', textAlign: 'center', fontSize: '0.95rem', fontWeight: '700', color: '#f59e0b' }}>{row.activeTrips}</td>;
+                          }
+                          if (col.id === 'closedTrips') {
+                            return <td key={col.id} style={{ padding: '10px 14px', textAlign: 'center', fontSize: '0.95rem', fontWeight: '700', color: '#10b981' }}>{row.closedTrips}</td>;
+                          }
+                          return <td key={col.id}></td>;
+                        })}
+                      </tr>
+                    );
+                  }
                 }
 
                 const showDistrict = prevDistrict !== row.district;
                 prevDistrict = row.district;
+                const currentSr = srCounter++;
 
                 return (
                   <tr key={`row-${idx}`} className="data-row table-row-hover" style={{ borderBottom: '1px solid var(--border-color)' }}>
-                    <td style={{ padding: '9px 10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                      {srCounter++}
-                    </td>
-                    <td style={{ padding: '9px 14px', fontWeight: showDistrict ? '600' : '500', color: 'var(--text-main)' }}>
-                      {showDistrict ? row.district : row.district}
-                    </td>
-                    <td style={{ padding: '9px 14px', fontWeight: '500' }}>
-                      {row.godownName}
-                    </td>
-                    <td style={{ padding: '9px 14px', textAlign: 'center', fontWeight: '600' }}>
-                      {row.totalTrips}
-                    </td>
-                    <td style={{ padding: '9px 14px', textAlign: 'center' }}>
-                      <span 
-                        className={`status-badge ${row.activeTrips > 0 ? 'status-warning' : ''}`}
-                        style={{
-                          minWidth: '38px',
-                          display: 'inline-block',
-                          fontWeight: '600',
-                          backgroundColor: row.activeTrips > 0 ? 'rgba(245, 158, 11, 0.12)' : 'transparent',
-                          color: row.activeTrips > 0 ? '#f59e0b' : 'var(--text-muted)',
-                          border: row.activeTrips > 0 ? '1px solid rgba(245, 158, 11, 0.3)' : 'none',
-                          borderRadius: '12px',
-                          padding: '2px 8px'
-                        }}
-                      >
-                        {row.activeTrips}
-                      </span>
-                    </td>
-                    <td style={{ padding: '9px 14px', textAlign: 'center' }}>
-                      <span 
-                        className={`status-badge ${row.closedTrips > 0 ? 'status-success' : ''}`}
-                        style={{
-                          minWidth: '38px',
-                          display: 'inline-block',
-                          fontWeight: '600',
-                          backgroundColor: row.closedTrips > 0 ? 'rgba(16, 185, 129, 0.12)' : 'transparent',
-                          color: row.closedTrips > 0 ? '#10b981' : 'var(--text-muted)',
-                          border: row.closedTrips > 0 ? '1px solid rgba(16, 185, 129, 0.3)' : 'none',
-                          borderRadius: '12px',
-                          padding: '2px 8px'
-                        }}
-                      >
-                        {row.closedTrips}
-                      </span>
-                    </td>
+                    {cols.map(col => {
+                      if (col.id === 'srNo') {
+                        return (
+                          <td key={col.id} style={{ padding: '9px 10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                            {currentSr}
+                          </td>
+                        );
+                      }
+                      if (col.id === 'district') {
+                        return (
+                          <td key={col.id} style={{ padding: '9px 14px', fontWeight: showDistrict ? '600' : '500', color: 'var(--text-main)' }}>
+                            {row.district}
+                          </td>
+                        );
+                      }
+                      if (col.id === 'godownName') {
+                        return (
+                          <td key={col.id} style={{ padding: '9px 14px', fontWeight: '500' }}>
+                            {row.godownName}
+                          </td>
+                        );
+                      }
+                      if (col.id === 'totalTrips') {
+                        return (
+                          <td key={col.id} style={{ padding: '9px 14px', textAlign: 'center', fontWeight: '600' }}>
+                            {row.totalTrips}
+                          </td>
+                        );
+                      }
+                      if (col.id === 'activeTrips') {
+                        return (
+                          <td key={col.id} style={{ padding: '9px 14px', textAlign: 'center' }}>
+                            <span 
+                              className={`status-badge ${row.activeTrips > 0 ? 'status-warning' : ''}`}
+                              style={{
+                                minWidth: '38px',
+                                display: 'inline-block',
+                                fontWeight: '600',
+                                backgroundColor: row.activeTrips > 0 ? 'rgba(245, 158, 11, 0.12)' : 'transparent',
+                                color: row.activeTrips > 0 ? '#f59e0b' : 'var(--text-muted)',
+                                border: row.activeTrips > 0 ? '1px solid rgba(245, 158, 11, 0.3)' : 'none',
+                                borderRadius: '12px',
+                                padding: '2px 8px'
+                              }}
+                            >
+                              {row.activeTrips}
+                            </span>
+                          </td>
+                        );
+                      }
+                      if (col.id === 'closedTrips') {
+                        return (
+                          <td key={col.id} style={{ padding: '9px 14px', textAlign: 'center' }}>
+                            <span 
+                              className={`status-badge ${row.closedTrips > 0 ? 'status-success' : ''}`}
+                              style={{
+                                minWidth: '38px',
+                                display: 'inline-block',
+                                fontWeight: '600',
+                                backgroundColor: row.closedTrips > 0 ? 'rgba(16, 185, 129, 0.12)' : 'transparent',
+                                color: row.closedTrips > 0 ? '#10b981' : 'var(--text-muted)',
+                                border: row.closedTrips > 0 ? '1px solid rgba(16, 185, 129, 0.3)' : 'none',
+                                borderRadius: '12px',
+                                padding: '2px 8px'
+                              }}
+                            >
+                              {row.closedTrips}
+                            </span>
+                          </td>
+                        );
+                      }
+                      return <td key={col.id} style={{ padding: '9px 14px' }}>{row[col.id] ?? ''}</td>;
+                    })}
                   </tr>
                 );
               })

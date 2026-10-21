@@ -91,6 +91,15 @@ const DEFAULT_LAST_MILE_COMMODITY_CONFIG = [
   { id: 'distance', label: 'Distance(Km)', visible: true }
 ];
 
+const DEFAULT_LAST_MILE_TRIPS_SUMMARY_CONFIG = [
+  { id: 'srNo', label: 'Sr. No.', visible: true },
+  { id: 'district', label: 'District', visible: true },
+  { id: 'godownName', label: 'Godown Name', visible: true },
+  { id: 'totalTrips', label: 'Total Trips', visible: true },
+  { id: 'activeTrips', label: 'Active Trips (In-transit)', visible: true },
+  { id: 'closedTrips', label: 'Closed Trips', visible: true }
+];
+
 const DEFAULT_LAST_MILE_EPOD_CONFIG = [
   { id: 'district', label: 'District', visible: true },
   { id: 'godown', label: 'GSCSCL Godown', visible: true },
@@ -556,6 +565,9 @@ function App() {
     } else if (reportKey === 'first-mile-epod') {
       return "First Mile EPOD Pending Report of Till 29th August'25 ( 00:00-23:59)";
     } else if (reportKey === 'last-mile-epod') {
+      if (tab === 'trips-summary') {
+        return "Last Mile EPOD - Godown Wise Trip Summary";
+      }
       return "Last Mile EPOD Pending Report of Till 30th July'26 ( 00:00-23:59)";
     } else if (reportKey === 'miller-to-godown') {
       return "Miller to Godown Trips";
@@ -591,13 +603,20 @@ function App() {
 
   const handleSaveReportTitle = () => {
     if (!reportTitle || !reportTitle.trim()) return;
-    localStorage.setItem(`custom_report_title_${activeReport}`, reportTitle.trim());
+    const titleKey = (activeReport === 'last-mile-epod' && lastMileEpodTab === 'trips-summary')
+      ? `custom_report_title_${activeReport}_trips-summary`
+      : `custom_report_title_${activeReport}`;
+    localStorage.setItem(titleKey, reportTitle.trim());
     showToast(`Title header saved! It will be remembered automatically.`, 'success');
   };
 
   const handleResetReportTitle = () => {
-    localStorage.removeItem(`custom_report_title_${activeReport}`);
-    const def = getDefaultReportTitle(activeReport, firstMileTab, rawData, tpDateFilter);
+    const titleKey = (activeReport === 'last-mile-epod' && lastMileEpodTab === 'trips-summary')
+      ? `custom_report_title_${activeReport}_trips-summary`
+      : `custom_report_title_${activeReport}`;
+    localStorage.removeItem(titleKey);
+    const currentTab = activeReport === 'last-mile-epod' ? lastMileEpodTab : firstMileTab;
+    const def = getDefaultReportTitle(activeReport, currentTab, rawData, tpDateFilter);
     setReportTitle(def);
     showToast('Title reset to default template.', 'info');
   };
@@ -607,22 +626,34 @@ function App() {
     localStorage.setItem('activeReportTab', activeReport);
 
     // Set title: If user saved a custom template title, load it; otherwise load default title
-    const customTitleKey = `custom_report_title_${activeReport}`;
+    const customTitleKey = (activeReport === 'last-mile-epod' && lastMileEpodTab === 'trips-summary')
+      ? `custom_report_title_${activeReport}_trips-summary`
+      : `custom_report_title_${activeReport}`;
     const savedCustomTitle = localStorage.getItem(customTitleKey);
+    const currentTab = activeReport === 'last-mile-epod' ? lastMileEpodTab : firstMileTab;
     if (savedCustomTitle && savedCustomTitle.trim()) {
       setReportTitle(savedCustomTitle);
     } else {
-      setReportTitle(getDefaultReportTitle(activeReport, firstMileTab, rawData, tpDateFilter));
+      setReportTitle(getDefaultReportTitle(activeReport, currentTab, rawData, tpDateFilter));
     }
 
-    const storageKey = activeReport === 'first-mile-epod' && firstMileTab === 'grouped' ? `reportConfig_first-mile-epod-grouped_v3` : `reportConfig_${activeReport}_v3`;
+    let storageKey = `reportConfig_${activeReport}_v3`;
+    if (activeReport === 'first-mile-epod' && firstMileTab === 'grouped') {
+      storageKey = 'reportConfig_first-mile-epod-grouped_v3';
+    } else if (activeReport === 'last-mile-epod' && lastMileEpodTab === 'trips-summary') {
+      storageKey = 'reportConfig_last-mile-epod-trips-summary_v3';
+    }
     const savedConfig = localStorage.getItem(storageKey);
     let defaultConf = [...DEFAULT_GM_CONFIG];
     if (activeReport === 'first-mile-epod') {
         defaultConf = firstMileTab === 'grouped' ? [...DEFAULT_FIRST_MILE_EPOD_GROUPED_CONFIG] : [...DEFAULT_EPOD_CONFIG];
     }
     else if (activeReport === 'ro-allocation-dsm') defaultConf = [...DEFAULT_RO_ALLOCATION_CONFIG];
-    else if (activeReport === 'last-mile-epod') defaultConf = [...DEFAULT_LAST_MILE_EPOD_CONFIG];
+    else if (activeReport === 'last-mile-epod') {
+      defaultConf = lastMileEpodTab === 'trips-summary'
+        ? [...DEFAULT_LAST_MILE_TRIPS_SUMMARY_CONFIG]
+        : [...DEFAULT_LAST_MILE_EPOD_CONFIG];
+    }
     else if (activeReport === 'last-mile-vehicle-assigned') defaultConf = [...DEFAULT_LAST_MILE_VEHICLE_ASSIGNED_CONFIG];
     else if (activeReport === 'last-mile-imei') defaultConf = [...DEFAULT_LAST_MILE_IMEI_CONFIG];
     else if (activeReport === 'last-mile-commodity') defaultConf = [...DEFAULT_LAST_MILE_COMMODITY_CONFIG];
@@ -687,11 +718,16 @@ function App() {
     } else {
       setColumnConfig([...defaultConf]);
     }
-  }, [activeReport, firstMileTab]);
+  }, [activeReport, firstMileTab, lastMileEpodTab]);
 
   const saveConfig = (newConfig) => {
     setColumnConfig(newConfig);
-    const storageKey = activeReport === 'first-mile-epod' && firstMileTab === 'grouped' ? `reportConfig_first-mile-epod-grouped_v3` : `reportConfig_${activeReport}_v3`;
+    let storageKey = `reportConfig_${activeReport}_v3`;
+    if (activeReport === 'first-mile-epod' && firstMileTab === 'grouped') {
+      storageKey = 'reportConfig_first-mile-epod-grouped_v3';
+    } else if (activeReport === 'last-mile-epod' && lastMileEpodTab === 'trips-summary') {
+      storageKey = 'reportConfig_last-mile-epod-trips-summary_v3';
+    }
     localStorage.setItem(storageKey, JSON.stringify(newConfig));
   };
 
@@ -2765,22 +2801,51 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
 
     if (activeReport === 'last-mile-epod' && lastMileEpodTab === 'trips-summary') {
       const { rows } = calculateLastMileGodownTrips(filteredLastMileData);
-      const wsData = [
-        ["Sr. No.", "District", "Godown Name", "Total Trips", "Active Trips(In-transit)", "Closed Trips"]
-      ];
+      const activeCols = visibleColumns && visibleColumns.length > 0 ? visibleColumns : DEFAULT_LAST_MILE_TRIPS_SUMMARY_CONFIG;
+      const wsData = [activeCols.map(c => c.label)];
       let sr = 1;
       rows.forEach(r => {
         if (r.isGrandTotal) {
-          wsData.push(["", "Grand Total", "", r.totalTrips, r.activeTrips, r.closedTrips]);
+          const rowData = activeCols.map(c => {
+            if (c.id === 'district' || (c.id === 'srNo' && !activeCols.some(ac => ac.id === 'district'))) return "Grand Total";
+            if (c.id === 'totalTrips') return r.totalTrips;
+            if (c.id === 'activeTrips') return r.activeTrips;
+            if (c.id === 'closedTrips') return r.closedTrips;
+            return "";
+          });
+          wsData.push(rowData);
         } else if (r.isSubtotal) {
           const subLabel = r.district + (r.godownSumTotal !== undefined && r.godownSumTotal !== r.totalTrips ? ` (Distinct: ${r.totalTrips} | Godowns Sum: ${r.godownSumTotal})` : '');
-          wsData.push(["", subLabel, "", r.totalTrips, r.activeTrips, r.closedTrips]);
+          const rowData = activeCols.map(c => {
+            if (c.id === 'district' || (c.id === 'srNo' && !activeCols.some(ac => ac.id === 'district'))) return subLabel;
+            if (c.id === 'totalTrips') return r.totalTrips;
+            if (c.id === 'activeTrips') return r.activeTrips;
+            if (c.id === 'closedTrips') return r.closedTrips;
+            return "";
+          });
+          wsData.push(rowData);
         } else {
-          wsData.push([sr++, r.district, r.godownName, r.totalTrips, r.activeTrips, r.closedTrips]);
+          const currentSr = sr++;
+          const rowData = activeCols.map(c => {
+            if (c.id === 'srNo') return currentSr;
+            if (c.id === 'district') return r.district;
+            if (c.id === 'godownName') return r.godownName;
+            if (c.id === 'totalTrips') return r.totalTrips;
+            if (c.id === 'activeTrips') return r.activeTrips;
+            if (c.id === 'closedTrips') return r.closedTrips;
+            return r[c.id] ?? "";
+          });
+          wsData.push(rowData);
         }
       });
       const ws = XLSX.utils.aoa_to_sheet(wsData);
-      ws['!cols'] = [{ wch: 10 }, { wch: 25 }, { wch: 30 }, { wch: 15 }, { wch: 25 }, { wch: 15 }];
+      ws['!cols'] = activeCols.map(c => {
+        if (c.id === 'srNo') return { wch: 10 };
+        if (c.id === 'district') return { wch: 25 };
+        if (c.id === 'godownName') return { wch: 30 };
+        if (c.id === 'activeTrips') return { wch: 25 };
+        return { wch: 15 };
+      });
       XLSX.utils.book_append_sheet(wb, ws, "Trip Summary");
       const safeTitle = (reportTitle || 'Last_Mile_Godown_Trip_Summary').replace(/[^a-z0-9]/gi, '_');
       XLSX.writeFile(wb, `GSCSCL_${safeTitle}.xlsx`);
@@ -3075,49 +3140,71 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
 
     if (activeReport === 'last-mile-epod' && lastMileEpodTab === 'trips-summary') {
       const { rows } = calculateLastMileGodownTrips(filteredLastMileData);
+      const activeCols = visibleColumns && visibleColumns.length > 0 ? visibleColumns : DEFAULT_LAST_MILE_TRIPS_SUMMARY_CONFIG;
       const pdfBody = [];
+      const metricCols = ['totalTrips', 'activeTrips', 'closedTrips'];
+      const firstMetricIndex = activeCols.findIndex(c => metricCols.includes(c.id));
+      const leadingColSpan = firstMetricIndex > 0 ? firstMetricIndex : (firstMetricIndex === -1 ? activeCols.length : 1);
+
       let sr = 1;
       rows.forEach(r => {
         if (r.isGrandTotal) {
-          pdfBody.push([
-            { content: 'Grand Total', colSpan: 3, styles: { halign: 'center', fontStyle: 'bold', fillColor: [240, 240, 240] } },
-            { content: String(r.totalTrips), styles: { halign: 'center', fontStyle: 'bold', fillColor: [240, 240, 240] } },
-            { content: String(r.activeTrips), styles: { halign: 'center', fontStyle: 'bold', fillColor: [240, 240, 240] } },
-            { content: String(r.closedTrips), styles: { halign: 'center', fontStyle: 'bold', fillColor: [240, 240, 240] } }
-          ]);
+          if (firstMetricIndex > 0) {
+            const cells = [
+              { content: 'Grand Total', colSpan: leadingColSpan, styles: { halign: 'center', fontStyle: 'bold', fillColor: [240, 240, 240] } }
+            ];
+            activeCols.slice(firstMetricIndex).forEach(c => {
+              cells.push({ content: String(r[c.id] ?? ''), styles: { halign: 'center', fontStyle: 'bold', fillColor: [240, 240, 240] } });
+            });
+            pdfBody.push(cells);
+          } else {
+            pdfBody.push(activeCols.map(c => ({
+              content: c.id === 'district' ? 'Grand Total' : (metricCols.includes(c.id) ? String(r[c.id] ?? '') : ''),
+              styles: { halign: 'center', fontStyle: 'bold', fillColor: [240, 240, 240] }
+            })));
+          }
         } else if (r.isSubtotal) {
           const subLabel = r.district + (r.godownSumTotal !== undefined && r.godownSumTotal !== r.totalTrips ? ` (Distinct: ${r.totalTrips} | Godowns Sum: ${r.godownSumTotal})` : '');
-          pdfBody.push([
-            { content: subLabel, colSpan: 3, styles: { halign: 'center', fontStyle: 'bold', fillColor: [248, 249, 250] } },
-            { content: String(r.totalTrips), styles: { halign: 'center', fontStyle: 'bold', fillColor: [248, 249, 250] } },
-            { content: String(r.activeTrips), styles: { halign: 'center', fontStyle: 'bold', fillColor: [248, 249, 250] } },
-            { content: String(r.closedTrips), styles: { halign: 'center', fontStyle: 'bold', fillColor: [248, 249, 250] } }
-          ]);
+          if (firstMetricIndex > 0) {
+            const cells = [
+              { content: subLabel, colSpan: leadingColSpan, styles: { halign: 'center', fontStyle: 'bold', fillColor: [248, 249, 250] } }
+            ];
+            activeCols.slice(firstMetricIndex).forEach(c => {
+              cells.push({ content: String(r[c.id] ?? ''), styles: { halign: 'center', fontStyle: 'bold', fillColor: [248, 249, 250] } });
+            });
+            pdfBody.push(cells);
+          } else {
+            pdfBody.push(activeCols.map(c => ({
+              content: c.id === 'district' ? subLabel : (metricCols.includes(c.id) ? String(r[c.id] ?? '') : ''),
+              styles: { halign: 'center', fontStyle: 'bold', fillColor: [248, 249, 250] }
+            })));
+          }
         } else {
-          pdfBody.push([
-            String(sr++),
-            r.district,
-            r.godownName,
-            String(r.totalTrips),
-            String(r.activeTrips),
-            String(r.closedTrips)
-          ]);
+          const currentSr = sr++;
+          pdfBody.push(activeCols.map(c => {
+            if (c.id === 'srNo') return String(currentSr);
+            if (c.id === 'district') return r.district || '';
+            if (c.id === 'godownName') return r.godownName || '';
+            if (metricCols.includes(c.id)) return String(r[c.id] ?? 0);
+            return String(r[c.id] ?? '');
+          }));
         }
       });
 
+      const colStyles = {};
+      activeCols.forEach((c, idx) => {
+        if (c.id === 'srNo') colStyles[idx] = { halign: 'center', cellWidth: 15 };
+        else if (metricCols.includes(c.id)) colStyles[idx] = { halign: 'center' };
+      });
+
       autoTable(doc, {
-        head: [["Sr. No.", "District", "Godown Name", "Total Trips", "Active Trips (In-transit)", "Closed Trips"]],
+        head: [activeCols.map(c => c.label)],
         body: pdfBody,
         startY: 35,
         theme: 'grid',
         styles: { fontSize: 8, textColor: [0,0,0], lineColor: [200,200,200], lineWidth: 0.1 },
         headStyles: { fillColor: [240,240,240], textColor: [0,0,0], fontStyle: 'bold', halign: 'left' },
-        columnStyles: {
-          0: { halign: 'center', cellWidth: 15 },
-          3: { halign: 'center' },
-          4: { halign: 'center' },
-          5: { halign: 'center' }
-        },
+        columnStyles: colStyles,
         margin: { left: 14 },
         didDrawPage: function (data) {
           doc.setFontSize(10);
@@ -5057,7 +5144,7 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                         )}
 
                         {activeReport === 'last-mile-epod' && lastMileEpodTab === 'trips-summary' ? (
-                          <LastMileTripsSummary data={filteredLastMileData} calculateLastMileGodownTrips={calculateLastMileGodownTrips} />
+                          <LastMileTripsSummary data={filteredLastMileData} calculateLastMileGodownTrips={calculateLastMileGodownTrips} visibleColumns={visibleColumns} />
                         ) : (
                           <div className="table-container" style={{ marginTop: 0 }}>
                           <table>
@@ -5350,7 +5437,9 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                         defaultConf = firstMileTab === 'grouped' ? DEFAULT_FIRST_MILE_EPOD_GROUPED_CONFIG : DEFAULT_EPOD_CONFIG;
                     }
                     else if (activeReport === 'ro-allocation-dsm') defaultConf = DEFAULT_RO_ALLOCATION_CONFIG;
-                    else if (activeReport === 'last-mile-epod') defaultConf = DEFAULT_LAST_MILE_EPOD_CONFIG;
+                    else if (activeReport === 'last-mile-epod') {
+                        defaultConf = lastMileEpodTab === 'trips-summary' ? DEFAULT_LAST_MILE_TRIPS_SUMMARY_CONFIG : DEFAULT_LAST_MILE_EPOD_CONFIG;
+                    }
                     else if (activeReport === 'last-mile-vehicle-assigned') defaultConf = DEFAULT_LAST_MILE_VEHICLE_ASSIGNED_CONFIG;
                     else if (activeReport === 'last-mile-imei') defaultConf = DEFAULT_LAST_MILE_IMEI_CONFIG;
                     else if (activeReport === 'last-mile-commodity') defaultConf = DEFAULT_LAST_MILE_COMMODITY_CONFIG;
