@@ -105,7 +105,7 @@ const DEFAULT_LIFTING_CONFIG = [
   { id: 'srNo', label: 'Sr. No.', visible: true },
   { id: 'district', label: 'District', visible: true },
   { id: 'vehicleAssigned', label: 'No. of Vehicle Assigned', visible: true },
-  { id: 'dosTpCreated', label: 'DOS TP Created', visible: true },
+  { id: 'dosTpCreated', label: 'Anna Darpan TP Created', visible: true },
   { id: 'manualTpCreated', label: 'Manual TP Created', visible: true },
   { id: 'tpsGenerated', label: 'No.of TPs Generated', visible: true },
   { id: 'liftedQty', label: 'Lifted Quantity', visible: true },
@@ -1128,10 +1128,20 @@ function App() {
           }
         }
       }
-      let lrKey = (rawLr !== undefined && rawLr !== null && String(rawLr).trim() !== '' && String(rawLr).toLowerCase() !== '(blank)' && String(rawLr) !== 'null' && String(rawLr) !== 'undefined') ? String(rawLr).trim() : '(Blank LR)';
-      if (false) {
-        return;
+      // Skip blank / empty / null / undefined / '(blank)' LR numbers completely
+      if (
+        rawLr === undefined || 
+        rawLr === null || 
+        String(rawLr).trim() === '' || 
+        String(rawLr).trim().toLowerCase() === '(blank)' || 
+        String(rawLr).trim().toLowerCase() === 'null' || 
+        String(rawLr).trim().toLowerCase() === 'undefined' || 
+        String(rawLr).trim() === '-' || 
+        String(rawLr).trim() === '0'
+      ) {
+        return; // Blank LR numbers must NOT be counted!
       }
+      const lrKey = String(rawLr).trim();
 
       const dist = String(row.district || row.District || row['District'] || row['TP District'] || row['Godown District'] || row.district_name || 'Unknown').trim();
       const godown = String(row.godown || row.godownName || row['GSCSCL Godown'] || row['Godown Name'] || row['Godown'] || row['Destination Godown'] || 'Unknown').trim() || '(Blank Godown)';
@@ -1189,6 +1199,9 @@ function App() {
 
     sortedDistricts.forEach(dist => {
       const sortedGodowns = Object.keys(distMap[dist]).sort((a, b) => a.localeCompare(b));
+      let distGodownSumTotal = 0;
+      let distGodownSumActive = 0;
+      let distGodownSumClosed = 0;
 
       sortedGodowns.forEach(godown => {
         const tripMap = distMap[dist][godown].trips;
@@ -1204,6 +1217,10 @@ function App() {
             gActive += 1;
           }
         });
+
+        distGodownSumTotal += gTotal;
+        distGodownSumActive += gActive;
+        distGodownSumClosed += gClosed;
 
         rows.push({
           district: dist,
@@ -1235,6 +1252,9 @@ function App() {
         totalTrips: dTotal,
         activeTrips: dActive,
         closedTrips: dClosed,
+        godownSumTotal: distGodownSumTotal,
+        godownSumActive: distGodownSumActive,
+        godownSumClosed: distGodownSumClosed,
         isSubtotal: true,
         isGrandTotal: false
       });
@@ -2753,7 +2773,8 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
         if (r.isGrandTotal) {
           wsData.push(["", "Grand Total", "", r.totalTrips, r.activeTrips, r.closedTrips]);
         } else if (r.isSubtotal) {
-          wsData.push(["", r.district, "", r.totalTrips, r.activeTrips, r.closedTrips]);
+          const subLabel = r.district + (r.godownSumTotal !== undefined && r.godownSumTotal !== r.totalTrips ? ` (Distinct: ${r.totalTrips} | Godowns Sum: ${r.godownSumTotal})` : '');
+          wsData.push(["", subLabel, "", r.totalTrips, r.activeTrips, r.closedTrips]);
         } else {
           wsData.push([sr++, r.district, r.godownName, r.totalTrips, r.activeTrips, r.closedTrips]);
         }
@@ -3065,8 +3086,9 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
             { content: String(r.closedTrips), styles: { halign: 'center', fontStyle: 'bold', fillColor: [240, 240, 240] } }
           ]);
         } else if (r.isSubtotal) {
+          const subLabel = r.district + (r.godownSumTotal !== undefined && r.godownSumTotal !== r.totalTrips ? ` (Distinct: ${r.totalTrips} | Godowns Sum: ${r.godownSumTotal})` : '');
           pdfBody.push([
-            { content: r.district, colSpan: 3, styles: { halign: 'center', fontStyle: 'bold', fillColor: [248, 249, 250] } },
+            { content: subLabel, colSpan: 3, styles: { halign: 'center', fontStyle: 'bold', fillColor: [248, 249, 250] } },
             { content: String(r.totalTrips), styles: { halign: 'center', fontStyle: 'bold', fillColor: [248, 249, 250] } },
             { content: String(r.activeTrips), styles: { halign: 'center', fontStyle: 'bold', fillColor: [248, 249, 250] } },
             { content: String(r.closedTrips), styles: { halign: 'center', fontStyle: 'bold', fillColor: [248, 249, 250] } }
@@ -3557,7 +3579,7 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
       const gt = displayData.find(r => r.isGrandTotal);
       if (gt) {
         const summaryData = [
-          ["Vehicle Assign", gt.vehicleAssigned || 0, "DOS TP Created", gt.dosTpCreated || 0],
+          ["Vehicle Assign", gt.vehicleAssigned || 0, "Anna Darpan TP Created", gt.dosTpCreated || 0],
           ["Lifted Quantity (MT)", typeof gt.liftedQty === 'number' ? gt.liftedQty.toFixed(2) : (gt.liftedQty || 0), "Manual TP Created", gt.manualTpCreated || 0],
           ["Total TP Created", gt.tpsGenerated || 0, "EPOD Pending", gt.pendingEpodManager || 0]
         ];

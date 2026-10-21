@@ -154,10 +154,16 @@ export default function LastMileTripsSummary({ data, calculateLastMileGodownTrip
 
                 if (row.isSubtotal) {
                   prevDistrict = null;
+                  const hasMultiGodownTrips = row.godownSumTotal !== undefined && row.godownSumTotal !== row.totalTrips;
                   return (
                     <tr key={`sub-${idx}`} className="subtotal-row" style={{ fontWeight: 'bold', background: 'rgba(255, 90, 31, 0.04)', borderBottom: '1px solid var(--border-color)' }}>
                       <td colSpan={3} style={{ padding: '10px 14px', textAlign: 'left', fontSize: '0.95rem' }}>
-                        {row.district}
+                        <span>{row.district}</span>
+                        {hasMultiGodownTrips && (
+                          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: '500', marginLeft: '10px', background: 'rgba(0,0,0,0.04)', padding: '2px 8px', borderRadius: '4px' }}>
+                            (Unique LRs: {row.totalTrips} | Godowns Total: {row.godownSumTotal})
+                          </span>
+                        )}
                       </td>
                       <td style={{ padding: '10px 14px', textAlign: 'center', fontSize: '0.95rem', fontWeight: '700' }}>
                         {row.totalTrips}

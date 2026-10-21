@@ -65,7 +65,7 @@ export const DEFAULT_REPORT_ATTRIBUTES = {
     'GSCSCL Godown': ['GSCSCL Godown', 'Godown Name', 'Godown', 'Destination Godown', 'Lifting Location Name', 'godown_name', 'godown', 'Taluka Godown'],
     'Trip Status': ['Trip Status', 'Current Status', 'Status', 'Driver Status', 'Trip State', 'Stage', 'Delivery Status', 'Trip Current Status', 'trip_status', 'driver_status'],
     'trip_end_datetime': ['trip_end_datetime', 'Trip End Datetime', 'Trip End Date Time', 'trip_end_date_time', 'end_trip_datetime', 'End Trip Date Time', 'End Trip Date', 'Trip End Time', 'end_trip_time', 'End Date Time', 'Trip End'],
-    'LR Number': ['LR Number', 'LR No', 'LR No.', 'lr_number', 'lr_no', 'LR', 'LR NO', 'LR NO.', 'lr', 'LR#', 'trip_id', 'trip_no', 'Trip ID', 'Trip No', 'Trip Number'],
+    'LR Number': ['LR Number', 'LR Numbe', 'LR No', 'LR No.', 'lr_number', 'lr_no', 'LR', 'LR NO', 'LR NO.', 'lr', 'LR#', 'trip_id', 'trip_no', 'Trip ID', 'Trip No', 'Trip Number', 'LR_Number', 'LR_No', 'lr_num', 'lrnumbe', 'lr number', 'lr numbe'],
     'DC Month': ['DC Month', 'dc_month', 'Month'],
     'DC Creation Date': ['DC Creation Date', 'DC Date', 'Creation Date', 'dc_creation_date', 'Trip Date', 'Date'],
     'Reference Number': ['Reference Number', 'Delivery Challan Number', 'DC No', 'Reference No'],

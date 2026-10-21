@@ -500,7 +500,7 @@ self.onmessage = async (e) => {
            district: dist,
            tpDate: tpDate,
            vehicleAssignedRaw: veh,
-           dosTpCreated: (createdFrom === 'auto' || createdFrom === 'dos') ? 1 : 0,
+           dosTpCreated: (createdFrom === 'auto' || createdFrom === 'dos' || createdFrom.includes('anna') || createdFrom.includes('darpan')) ? 1 : 0,
            manualTpCreated: (createdFrom === 'manual') ? 1 : 0,
            tpsGenerated: 1,
            liftedQty: qty,
