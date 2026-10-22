@@ -2768,31 +2768,31 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
         if (r.isGrandTotal) {
           if (firstMetricIndex > 0) {
             const cells = [
-              { content: 'Grand Total', colSpan: leadingColSpan, styles: { halign: 'center', fontStyle: 'bold', fillColor: [240, 240, 240] } }
+              { content: 'Grand Total', colSpan: leadingColSpan, styles: { halign: 'center', fontStyle: 'bold', fillColor: [252, 213, 180], textColor: [0, 0, 0] } }
             ];
             activeCols.slice(firstMetricIndex).forEach(c => {
-              cells.push({ content: String(r[c.id] ?? ''), styles: { halign: 'center', fontStyle: 'bold', fillColor: [240, 240, 240] } });
+              cells.push({ content: String(r[c.id] ?? ''), styles: { halign: 'center', fontStyle: 'bold', fillColor: [252, 213, 180], textColor: [0, 0, 0] } });
             });
             pdfBody.push(cells);
           } else {
             pdfBody.push(activeCols.map(c => ({
               content: c.id === 'district' ? 'Grand Total' : (metricCols.includes(c.id) ? String(r[c.id] ?? '') : ''),
-              styles: { halign: 'center', fontStyle: 'bold', fillColor: [240, 240, 240] }
+              styles: { halign: 'center', fontStyle: 'bold', fillColor: [252, 213, 180], textColor: [0, 0, 0] }
             })));
           }
         } else if (r.isSubtotal) {
           if (firstMetricIndex > 0) {
             const cells = [
-              { content: r.district, colSpan: leadingColSpan, styles: { halign: 'left', fontStyle: 'bold', fillColor: [248, 249, 250] } }
+              { content: r.district, colSpan: leadingColSpan, styles: { halign: 'left', fontStyle: 'bold', fillColor: [217, 217, 217], textColor: [0, 0, 0] } }
             ];
             activeCols.slice(firstMetricIndex).forEach(c => {
-              cells.push({ content: String(r[c.id] ?? ''), styles: { halign: 'center', fontStyle: 'bold', fillColor: [248, 249, 250] } });
+              cells.push({ content: String(r[c.id] ?? ''), styles: { halign: 'center', fontStyle: 'bold', fillColor: [217, 217, 217], textColor: [0, 0, 0] } });
             });
             pdfBody.push(cells);
           } else {
             pdfBody.push(activeCols.map(c => ({
               content: c.id === 'district' ? r.district : (metricCols.includes(c.id) ? String(r[c.id] ?? '') : ''),
-              styles: { halign: 'center', fontStyle: 'bold', fillColor: [248, 249, 250] }
+              styles: { halign: c.id === 'district' ? 'left' : 'center', fontStyle: 'bold', fillColor: [217, 217, 217], textColor: [0, 0, 0] }
             })));
           }
         } else {
@@ -2824,6 +2824,8 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
         columnStyles: colStyles,
         margin: { left: 8, right: 8, top: 10, bottom: 15 },
         didDrawPage: function (data) {
+          const pWidth = data.doc ? data.doc.internal.pageSize.getWidth() : pageWidth;
+          const pHeight = data.doc ? data.doc.internal.pageSize.getHeight() : pageHeight;
           doc.setGState(new doc.GState({ opacity: 0.15 }));
           doc.setFontSize(80);
           doc.setTextColor(150, 150, 150);
@@ -2832,24 +2834,19 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
           const defaultWatermark = companyTitleStr === null ? "FarEye" : (companyTitleStr ? companyTitleStr.split(' ')[0] : "");
           if (defaultWatermark.trim() !== '') {
             const textWidth = doc.getTextWidth(defaultWatermark);
-            const x = (pageWidth - textWidth) / 2;
-            const y = pageHeight / 2;
+            const x = (pWidth - textWidth) / 2;
+            const y = pHeight / 2;
             doc.text(defaultWatermark, x, y);
           }
           doc.setGState(new doc.GState({ opacity: 1.0 }));
 
           doc.setLineWidth(0.5);
           doc.setDrawColor(200, 200, 200);
-          doc.line(14, pageHeight - 15, pageWidth - 14, pageHeight - 15);
+          doc.line(14, pHeight - 15, pWidth - 14, pHeight - 15);
           doc.setFontSize(10);
           doc.setFont("helvetica", "normal");
           doc.setTextColor(100, 100, 100);
-          doc.text("Page " + data.pageNumber, pageWidth - 14, pageHeight - 10, { align: 'right' });
-        },
-        didDrawPage: function (data) {
-          doc.setFontSize(10);
-          doc.setTextColor(100, 100, 100);
-          doc.text("Page " + data.pageNumber, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
+          doc.text("Page " + data.pageNumber, pWidth - 14, pHeight - 10, { align: 'right' });
         }
       });
 
@@ -2876,32 +2873,32 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
         if (r.isGrandTotal) {
           if (firstMetricIndex > 0) {
             const cells = [
-              { content: 'Grand Total', colSpan: leadingColSpan, styles: { halign: 'center', fontStyle: 'bold', fillColor: [240, 240, 240] } }
+              { content: 'Grand Total', colSpan: leadingColSpan, styles: { halign: 'center', fontStyle: 'bold', fillColor: [252, 213, 180], textColor: [0, 0, 0] } }
             ];
             activeCols.slice(firstMetricIndex).forEach(c => {
-              cells.push({ content: String(r[c.id] ?? ''), styles: { halign: 'center', fontStyle: 'bold', fillColor: [240, 240, 240] } });
+              cells.push({ content: String(r[c.id] ?? ''), styles: { halign: 'center', fontStyle: 'bold', fillColor: [252, 213, 180], textColor: [0, 0, 0] } });
             });
             pdfBody.push(cells);
           } else {
             pdfBody.push(activeCols.map(c => ({
               content: c.id === 'district' ? 'Grand Total' : (metricCols.includes(c.id) ? String(r[c.id] ?? '') : ''),
-              styles: { halign: 'center', fontStyle: 'bold', fillColor: [240, 240, 240] }
+              styles: { halign: 'center', fontStyle: 'bold', fillColor: [252, 213, 180], textColor: [0, 0, 0] }
             })));
           }
         } else if (r.isSubtotal) {
           const subLabel = r.district + (r.godownSumTotal !== undefined && r.godownSumTotal !== r.totalTrips ? ` (Distinct: ${r.totalTrips} | Godowns Sum: ${r.godownSumTotal})` : '');
           if (firstMetricIndex > 0) {
             const cells = [
-              { content: subLabel, colSpan: leadingColSpan, styles: { halign: 'center', fontStyle: 'bold', fillColor: [248, 249, 250] } }
+              { content: subLabel, colSpan: leadingColSpan, styles: { halign: 'left', fontStyle: 'bold', fillColor: [217, 217, 217], textColor: [0, 0, 0] } }
             ];
             activeCols.slice(firstMetricIndex).forEach(c => {
-              cells.push({ content: String(r[c.id] ?? ''), styles: { halign: 'center', fontStyle: 'bold', fillColor: [248, 249, 250] } });
+              cells.push({ content: String(r[c.id] ?? ''), styles: { halign: 'center', fontStyle: 'bold', fillColor: [217, 217, 217], textColor: [0, 0, 0] } });
             });
             pdfBody.push(cells);
           } else {
             pdfBody.push(activeCols.map(c => ({
               content: c.id === 'district' ? subLabel : (metricCols.includes(c.id) ? String(r[c.id] ?? '') : ''),
-              styles: { halign: 'center', fontStyle: 'bold', fillColor: [248, 249, 250] }
+              styles: { halign: c.id === 'district' ? 'left' : 'center', fontStyle: 'bold', fillColor: [217, 217, 217], textColor: [0, 0, 0] }
             })));
           }
         } else {
@@ -2930,11 +2927,31 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
         styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
         headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
         columnStyles: colStyles,
-        margin: { left: 14 },
+        margin: { left: 8, right: 8, top: 10, bottom: 15 },
         didDrawPage: function (data) {
+          const pWidth = data.doc ? data.doc.internal.pageSize.getWidth() : pageWidth;
+          const pHeight = data.doc ? data.doc.internal.pageSize.getHeight() : pageHeight;
+          doc.setGState(new doc.GState({ opacity: 0.15 }));
+          doc.setFontSize(80);
+          doc.setTextColor(150, 150, 150);
+          doc.setFont("helvetica", "bold");
+          const companyTitleStr = localStorage.getItem('companyTitle');
+          const defaultWatermark = companyTitleStr === null ? "FarEye" : (companyTitleStr ? companyTitleStr.split(' ')[0] : "");
+          if (defaultWatermark.trim() !== '') {
+            const textWidth = doc.getTextWidth(defaultWatermark);
+            const x = (pWidth - textWidth) / 2;
+            const y = pHeight / 2;
+            doc.text(defaultWatermark, x, y);
+          }
+          doc.setGState(new doc.GState({ opacity: 1.0 }));
+
+          doc.setLineWidth(0.5);
+          doc.setDrawColor(200, 200, 200);
+          doc.line(14, pHeight - 15, pWidth - 14, pHeight - 15);
           doc.setFontSize(10);
+          doc.setFont("helvetica", "normal");
           doc.setTextColor(100, 100, 100);
-          doc.text("Page " + data.pageNumber, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
+          doc.text("Page " + data.pageNumber, pWidth - 14, pHeight - 10, { align: 'right' });
         }
       });
 

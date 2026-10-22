@@ -201,49 +201,98 @@ export default function LastMileDcSummary({ data, calculateLastMileDcSummary, vi
             ) : (
               filteredRows.map((row, idx) => {
                 if (row.isGrandTotal) {
-                  return (
-                    <tr key={`gt-${idx}`} className="subtotal-row grand-total-row" style={{ fontWeight: 'bold', borderTop: '2px solid var(--border-color)', background: 'var(--bg-panel)' }}>
-                      <td colSpan={leadingColSpan} style={{ padding: '14px', textAlign: 'center', fontSize: '1.05rem', letterSpacing: '0.5px' }}>
-                        GRAND TOTAL
-                      </td>
-                      {cols.slice(firstMetricIndex).map(col => {
-                        let val = row[col.id] ?? 0;
-                        let colorStyle = {};
-                        if (col.id === 'tripCreated') colorStyle = { color: 'var(--text-main)' };
-                        if (col.id === 'dcNumber') colorStyle = { color: '#f59e0b' };
-                        if (col.id === 'epod') colorStyle = { color: '#10b981' };
-                        if (col.id === 'endTrip') colorStyle = { color: '#8b5cf6' };
-                        return (
-                          <td key={col.id} style={{ padding: '14px', textAlign: 'center', fontSize: '1.05rem', fontWeight: '700', ...colorStyle }}>
-                            {Number(val).toLocaleString()}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
+                  if (firstMetricIndex > 0) {
+                    return (
+                      <tr key={`gt-${idx}`} className="subtotal-row grand-total-row" style={{ fontWeight: 'bold', borderTop: '2px solid var(--border-color)', background: 'var(--bg-panel)' }}>
+                        <td colSpan={leadingColSpan} style={{ padding: '14px', textAlign: 'center', fontSize: '1.05rem', letterSpacing: '0.5px' }}>
+                          GRAND TOTAL
+                        </td>
+                        {cols.slice(firstMetricIndex).map(col => {
+                          let val = row[col.id] ?? 0;
+                          let colorStyle = {};
+                          if (col.id === 'tripCreated') colorStyle = { color: 'var(--text-main)' };
+                          if (col.id === 'dcNumber') colorStyle = { color: '#f59e0b' };
+                          if (col.id === 'epod') colorStyle = { color: '#10b981' };
+                          if (col.id === 'endTrip') colorStyle = { color: '#8b5cf6' };
+                          return (
+                            <td key={col.id} style={{ padding: '14px', textAlign: 'center', fontSize: '1.05rem', fontWeight: '700', ...colorStyle }}>
+                              {Number(val).toLocaleString()}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  } else {
+                    return (
+                      <tr key={`gt-${idx}`} className="subtotal-row grand-total-row" style={{ fontWeight: 'bold', borderTop: '2px solid var(--border-color)', background: 'var(--bg-panel)' }}>
+                        {cols.map(col => {
+                          if (col.id === 'district' || (col.id === 'srNo' && !cols.some(c => c.id === 'district'))) {
+                            return <td key={col.id} style={{ padding: '14px', textAlign: 'center', fontSize: '1.05rem', letterSpacing: '0.5px' }}>GRAND TOTAL</td>;
+                          }
+                          let val = row[col.id] ?? 0;
+                          let colorStyle = {};
+                          if (col.id === 'tripCreated') colorStyle = { color: 'var(--text-main)' };
+                          if (col.id === 'dcNumber') colorStyle = { color: '#f59e0b' };
+                          if (col.id === 'epod') colorStyle = { color: '#10b981' };
+                          if (col.id === 'endTrip') colorStyle = { color: '#8b5cf6' };
+                          return (
+                            <td key={col.id} style={{ padding: '14px', textAlign: 'center', fontSize: '1.05rem', fontWeight: '700', ...colorStyle }}>
+                              {metricCols.includes(col.id) ? Number(val).toLocaleString() : ''}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  }
                 }
 
                 if (row.isSubtotal) {
                   prevDistrict = null;
-                  return (
-                    <tr key={`sub-${idx}`} className="subtotal-row" style={{ fontWeight: '600', background: 'rgba(255, 255, 255, 0.03)', borderBottom: '1px solid var(--border-color)' }}>
-                      <td colSpan={leadingColSpan} style={{ padding: '12px 14px', textAlign: 'left', fontWeight: '700', color: 'var(--primary-color)' }}>
-                        {row.district}
-                      </td>
-                      {cols.slice(firstMetricIndex).map(col => {
-                        let val = row[col.id] ?? 0;
-                        let colorStyle = {};
-                        if (col.id === 'dcNumber') colorStyle = { color: '#f59e0b' };
-                        if (col.id === 'epod') colorStyle = { color: '#10b981' };
-                        if (col.id === 'endTrip') colorStyle = { color: '#8b5cf6' };
-                        return (
-                          <td key={col.id} style={{ padding: '12px', textAlign: 'center', fontWeight: '700', ...colorStyle }}>
-                            {Number(val).toLocaleString()}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
+                  if (firstMetricIndex > 0) {
+                    return (
+                      <tr key={`sub-${idx}`} className="subtotal-row" style={{ fontWeight: '600', background: 'rgba(255, 255, 255, 0.03)', borderBottom: '1px solid var(--border-color)' }}>
+                        <td colSpan={leadingColSpan} style={{ padding: '12px 14px', textAlign: 'left', fontWeight: '700', color: 'var(--primary-color)' }}>
+                          {row.district}
+                        </td>
+                        {cols.slice(firstMetricIndex).map(col => {
+                          let val = row[col.id] ?? 0;
+                          let colorStyle = {};
+                          if (col.id === 'dcNumber') colorStyle = { color: '#f59e0b' };
+                          if (col.id === 'epod') colorStyle = { color: '#10b981' };
+                          if (col.id === 'endTrip') colorStyle = { color: '#8b5cf6' };
+                          return (
+                            <td key={col.id} style={{ padding: '12px', textAlign: 'center', fontWeight: '700', ...colorStyle }}>
+                              {Number(val).toLocaleString()}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  } else {
+                    return (
+                      <tr key={`sub-${idx}`} className="subtotal-row" style={{ fontWeight: '600', background: 'rgba(255, 255, 255, 0.03)', borderBottom: '1px solid var(--border-color)' }}>
+                        {cols.map(col => {
+                          if (col.id === 'district' || (col.id === 'srNo' && !cols.some(c => c.id === 'district'))) {
+                            return (
+                              <td key={col.id} style={{ padding: '12px 14px', textAlign: 'left', fontWeight: '700', color: 'var(--primary-color)' }}>
+                                {row.district}
+                              </td>
+                            );
+                          }
+                          let val = row[col.id] ?? 0;
+                          let colorStyle = {};
+                          if (col.id === 'dcNumber') colorStyle = { color: '#f59e0b' };
+                          if (col.id === 'epod') colorStyle = { color: '#10b981' };
+                          if (col.id === 'endTrip') colorStyle = { color: '#8b5cf6' };
+                          return (
+                            <td key={col.id} style={{ padding: '12px', textAlign: 'center', fontWeight: '700', ...colorStyle }}>
+                              {metricCols.includes(col.id) ? Number(val).toLocaleString() : ''}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  }
                 }
 
                 const isDistrictFirst = prevDistrict !== row.district;
