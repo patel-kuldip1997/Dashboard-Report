@@ -14,6 +14,7 @@ import LastMileTripsSummary from './components/LastMileTripsSummary';
 import LastMileDcSummary from './components/LastMileDcSummary';
 import LiftingCommoditySummary from './components/LiftingCommoditySummary';
 import { DEFAULT_REPORT_ATTRIBUTES } from './reportAttributes';
+import { APP_VERSION, RELEASE_DATE, APP_NAME, RELEASE_NOTES } from './version.js';
 
 const DEFAULT_GM_CONFIG = [
   { id: 'refNo', label: 'Ref. No', visible: true },
@@ -517,6 +518,7 @@ function App() {
   const [columnConfig, setColumnConfig] = useState([]);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [showPdfOrientationModal, setShowPdfOrientationModal] = useState(false);
+  const [showVersionModal, setShowVersionModal] = useState(false);
   const [pdfOrientation, setPdfOrientation] = useState('landscape');
   const [draggedItemIndex, setDraggedItemIndex] = useState(null);
   const [reportTitle, setReportTitle] = useState('');
@@ -4475,12 +4477,22 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
       {/* Premium Admin Sidebar */}
       <div className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
         <div className="sidebar-header">
-          <div className="logo-container" onClick={() => handleMenuClick('welcome')} style={{ cursor: 'pointer', display: 'flex', justifyContent: 'center', width: '100%' }}>
-            <img src="/gscscl-logo.png" alt="GSCSCL Logo" style={{ height: '45px', objectFit: 'contain' }} />
+          <div className="sidebar-header-top">
+            <div className="logo-container" onClick={() => handleMenuClick('welcome')} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <img src="/gscscl-logo.png" alt="GSCSCL Logo" style={{ height: '36px', objectFit: 'contain' }} />
+              <span className="logo-text">GSCSCL</span>
+            </div>
+            <button className="close-btn" onClick={() => setSidebarOpen(false)} title="Close Sidebar">
+              <Menu size={20} />
+            </button>
           </div>
-          <button className="close-btn" onClick={() => setSidebarOpen(false)}>
-            <Menu size={24} />
-          </button>
+          <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Analytics Portal</span>
+            <div className="version-pill" onClick={() => setShowVersionModal(true)} title="Click to view release notes">
+              <span className="version-dot"></span>
+              {APP_VERSION}
+            </div>
+          </div>
         </div>
         
         <div className="nav-menu">
@@ -4737,26 +4749,54 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
             )}
           </div>
         </div>
+
+        {/* Sidebar Modern Footer */}
+        <div className="sidebar-footer">
+          <div className="sidebar-footer-text">
+            <span>GSCSCL Engine</span>
+          </div>
+          <div className="version-pill" onClick={() => setShowVersionModal(true)} title="Click for Release Info">
+            <span className="version-dot"></span>
+            {APP_VERSION}
+          </div>
+        </div>
       </div>
 
       {/* Main Content Area */}
       <div className={`main-content ${sidebarOpen && !isMobile ? 'sidebar-open' : 'sidebar-closed'}`}>
         
-        {/* Top Header for toggling sidebar */}
-        {!sidebarOpen && (
+        {/* Modern Top Header for Multi-Device Responsiveness */}
+        {(!sidebarOpen || isMobile) && (
           <div className="top-header">
-            <button className="menu-btn" onClick={() => setSidebarOpen(true)}>
-              <Menu size={24} />
-            </button>
-            <span className="logo-text" onClick={() => handleMenuClick('welcome')} style={{ fontSize: '1.2rem', cursor: 'pointer' }}>GSCSCL Report</span>
+            <div className="top-header-left">
+              <button className="menu-btn" onClick={() => setSidebarOpen(true)} title="Open Navigation Menu">
+                <Menu size={20} />
+              </button>
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <span className="logo-text" onClick={() => handleMenuClick('welcome')} style={{ fontSize: '1.05rem', cursor: 'pointer', lineHeight: '1.2' }}>GSCSCL Reports</span>
+                <span className="breadcrumb-tag">{reportTitle || 'Dashboard Portal'}</span>
+              </div>
+            </div>
+            <div className="top-header-right">
+              <div className="version-pill" onClick={() => setShowVersionModal(true)} title="Click for Release Info">
+                <span className="version-dot"></span>
+                {APP_VERSION}
+              </div>
+            </div>
           </div>
         )}
         
         {/* Render content based on active report */}
         {activeReport === 'welcome' && (
           <div className="welcome-container" style={{ padding: '60px 20px', maxWidth: '1000px', margin: '0 auto', textAlign: 'center' }}>
-             <div style={{ display: 'inline-flex', padding: '16px', borderRadius: '50%', background: 'var(--bg-panel)', boxShadow: '0 4px 12px rgba(0,0,0,0.05)', marginBottom: '24px' }}>
+             <div style={{ display: 'inline-flex', padding: '16px', borderRadius: '50%', background: 'var(--bg-panel)', boxShadow: 'var(--shadow-md)', marginBottom: '20px' }}>
                 <img src="/gscscl-logo.png" alt="GSCSCL Logo" style={{ height: '80px', objectFit: 'contain' }} />
+             </div>
+             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '16px' }}>
+                <div className="version-pill" onClick={() => setShowVersionModal(true)} style={{ padding: '6px 14px', fontSize: '0.85rem' }} title="Click for Release Info">
+                  <span className="version-dot"></span>
+                  {APP_NAME} • {APP_VERSION}
+                </div>
              </div>
              <h1 style={{ fontSize: '2.5rem', color: 'var(--text-main)', marginBottom: '16px', fontWeight: '700' }}>Welcome to GSCSCL Report Dashboard</h1>
              <p style={{ fontSize: '1.15rem', color: 'var(--text-muted)', marginBottom: '48px', maxWidth: '700px', margin: '0 auto 48px auto', lineHeight: '1.6' }}>
@@ -4821,24 +4861,25 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                 </p>
               </div>
               {rawData.length > 0 && (
-                <div style={{ display: 'flex', gap: '12px' }}>
-                  <button className="btn-secondary" onClick={handleClearData} title="Clear Data for this report" style={{ color: '#ff6b6b', borderColor: 'rgba(255,107,107,0.3)', fontWeight: '600' }}>
-                    <Trash2 size={18} />
+                <div className="header-action-toolbar">
+                  <button className="btn-secondary btn-danger-subtle" onClick={handleClearData} title="Clear Data for this report" style={{ fontWeight: '600' }}>
+                    <Trash2 size={16} />
                     Clear Data
                   </button>
                   <button className="btn-secondary" onClick={() => setShowConfigModal(true)} title="Configure Columns">
-                    <Settings size={18} />
+                    <Settings size={16} />
+                    Columns
                   </button>
                   <button className="btn-secondary" onClick={handleSaveToHistory} title="Save Report Data to History">
-                    <History size={18} />
-                    Save to History
+                    <History size={16} />
+                    History
                   </button>
                   <button className="btn-secondary" onClick={handleOpenPdfModal} title="Download Report as PDF (Portrait / Landscape)">
-                    <FileDown size={18} />
-                    Download PDF
+                    <FileDown size={16} />
+                    PDF
                   </button>
-                  <button className="btn-primary" onClick={exportExcel}>
-                    <Download size={18} />
+                  <button className="btn-primary" onClick={exportExcel} title="Export Report to Excel">
+                    <Download size={16} />
                     Export Excel
                   </button>
                 </div>
@@ -5815,7 +5856,10 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                           <LiftingCommoditySummary data={filteredLiftingData} calculateLiftingCommoditySummary={calculateLiftingCommoditySummary} visibleColumns={visibleColumns} />
                         ) : (
                           <div className="table-container" style={{ marginTop: 0 }}>
-                          <table>
+                            <div className="table-scroll-hint">
+                              <span>← Swipe horizontally to see all columns →</span>
+                            </div>
+                            <table>
                         <thead>
                           <tr>
                             {visibleColumns.map(col => (
@@ -6243,6 +6287,47 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                 >
                   <FileDown size={15} />
                   Download {pdfOrientation === 'landscape' ? 'Landscape' : 'Portrait'} PDF
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Version Info & Release Notes Modal */}
+        {showVersionModal && (
+          <div className="modal-overlay" onClick={(e) => { if (e.target.className === 'modal-overlay') setShowVersionModal(false); }}>
+            <div className="modal-content" style={{ maxWidth: '520px' }}>
+              <div className="modal-header">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span className="version-dot"></span>
+                  <h3 style={{ margin: 0 }}>{APP_NAME}</h3>
+                </div>
+                <button onClick={() => setShowVersionModal(false)} className="close-btn" title="Close"><X size={20} /></button>
+              </div>
+              <div style={{ padding: '20px', maxHeight: '65vh', overflowY: 'auto' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid var(--border-color)' }}>
+                  <div>
+                    <span style={{ fontSize: '1.1rem', fontWeight: '700', color: 'var(--text-main)' }}>{APP_VERSION}</span>
+                    <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginLeft: '8px' }}>({RELEASE_DATE})</span>
+                  </div>
+                  <span className="status-badge status-success">Active Release</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {RELEASE_NOTES.map((item, idx) => (
+                    <div key={idx} style={{ background: 'var(--bg-base)', padding: '12px 14px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+                      <div style={{ fontWeight: '600', fontSize: '0.88rem', color: 'var(--text-main)', marginBottom: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <span style={{ color: 'var(--accent-primary)' }}>✦</span> {item.title}
+                      </div>
+                      <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)', lineHeight: '1.45' }}>
+                        {item.description}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="modal-footer" style={{ padding: '14px 20px' }}>
+                <button className="btn-primary" onClick={() => setShowVersionModal(false)} style={{ width: '100%' }}>
+                  Close
                 </button>
               </div>
             </div>

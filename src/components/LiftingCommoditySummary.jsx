@@ -174,6 +174,9 @@ export default function LiftingCommoditySummary({ data, calculateLiftingCommodit
 
       {/* Main Table Styled Like All Other GSCSCL Reports */}
       <div className="table-container" style={{ marginTop: 0 }}>
+        <div className="table-scroll-hint">
+          <span>← Swipe horizontally to see all columns →</span>
+        </div>
         <table>
           <thead>
             <tr>

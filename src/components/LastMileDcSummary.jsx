@@ -153,6 +153,9 @@ export default function LastMileDcSummary({ data, calculateLastMileDcSummary, vi
 
       {/* DC Wise Trips Table */}
       <div className="table-container" style={{ marginTop: 0, overflowX: 'auto', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
+        <div className="table-scroll-hint">
+          <span>← Swipe horizontally to see all columns →</span>
+        </div>
         <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
           <thead>
             <tr style={{ background: 'var(--bg-panel-hover)', borderBottom: '2px solid var(--border-color)' }}>
