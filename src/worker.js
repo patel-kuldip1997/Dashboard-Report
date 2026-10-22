@@ -253,7 +253,7 @@ self.onmessage = async (e) => {
                 isValid = false;
                 expectedColumns = requiredAttributes.join(', ');
             }
-        } else if (false) /*
+        } else if (false) { /*
         if (activeReport === 'first-mile-epod') {
          const refNoStr = fmRefKey && row[fmRefKey] !== undefined ? String(row[fmRefKey]).trim() : '';
          if (refNoStr.includes('_cancel')) return;
@@ -323,7 +323,7 @@ self.onmessage = async (e) => {
            isValid = false;
            expectedColumns = 'Reference No, EPOD status, TP date';
          }
-       } else if (false) /*
+       } else if (false) { /*
        if (activeReport === 'first-mile-epod') {
          const refNoStr = fmRefKey && row[fmRefKey] !== undefined ? String(row[fmRefKey]).trim() : '';
          if (refNoStr.includes('_cancel')) return;
