@@ -194,14 +194,6 @@ const DEFAULT_WEIGHBRIDGE_CONFIG = [
   { id: 'weighbridgeUsed', label: 'Total Weighbridge Used', visible: true }
 ];
 
-const DEFAULT_FIRST_MILE_VEHICLE_REGISTERED_CONFIG = [
-  { id: 'vehicleNo', label: 'Vehicle Number', visible: true },
-  { id: 'district', label: 'District', visible: true },
-  { id: 'transporter', label: 'Transporter Name', visible: true },
-  { id: 'capacity', label: 'Capacity', visible: true },
-  { id: 'isMultipleMapping', label: 'Multiple Mapping', visible: true }
-];
-
 const DEFAULT_VEHICLE_ASSIGNED_CONFIG = [
   { id: 'refNo', label: 'Reference Number', visible: true },
   { id: 'district', label: 'District', visible: true },
@@ -467,7 +459,8 @@ function WeighbridgeVendors({ vendors, setVendors }) {
 
 function App() {
   const [activeReport, setActiveReport] = useState(() => {
-    return sessionStorage.getItem('activeReportTab') || 'welcome';
+    const saved = sessionStorage.getItem('activeReportTab') || 'welcome';
+    return saved === 'first-mile-vehicle-registered' ? 'welcome' : saved;
   });
 
   useEffect(() => {
@@ -499,7 +492,6 @@ function App() {
   const fileInputRef = useRef(null);
   
   const [firstMileTab, setFirstMileTab] = useState('pending-list');
-  const [fmVehicleTab, setFmVehicleTab] = useState('raw');
   const [pivotExportSelection, setPivotExportSelection] = useState('both');
   const [pivotState, setPivotState] = useState({});
   const [roTab, setRoTab] = useState('flat');
@@ -556,7 +548,6 @@ function App() {
   const [imeiStatusFilter, setImeiStatusFilter] = useState(null);
   const [districtFilter, setDistrictFilter] = useState(null);
   const [vehicleFilter, setVehicleFilter] = useState(null);
-  const [multipleMappingFilter, setMultipleMappingFilter] = useState(null);
   const [topNLimit, setTopNLimit] = useState(10);
   const [globalSearchTerm, setGlobalSearchTerm] = useState('');
   
@@ -604,8 +595,6 @@ function App() {
         return "Lifting Report - Commodity Wise Summary";
       }
       return "Lifting Report";
-    } else if (reportKey === 'first-mile-vehicle-registered') {
-      return "First Mile Vehicle Registered";
     } else if (reportKey === 'multi-trip-analysis') {
       return "Multi-Trip Analysis";
     } else if (reportKey === 'gps-analysis') {
@@ -710,7 +699,6 @@ function App() {
     else if (activeReport === 'multi-trip-analysis') defaultConf = [...DEFAULT_MULTI_TRIP_CONFIG];
     else if (activeReport === 'eta-route') defaultConf = [...DEFAULT_ETA_ROUTE_CONFIG];
     else if (activeReport === 'penalty-epod') defaultConf = [...DEFAULT_PENALTY_EPOD_CONFIG];
-    else if (activeReport === 'first-mile-vehicle-registered') defaultConf = [...DEFAULT_FIRST_MILE_VEHICLE_REGISTERED_CONFIG];
     else if (activeReport === 'vehicle-assigned') defaultConf = [...DEFAULT_VEHICLE_ASSIGNED_CONFIG];
     else if (activeReport === 'weighbridge-report') defaultConf = [...DEFAULT_WEIGHBRIDGE_CONFIG];
     else if (activeReport === 'epod-photo-analysis') defaultConf = [...DEFAULT_EPOD_PHOTO_ANALYSIS_CONFIG];
@@ -885,11 +873,7 @@ function App() {
     const files = Array.from(e.target.files);
     if (!files.length) return;
     
-    if (activeReport === 'first-mile-vehicle-registered' && files.length === 2) {
-       processFmFiles(files[0], files[1]);
-    } else {
-       processFile(files[0]);
-    }
+    processFile(files[0]);
   };
 
   const processFile = (file) => {
@@ -964,56 +948,6 @@ function App() {
     };
     reader.readAsArrayBuffer(file);
   };
-
-  const processFmFiles = (f1, f2) => {
-    setIsLoading(true);
-    setProgress({ percent: 0, message: 'Reading Files...' });
-    
-    const readAsArrayBuffer = (file) => new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.onload = e => resolve(e.target.result);
-      reader.readAsArrayBuffer(file);
-    });
-
-    let mainFile = f1.name.toLowerCase().includes('vehic') ? f1 : f2;
-    let masterFile = f1 === mainFile ? f2 : f1;
-
-    Promise.all([readAsArrayBuffer(mainFile), readAsArrayBuffer(masterFile)]).then(([mainBuf, masterBuf]) => {
-      const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
-      
-      worker.onmessage = (e) => {
-        if (e.data.type === 'progress') {
-            setProgress({ percent: e.data.percent, message: e.data.message });
-            return;
-        }
-        setIsLoading(false);
-        setProgress({ percent: 100, message: 'Complete' });
-        if (e.data.type === 'error' || e.data.error) {
-          showToast(e.data.message || 'Error Processing File', 'error', 5000);
-        } else if (e.data.type === 'success' || !e.data.error) {
-          setReportData(prev => ({ ...prev, [activeReport]: e.data.data }));
-          showToast('Data Uploaded Successfully!', 'success', 3000);
-        }
-        worker.terminate();
-      };
-
-      worker.onerror = (err) => {
-        setIsLoading(false);
-        showToast('Error processing files', 'error', 5000);
-        worker.terminate();
-      };
-
-      let customAttrs = {};
-      try {
-        const saved = localStorage.getItem('customReportAttributes_v3');
-        if (saved) customAttrs = JSON.parse(saved);
-      } catch(e) {}
-
-      worker.postMessage({ data: mainBuf, fmMasterData: masterBuf, activeReport, customAttributes: customAttrs });
-    });
-  };
-
-
 
   const handleProcessLiftingFiles = () => {
     if (!mainLiftingFile) return;
@@ -1095,7 +1029,7 @@ function App() {
          console.error('Failed to parse custom attributes in App.jsx', e);
       }
 
-      worker.postMessage({ data: mainBuffer, trackingData: trackBuffer, fmMasterData: trackBuffer, activeReport, customAttributes: customAttrs });
+      worker.postMessage({ data: mainBuffer, trackingData: trackBuffer, activeReport, customAttributes: customAttrs });
     }).catch(err => {
       setIsLoading(false);
       showToast('Failed to read uploaded files.', 'error', 5000);
@@ -1668,7 +1602,6 @@ function App() {
     setVehicleFilter(null);
     setWbIdFilter(null);
     setImeiStatusFilter(null);
-    setMultipleMappingFilter(null);
     setLastMileEpodTab('pending');
     setLiftingTab('summary');
     setFilterStatus('All');
@@ -1687,7 +1620,6 @@ function App() {
     setVehicleFilter(null);
     setWbIdFilter(null);
     setImeiStatusFilter(null);
-    setMultipleMappingFilter(null);
     setLastMileEpodTab('pending');
     setLiftingTab('summary');
     setReportData(prev => ({ ...prev, [activeReport]: [] }));
@@ -1891,26 +1823,6 @@ function App() {
        return filtered;
     }
 
-    if (activeReport === 'first-mile-vehicle-registered') {
-       if (districtFilter && districtFilter.length > 0) {
-           filtered = filtered.filter(row => districtFilter.includes(row.district));
-       }
-       if (vehicleFilter && vehicleFilter.length > 0) {
-           filtered = filtered.filter(row => vehicleFilter.includes(row.vehicleNo));
-       }
-       if (multipleMappingFilter && multipleMappingFilter.length > 0) {
-           filtered = filtered.filter(row => multipleMappingFilter.includes(row.isMultipleMapping || 'No'));
-       }
-       
-       // Sort by district alphabetically
-       filtered.sort((a, b) => (a.district || '').localeCompare(b.district || ''));
-       
-       // Assign Sr. No.
-       filtered = filtered.map((row, idx) => ({ ...row, 'Sr. No.': idx + 1 }));
-       
-       return filtered;
-    }
-
     if (activeReport === 'last-mile-epod') {
        if (dcMonthFilter !== null) {
           filtered = filtered.filter(row => dcMonthFilter.includes(row.dcMonth));
@@ -1965,133 +1877,6 @@ function App() {
 
     const groupedData = [];
     const distGroups = {};
-
-    if (activeReport === 'first-mile-vehicle-registered' && fmVehicleTab === 'pivot') {
-      const distCount = {};
-      const distTransCount = {};
-      displayData.filter(row => !row.isSubtotal).forEach(row => {
-          const dist = row.district || 'Unknown';
-          const trans = row.transporterName || 'Unknown';
-          distCount[dist] = (distCount[dist] || 0) + 1;
-          const dtKey = dist + '|||' + trans;
-          distTransCount[dtKey] = (distTransCount[dtKey] || 0) + 1;
-      });
-
-      const table1Rows = Object.keys(distCount).sort().map(d => ({
-          district: d,
-          count: distCount[d]
-      }));
-
-      const table2Rows = Object.keys(distTransCount).sort().map(dt => {
-          const [d, t] = dt.split('|||');
-          return { district: d, transporter: t, count: distTransCount[dt] };
-      });
-
-      const t1Data = table1Rows.map((r, i) => [String(i + 1), r.district, String(r.count)]);
-      t1Data.push([{ content: 'Total', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } }, { content: String(table1Rows.reduce((s, r) => s + r.count, 0)), styles: { halign: 'right', fontStyle: 'bold', textColor: [0,0,255] } }]);
-
-      autoTable(doc, {
-        head: [["Sr. No.", "District", "No. of Vehicle"]],
-        body: t1Data,
-        startY: 35,
-        theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
-        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
-        columnStyles: {
-            2: { halign: 'right' }
-        },
-        margin: { left: 14 },
-        didDrawPage: function (data) {
-          doc.setGState(new doc.GState({ opacity: 0.15 }));
-          doc.setFontSize(80);
-          doc.setTextColor(150, 150, 150);
-          doc.setFont("helvetica", "bold");
-          const companyTitleStr = localStorage.getItem('companyTitle');
-          const defaultWatermark = companyTitleStr === null ? "FarEye" : (companyTitleStr ? companyTitleStr.split(' ')[0] : "");
-          if (defaultWatermark.trim() !== '') {
-              const textWidth = doc.getTextWidth(defaultWatermark);
-              const x = (doc.internal.pageSize.getWidth() - textWidth) / 2;
-              const y = doc.internal.pageSize.getHeight() / 2;
-              doc.text(defaultWatermark, x, y);
-          }
-          doc.setGState(new doc.GState({ opacity: 1.0 }));
-          doc.setLineWidth(0.5);
-          doc.setDrawColor(200, 200, 200);
-          doc.line(14, doc.internal.pageSize.getHeight() - 15, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 15);
-          doc.setFontSize(10);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(100, 100, 100);
-          doc.text("Page " + data.pageNumber, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-        }
-      });
-
-      const t2Data = table2Rows.map((r, i) => [String(i + 1), r.district, r.transporter, String(r.count)]);
-      t2Data.push([{ content: 'Total', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold' } }, { content: String(table2Rows.reduce((s, r) => s + r.count, 0)), styles: { halign: 'right', fontStyle: 'bold', textColor: [0,0,255] } }]);
-
-      autoTable(doc, {
-        head: [["Sr. No.", "District", "Transporter Name", "No. of Vehicle"]],
-        body: t2Data,
-        startY: doc.lastAutoTable.finalY + 15,
-        theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
-        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
-        columnStyles: {
-            3: { halign: 'right' }
-        },
-        margin: { left: 14 },
-        didDrawPage: function (data) {
-          doc.setGState(new doc.GState({ opacity: 0.15 }));
-          doc.setFontSize(80);
-          doc.setTextColor(150, 150, 150);
-          doc.setFont("helvetica", "bold");
-          const companyTitleStr = localStorage.getItem('companyTitle');
-          const defaultWatermark = companyTitleStr === null ? "FarEye" : (companyTitleStr ? companyTitleStr.split(' ')[0] : "");
-          if (defaultWatermark.trim() !== '') {
-              const textWidth = doc.getTextWidth(defaultWatermark);
-              const x = (doc.internal.pageSize.getWidth() - textWidth) / 2;
-              const y = doc.internal.pageSize.getHeight() / 2;
-              doc.text(defaultWatermark, x, y);
-          }
-          doc.setGState(new doc.GState({ opacity: 1.0 }));
-          doc.setLineWidth(0.5);
-          doc.setDrawColor(200, 200, 200);
-          doc.line(14, doc.internal.pageSize.getHeight() - 15, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 15);
-          doc.setFontSize(10);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(100, 100, 100);
-          doc.text("Page " + data.pageNumber, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-        },
-        didDrawPage: function (data) {
-          doc.setGState(new doc.GState({ opacity: 0.15 }));
-          doc.setFontSize(80);
-          doc.setTextColor(150, 150, 150);
-          doc.setFont("helvetica", "bold");
-          
-          const companyTitleStr = localStorage.getItem('companyTitle');
-          const defaultWatermark = companyTitleStr === null ? "FarEye" : (companyTitleStr ? companyTitleStr.split(' ')[0] : "");
-          
-          if (defaultWatermark.trim() !== '') {
-              const textWidth = doc.getTextWidth(defaultWatermark);
-              const x = (doc.internal.pageSize.getWidth() - textWidth) / 2;
-              const y = doc.internal.pageSize.getHeight() / 2;
-              doc.text(defaultWatermark, x, y);
-          }
-          doc.setGState(new doc.GState({ opacity: 1.0 }));
-          
-          doc.setLineWidth(0.5);
-          doc.setDrawColor(200, 200, 200);
-          doc.line(14, doc.internal.pageSize.getHeight() - 15, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 15);
-          
-          doc.setFontSize(10);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(100, 100, 100);
-          doc.text("Page " + data.pageNumber, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-        }
-      });
-      
-      doc.save(`GSCSCL_${(reportTitle || activeReport || 'Report').replace(/[^a-z0-9]/gi, '_')}_Pivot.pdf`);
-      return;
-    }
 
     if (activeReport === 'lifting-report') {
        const GUJARAT_DISTRICTS = [
@@ -2236,268 +2021,14 @@ function App() {
             }
         }
         
-        if (activeReport === 'first-mile-vehicle-registered' && fmVehicleTab === 'pivot') {
-      const distCount = {};
-      const distTransCount = {};
-      displayData.filter(row => !row.isSubtotal).forEach(row => {
-          const dist = row.district || 'Unknown';
-          const trans = row.transporterName || 'Unknown';
-          distCount[dist] = (distCount[dist] || 0) + 1;
-          const dtKey = dist + '|||' + trans;
-          distTransCount[dtKey] = (distTransCount[dtKey] || 0) + 1;
-      });
-
-      const table1Rows = Object.keys(distCount).sort().map(d => ({
-          district: d,
-          count: distCount[d]
-      }));
-
-      const table2Rows = Object.keys(distTransCount).sort().map(dt => {
-          const [d, t] = dt.split('|||');
-          return { district: d, transporter: t, count: distTransCount[dt] };
-      });
-
-      const t1Data = table1Rows.map((r, i) => [String(i + 1), r.district, String(r.count)]);
-      t1Data.push([{ content: 'Total', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } }, { content: String(table1Rows.reduce((s, r) => s + r.count, 0)), styles: { halign: 'right', fontStyle: 'bold', textColor: [0,0,255] } }]);
-
-      autoTable(doc, {
-        head: [["Sr. No.", "District", "No. of Vehicle"]],
-        body: t1Data,
-        startY: 35,
-        theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
-        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
-        columnStyles: {
-            2: { halign: 'right' }
-        },
-        margin: { left: 14 },
-        didDrawPage: function (data) {
-          doc.setGState(new doc.GState({ opacity: 0.15 }));
-          doc.setFontSize(80);
-          doc.setTextColor(150, 150, 150);
-          doc.setFont("helvetica", "bold");
-          const companyTitleStr = localStorage.getItem('companyTitle');
-          const defaultWatermark = companyTitleStr === null ? "FarEye" : (companyTitleStr ? companyTitleStr.split(' ')[0] : "");
-          if (defaultWatermark.trim() !== '') {
-              const textWidth = doc.getTextWidth(defaultWatermark);
-              const x = (doc.internal.pageSize.getWidth() - textWidth) / 2;
-              const y = doc.internal.pageSize.getHeight() / 2;
-              doc.text(defaultWatermark, x, y);
-          }
-          doc.setGState(new doc.GState({ opacity: 1.0 }));
-          doc.setLineWidth(0.5);
-          doc.setDrawColor(200, 200, 200);
-          doc.line(14, doc.internal.pageSize.getHeight() - 15, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 15);
-          doc.setFontSize(10);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(100, 100, 100);
-          doc.text("Page " + data.pageNumber, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-        }
-      });
-
-      const t2Data = table2Rows.map((r, i) => [String(i + 1), r.district, r.transporter, String(r.count)]);
-      t2Data.push([{ content: 'Total', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold' } }, { content: String(table2Rows.reduce((s, r) => s + r.count, 0)), styles: { halign: 'right', fontStyle: 'bold', textColor: [0,0,255] } }]);
-
-      autoTable(doc, {
-        head: [["Sr. No.", "District", "Transporter Name", "No. of Vehicle"]],
-        body: t2Data,
-        startY: doc.lastAutoTable.finalY + 15,
-        theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
-        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
-        columnStyles: {
-            3: { halign: 'right' }
-        },
-        margin: { left: 14 },
-        didDrawPage: function (data) {
-          doc.setGState(new doc.GState({ opacity: 0.15 }));
-          doc.setFontSize(80);
-          doc.setTextColor(150, 150, 150);
-          doc.setFont("helvetica", "bold");
-          const companyTitleStr = localStorage.getItem('companyTitle');
-          const defaultWatermark = companyTitleStr === null ? "FarEye" : (companyTitleStr ? companyTitleStr.split(' ')[0] : "");
-          if (defaultWatermark.trim() !== '') {
-              const textWidth = doc.getTextWidth(defaultWatermark);
-              const x = (doc.internal.pageSize.getWidth() - textWidth) / 2;
-              const y = doc.internal.pageSize.getHeight() / 2;
-              doc.text(defaultWatermark, x, y);
-          }
-          doc.setGState(new doc.GState({ opacity: 1.0 }));
-          doc.setLineWidth(0.5);
-          doc.setDrawColor(200, 200, 200);
-          doc.line(14, doc.internal.pageSize.getHeight() - 15, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 15);
-          doc.setFontSize(10);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(100, 100, 100);
-          doc.text("Page " + data.pageNumber, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-        },
-        didDrawPage: function (data) {
-          doc.setGState(new doc.GState({ opacity: 0.15 }));
-          doc.setFontSize(80);
-          doc.setTextColor(150, 150, 150);
-          doc.setFont("helvetica", "bold");
-          
-          const companyTitleStr = localStorage.getItem('companyTitle');
-          const defaultWatermark = companyTitleStr === null ? "FarEye" : (companyTitleStr ? companyTitleStr.split(' ')[0] : "");
-          
-          if (defaultWatermark.trim() !== '') {
-              const textWidth = doc.getTextWidth(defaultWatermark);
-              const x = (doc.internal.pageSize.getWidth() - textWidth) / 2;
-              const y = doc.internal.pageSize.getHeight() / 2;
-              doc.text(defaultWatermark, x, y);
-          }
-          doc.setGState(new doc.GState({ opacity: 1.0 }));
-          
-          doc.setLineWidth(0.5);
-          doc.setDrawColor(200, 200, 200);
-          doc.line(14, doc.internal.pageSize.getHeight() - 15, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 15);
-          
-          doc.setFontSize(10);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(100, 100, 100);
-          doc.text("Page " + data.pageNumber, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-        }
-      });
-      
-      doc.save(`GSCSCL_${(reportTitle || activeReport || 'Report').replace(/[^a-z0-9]/gi, '_')}_Pivot.pdf`);
-      return;
-    }
-
-    if (activeReport === 'lifting-report') {
+        if (activeReport === 'lifting-report') {
            const tps = group.tpsGenerated || 0;
            group.pendingEpodDriver = Math.max(0, tps - group.epodDriver);
            group.percentEpodDriver = tps > 0 ? ((group.epodDriver / tps) * 100).toFixed(0) + '%' : '0%';
            
            group.pendingEpodManager = Math.max(0, tps - group.epodManager);
-           group.percentEpodManager = tps > 0 ? ((group.epodManager / tps) * 100).toFixed(0) + '%' : '0%';
+            group.percentEpodManager = tps > 0 ? ((group.epodManager / tps) * 100).toFixed(0) + '%' : '0%';
         }
-
-         if (activeReport === 'first-mile-vehicle-registered' && fmVehicleTab === 'pivot') {
-      const distCount = {};
-      const distTransCount = {};
-      displayData.filter(row => !row.isSubtotal).forEach(row => {
-          const dist = row.district || 'Unknown';
-          const trans = row.transporterName || 'Unknown';
-          distCount[dist] = (distCount[dist] || 0) + 1;
-          const dtKey = dist + '|||' + trans;
-          distTransCount[dtKey] = (distTransCount[dtKey] || 0) + 1;
-      });
-
-      const table1Rows = Object.keys(distCount).sort().map(d => ({
-          district: d,
-          count: distCount[d]
-      }));
-
-      const table2Rows = Object.keys(distTransCount).sort().map(dt => {
-          const [d, t] = dt.split('|||');
-          return { district: d, transporter: t, count: distTransCount[dt] };
-      });
-
-      const t1Data = table1Rows.map((r, i) => [String(i + 1), r.district, String(r.count)]);
-      t1Data.push([{ content: 'Total', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } }, { content: String(table1Rows.reduce((s, r) => s + r.count, 0)), styles: { halign: 'right', fontStyle: 'bold', textColor: [0,0,255] } }]);
-
-      autoTable(doc, {
-        head: [["Sr. No.", "District", "No. of Vehicle"]],
-        body: t1Data,
-        startY: 35,
-        theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
-        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
-        columnStyles: {
-            2: { halign: 'right' }
-        },
-        margin: { left: 14 },
-        didDrawPage: function (data) {
-          doc.setGState(new doc.GState({ opacity: 0.15 }));
-          doc.setFontSize(80);
-          doc.setTextColor(150, 150, 150);
-          doc.setFont("helvetica", "bold");
-          const companyTitleStr = localStorage.getItem('companyTitle');
-          const defaultWatermark = companyTitleStr === null ? "FarEye" : (companyTitleStr ? companyTitleStr.split(' ')[0] : "");
-          if (defaultWatermark.trim() !== '') {
-              const textWidth = doc.getTextWidth(defaultWatermark);
-              const x = (doc.internal.pageSize.getWidth() - textWidth) / 2;
-              const y = doc.internal.pageSize.getHeight() / 2;
-              doc.text(defaultWatermark, x, y);
-          }
-          doc.setGState(new doc.GState({ opacity: 1.0 }));
-          doc.setLineWidth(0.5);
-          doc.setDrawColor(200, 200, 200);
-          doc.line(14, doc.internal.pageSize.getHeight() - 15, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 15);
-          doc.setFontSize(10);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(100, 100, 100);
-          doc.text("Page " + data.pageNumber, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-        }
-      });
-
-      const t2Data = table2Rows.map((r, i) => [String(i + 1), r.district, r.transporter, String(r.count)]);
-      t2Data.push([{ content: 'Total', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold' } }, { content: String(table2Rows.reduce((s, r) => s + r.count, 0)), styles: { halign: 'right', fontStyle: 'bold', textColor: [0,0,255] } }]);
-
-      autoTable(doc, {
-        head: [["Sr. No.", "District", "Transporter Name", "No. of Vehicle"]],
-        body: t2Data,
-        startY: doc.lastAutoTable.finalY + 15,
-        theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
-        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
-        columnStyles: {
-            3: { halign: 'right' }
-        },
-        margin: { left: 14 },
-        didDrawPage: function (data) {
-          doc.setGState(new doc.GState({ opacity: 0.15 }));
-          doc.setFontSize(80);
-          doc.setTextColor(150, 150, 150);
-          doc.setFont("helvetica", "bold");
-          const companyTitleStr = localStorage.getItem('companyTitle');
-          const defaultWatermark = companyTitleStr === null ? "FarEye" : (companyTitleStr ? companyTitleStr.split(' ')[0] : "");
-          if (defaultWatermark.trim() !== '') {
-              const textWidth = doc.getTextWidth(defaultWatermark);
-              const x = (doc.internal.pageSize.getWidth() - textWidth) / 2;
-              const y = doc.internal.pageSize.getHeight() / 2;
-              doc.text(defaultWatermark, x, y);
-          }
-          doc.setGState(new doc.GState({ opacity: 1.0 }));
-          doc.setLineWidth(0.5);
-          doc.setDrawColor(200, 200, 200);
-          doc.line(14, doc.internal.pageSize.getHeight() - 15, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 15);
-          doc.setFontSize(10);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(100, 100, 100);
-          doc.text("Page " + data.pageNumber, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-        },
-        didDrawPage: function (data) {
-          doc.setGState(new doc.GState({ opacity: 0.15 }));
-          doc.setFontSize(80);
-          doc.setTextColor(150, 150, 150);
-          doc.setFont("helvetica", "bold");
-          
-          const companyTitleStr = localStorage.getItem('companyTitle');
-          const defaultWatermark = companyTitleStr === null ? "FarEye" : (companyTitleStr ? companyTitleStr.split(' ')[0] : "");
-          
-          if (defaultWatermark.trim() !== '') {
-              const textWidth = doc.getTextWidth(defaultWatermark);
-              const x = (doc.internal.pageSize.getWidth() - textWidth) / 2;
-              const y = doc.internal.pageSize.getHeight() / 2;
-              doc.text(defaultWatermark, x, y);
-          }
-          doc.setGState(new doc.GState({ opacity: 1.0 }));
-          
-          doc.setLineWidth(0.5);
-          doc.setDrawColor(200, 200, 200);
-          doc.line(14, doc.internal.pageSize.getHeight() - 15, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 15);
-          
-          doc.setFontSize(10);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(100, 100, 100);
-          doc.text("Page " + data.pageNumber, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-        }
-      });
-      
-      doc.save(`GSCSCL_${(reportTitle || activeReport || 'Report').replace(/[^a-z0-9]/gi, '_')}_Pivot.pdf`);
-      return;
-    }
 
     if (activeReport === 'lifting-report') {
             group.vehicleAssigned = group.vehicleSet.size;
@@ -2562,133 +2093,6 @@ function App() {
     });
 
     // Sort and add Sr. No for lifting-report
-    if (activeReport === 'first-mile-vehicle-registered' && fmVehicleTab === 'pivot') {
-      const distCount = {};
-      const distTransCount = {};
-      displayData.filter(row => !row.isSubtotal).forEach(row => {
-          const dist = row.district || 'Unknown';
-          const trans = row.transporterName || 'Unknown';
-          distCount[dist] = (distCount[dist] || 0) + 1;
-          const dtKey = dist + '|||' + trans;
-          distTransCount[dtKey] = (distTransCount[dtKey] || 0) + 1;
-      });
-
-      const table1Rows = Object.keys(distCount).sort().map(d => ({
-          district: d,
-          count: distCount[d]
-      }));
-
-      const table2Rows = Object.keys(distTransCount).sort().map(dt => {
-          const [d, t] = dt.split('|||');
-          return { district: d, transporter: t, count: distTransCount[dt] };
-      });
-
-      const t1Data = table1Rows.map((r, i) => [String(i + 1), r.district, String(r.count)]);
-      t1Data.push([{ content: 'Total', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } }, { content: String(table1Rows.reduce((s, r) => s + r.count, 0)), styles: { halign: 'right', fontStyle: 'bold', textColor: [0,0,255] } }]);
-
-      autoTable(doc, {
-        head: [["Sr. No.", "District", "No. of Vehicle"]],
-        body: t1Data,
-        startY: 35,
-        theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
-        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
-        columnStyles: {
-            2: { halign: 'right' }
-        },
-        margin: { left: 14 },
-        didDrawPage: function (data) {
-          doc.setGState(new doc.GState({ opacity: 0.15 }));
-          doc.setFontSize(80);
-          doc.setTextColor(150, 150, 150);
-          doc.setFont("helvetica", "bold");
-          const companyTitleStr = localStorage.getItem('companyTitle');
-          const defaultWatermark = companyTitleStr === null ? "FarEye" : (companyTitleStr ? companyTitleStr.split(' ')[0] : "");
-          if (defaultWatermark.trim() !== '') {
-              const textWidth = doc.getTextWidth(defaultWatermark);
-              const x = (doc.internal.pageSize.getWidth() - textWidth) / 2;
-              const y = doc.internal.pageSize.getHeight() / 2;
-              doc.text(defaultWatermark, x, y);
-          }
-          doc.setGState(new doc.GState({ opacity: 1.0 }));
-          doc.setLineWidth(0.5);
-          doc.setDrawColor(200, 200, 200);
-          doc.line(14, doc.internal.pageSize.getHeight() - 15, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 15);
-          doc.setFontSize(10);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(100, 100, 100);
-          doc.text("Page " + data.pageNumber, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-        }
-      });
-
-      const t2Data = table2Rows.map((r, i) => [String(i + 1), r.district, r.transporter, String(r.count)]);
-      t2Data.push([{ content: 'Total', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold' } }, { content: String(table2Rows.reduce((s, r) => s + r.count, 0)), styles: { halign: 'right', fontStyle: 'bold', textColor: [0,0,255] } }]);
-
-      autoTable(doc, {
-        head: [["Sr. No.", "District", "Transporter Name", "No. of Vehicle"]],
-        body: t2Data,
-        startY: doc.lastAutoTable.finalY + 15,
-        theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
-        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
-        columnStyles: {
-            3: { halign: 'right' }
-        },
-        margin: { left: 14 },
-        didDrawPage: function (data) {
-          doc.setGState(new doc.GState({ opacity: 0.15 }));
-          doc.setFontSize(80);
-          doc.setTextColor(150, 150, 150);
-          doc.setFont("helvetica", "bold");
-          const companyTitleStr = localStorage.getItem('companyTitle');
-          const defaultWatermark = companyTitleStr === null ? "FarEye" : (companyTitleStr ? companyTitleStr.split(' ')[0] : "");
-          if (defaultWatermark.trim() !== '') {
-              const textWidth = doc.getTextWidth(defaultWatermark);
-              const x = (doc.internal.pageSize.getWidth() - textWidth) / 2;
-              const y = doc.internal.pageSize.getHeight() / 2;
-              doc.text(defaultWatermark, x, y);
-          }
-          doc.setGState(new doc.GState({ opacity: 1.0 }));
-          doc.setLineWidth(0.5);
-          doc.setDrawColor(200, 200, 200);
-          doc.line(14, doc.internal.pageSize.getHeight() - 15, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 15);
-          doc.setFontSize(10);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(100, 100, 100);
-          doc.text("Page " + data.pageNumber, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-        },
-        didDrawPage: function (data) {
-          doc.setGState(new doc.GState({ opacity: 0.15 }));
-          doc.setFontSize(80);
-          doc.setTextColor(150, 150, 150);
-          doc.setFont("helvetica", "bold");
-          
-          const companyTitleStr = localStorage.getItem('companyTitle');
-          const defaultWatermark = companyTitleStr === null ? "FarEye" : (companyTitleStr ? companyTitleStr.split(' ')[0] : "");
-          
-          if (defaultWatermark.trim() !== '') {
-              const textWidth = doc.getTextWidth(defaultWatermark);
-              const x = (doc.internal.pageSize.getWidth() - textWidth) / 2;
-              const y = doc.internal.pageSize.getHeight() / 2;
-              doc.text(defaultWatermark, x, y);
-          }
-          doc.setGState(new doc.GState({ opacity: 1.0 }));
-          
-          doc.setLineWidth(0.5);
-          doc.setDrawColor(200, 200, 200);
-          doc.line(14, doc.internal.pageSize.getHeight() - 15, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 15);
-          
-          doc.setFontSize(10);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(100, 100, 100);
-          doc.text("Page " + data.pageNumber, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-        }
-      });
-      
-      doc.save(`GSCSCL_${(reportTitle || activeReport || 'Report').replace(/[^a-z0-9]/gi, '_')}_Pivot.pdf`);
-      return;
-    }
-
     if (activeReport === 'lifting-report') {
        groupedData.sort((a, b) => (a.liftedQty || 0) - (b.liftedQty || 0));
        let sr = 1;
@@ -2699,132 +2103,6 @@ function App() {
 
     // Grand totals logic
     let gtLifting = {};
-    if (activeReport === 'first-mile-vehicle-registered' && fmVehicleTab === 'pivot') {
-      const distCount = {};
-      const distTransCount = {};
-      displayData.filter(row => !row.isSubtotal).forEach(row => {
-          const dist = row.district || 'Unknown';
-          const trans = row.transporterName || 'Unknown';
-          distCount[dist] = (distCount[dist] || 0) + 1;
-          const dtKey = dist + '|||' + trans;
-          distTransCount[dtKey] = (distTransCount[dtKey] || 0) + 1;
-      });
-
-      const table1Rows = Object.keys(distCount).sort().map(d => ({
-          district: d,
-          count: distCount[d]
-      }));
-
-      const table2Rows = Object.keys(distTransCount).sort().map(dt => {
-          const [d, t] = dt.split('|||');
-          return { district: d, transporter: t, count: distTransCount[dt] };
-      });
-
-      const t1Data = table1Rows.map((r, i) => [String(i + 1), r.district, String(r.count)]);
-      t1Data.push([{ content: 'Total', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } }, { content: String(table1Rows.reduce((s, r) => s + r.count, 0)), styles: { halign: 'right', fontStyle: 'bold', textColor: [0,0,255] } }]);
-
-      autoTable(doc, {
-        head: [["Sr. No.", "District", "No. of Vehicle"]],
-        body: t1Data,
-        startY: 35,
-        theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
-        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
-        columnStyles: {
-            2: { halign: 'right' }
-        },
-        margin: { left: 14 },
-        didDrawPage: function (data) {
-          doc.setGState(new doc.GState({ opacity: 0.15 }));
-          doc.setFontSize(80);
-          doc.setTextColor(150, 150, 150);
-          doc.setFont("helvetica", "bold");
-          const companyTitleStr = localStorage.getItem('companyTitle');
-          const defaultWatermark = companyTitleStr === null ? "FarEye" : (companyTitleStr ? companyTitleStr.split(' ')[0] : "");
-          if (defaultWatermark.trim() !== '') {
-              const textWidth = doc.getTextWidth(defaultWatermark);
-              const x = (doc.internal.pageSize.getWidth() - textWidth) / 2;
-              const y = doc.internal.pageSize.getHeight() / 2;
-              doc.text(defaultWatermark, x, y);
-          }
-          doc.setGState(new doc.GState({ opacity: 1.0 }));
-          doc.setLineWidth(0.5);
-          doc.setDrawColor(200, 200, 200);
-          doc.line(14, doc.internal.pageSize.getHeight() - 15, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 15);
-          doc.setFontSize(10);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(100, 100, 100);
-          doc.text("Page " + data.pageNumber, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-        }
-      });
-
-      const t2Data = table2Rows.map((r, i) => [String(i + 1), r.district, r.transporter, String(r.count)]);
-      t2Data.push([{ content: 'Total', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold' } }, { content: String(table2Rows.reduce((s, r) => s + r.count, 0)), styles: { halign: 'right', fontStyle: 'bold', textColor: [0,0,255] } }]);
-
-      autoTable(doc, {
-        head: [["Sr. No.", "District", "Transporter Name", "No. of Vehicle"]],
-        body: t2Data,
-        startY: doc.lastAutoTable.finalY + 15,
-        theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
-        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
-        columnStyles: {
-            3: { halign: 'right' }
-        },
-        margin: { left: 14 },
-        didDrawPage: function (data) {
-          doc.setGState(new doc.GState({ opacity: 0.15 }));
-          doc.setFontSize(80);
-          doc.setTextColor(150, 150, 150);
-          doc.setFont("helvetica", "bold");
-          const companyTitleStr = localStorage.getItem('companyTitle');
-          const defaultWatermark = companyTitleStr === null ? "FarEye" : (companyTitleStr ? companyTitleStr.split(' ')[0] : "");
-          if (defaultWatermark.trim() !== '') {
-              const textWidth = doc.getTextWidth(defaultWatermark);
-              const x = (doc.internal.pageSize.getWidth() - textWidth) / 2;
-              const y = doc.internal.pageSize.getHeight() / 2;
-              doc.text(defaultWatermark, x, y);
-          }
-          doc.setGState(new doc.GState({ opacity: 1.0 }));
-          doc.setLineWidth(0.5);
-          doc.setDrawColor(200, 200, 200);
-          doc.line(14, doc.internal.pageSize.getHeight() - 15, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 15);
-          doc.setFontSize(10);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(100, 100, 100);
-          doc.text("Page " + data.pageNumber, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-        },
-        didDrawPage: function (data) {
-          doc.setGState(new doc.GState({ opacity: 0.15 }));
-          doc.setFontSize(80);
-          doc.setTextColor(150, 150, 150);
-          doc.setFont("helvetica", "bold");
-          
-          const companyTitleStr = localStorage.getItem('companyTitle');
-          const defaultWatermark = companyTitleStr === null ? "FarEye" : (companyTitleStr ? companyTitleStr.split(' ')[0] : "");
-          
-          if (defaultWatermark.trim() !== '') {
-              const textWidth = doc.getTextWidth(defaultWatermark);
-              const x = (doc.internal.pageSize.getWidth() - textWidth) / 2;
-              const y = doc.internal.pageSize.getHeight() / 2;
-              doc.text(defaultWatermark, x, y);
-          }
-          doc.setGState(new doc.GState({ opacity: 1.0 }));
-          
-          doc.setLineWidth(0.5);
-          doc.setDrawColor(200, 200, 200);
-          doc.line(14, doc.internal.pageSize.getHeight() - 15, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 15);
-          
-          doc.setFontSize(10);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(100, 100, 100);
-          doc.text("Page " + data.pageNumber, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-        }
-      });
-      
-      doc.save(`GSCSCL_${(reportTitle || activeReport || 'Report').replace(/[^a-z0-9]/gi, '_')}_Pivot.pdf`);
-      return;
-    }
 
     if (activeReport === 'lifting-report') {
        liftingNumerics.forEach(m => gtLifting[m] = 0);
@@ -2958,133 +2236,6 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
         mismatched: gtMismatched,
         missing: gtMissing
       };
-      
-      if (activeReport === 'first-mile-vehicle-registered' && fmVehicleTab === 'pivot') {
-      const distCount = {};
-      const distTransCount = {};
-      displayData.filter(row => !row.isSubtotal).forEach(row => {
-          const dist = row.district || 'Unknown';
-          const trans = row.transporterName || 'Unknown';
-          distCount[dist] = (distCount[dist] || 0) + 1;
-          const dtKey = dist + '|||' + trans;
-          distTransCount[dtKey] = (distTransCount[dtKey] || 0) + 1;
-      });
-
-      const table1Rows = Object.keys(distCount).sort().map(d => ({
-          district: d,
-          count: distCount[d]
-      }));
-
-      const table2Rows = Object.keys(distTransCount).sort().map(dt => {
-          const [d, t] = dt.split('|||');
-          return { district: d, transporter: t, count: distTransCount[dt] };
-      });
-
-      const t1Data = table1Rows.map((r, i) => [String(i + 1), r.district, String(r.count)]);
-      t1Data.push([{ content: 'Total', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } }, { content: String(table1Rows.reduce((s, r) => s + r.count, 0)), styles: { halign: 'right', fontStyle: 'bold', textColor: [0,0,255] } }]);
-
-      autoTable(doc, {
-        head: [["Sr. No.", "District", "No. of Vehicle"]],
-        body: t1Data,
-        startY: 35,
-        theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
-        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
-        columnStyles: {
-            2: { halign: 'right' }
-        },
-        margin: { left: 14 },
-        didDrawPage: function (data) {
-          doc.setGState(new doc.GState({ opacity: 0.15 }));
-          doc.setFontSize(80);
-          doc.setTextColor(150, 150, 150);
-          doc.setFont("helvetica", "bold");
-          const companyTitleStr = localStorage.getItem('companyTitle');
-          const defaultWatermark = companyTitleStr === null ? "FarEye" : (companyTitleStr ? companyTitleStr.split(' ')[0] : "");
-          if (defaultWatermark.trim() !== '') {
-              const textWidth = doc.getTextWidth(defaultWatermark);
-              const x = (doc.internal.pageSize.getWidth() - textWidth) / 2;
-              const y = doc.internal.pageSize.getHeight() / 2;
-              doc.text(defaultWatermark, x, y);
-          }
-          doc.setGState(new doc.GState({ opacity: 1.0 }));
-          doc.setLineWidth(0.5);
-          doc.setDrawColor(200, 200, 200);
-          doc.line(14, doc.internal.pageSize.getHeight() - 15, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 15);
-          doc.setFontSize(10);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(100, 100, 100);
-          doc.text("Page " + data.pageNumber, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-        }
-      });
-
-      const t2Data = table2Rows.map((r, i) => [String(i + 1), r.district, r.transporter, String(r.count)]);
-      t2Data.push([{ content: 'Total', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold' } }, { content: String(table2Rows.reduce((s, r) => s + r.count, 0)), styles: { halign: 'right', fontStyle: 'bold', textColor: [0,0,255] } }]);
-
-      autoTable(doc, {
-        head: [["Sr. No.", "District", "Transporter Name", "No. of Vehicle"]],
-        body: t2Data,
-        startY: doc.lastAutoTable.finalY + 15,
-        theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
-        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
-        columnStyles: {
-            3: { halign: 'right' }
-        },
-        margin: { left: 14 },
-        didDrawPage: function (data) {
-          doc.setGState(new doc.GState({ opacity: 0.15 }));
-          doc.setFontSize(80);
-          doc.setTextColor(150, 150, 150);
-          doc.setFont("helvetica", "bold");
-          const companyTitleStr = localStorage.getItem('companyTitle');
-          const defaultWatermark = companyTitleStr === null ? "FarEye" : (companyTitleStr ? companyTitleStr.split(' ')[0] : "");
-          if (defaultWatermark.trim() !== '') {
-              const textWidth = doc.getTextWidth(defaultWatermark);
-              const x = (doc.internal.pageSize.getWidth() - textWidth) / 2;
-              const y = doc.internal.pageSize.getHeight() / 2;
-              doc.text(defaultWatermark, x, y);
-          }
-          doc.setGState(new doc.GState({ opacity: 1.0 }));
-          doc.setLineWidth(0.5);
-          doc.setDrawColor(200, 200, 200);
-          doc.line(14, doc.internal.pageSize.getHeight() - 15, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 15);
-          doc.setFontSize(10);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(100, 100, 100);
-          doc.text("Page " + data.pageNumber, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-        },
-        didDrawPage: function (data) {
-          doc.setGState(new doc.GState({ opacity: 0.15 }));
-          doc.setFontSize(80);
-          doc.setTextColor(150, 150, 150);
-          doc.setFont("helvetica", "bold");
-          
-          const companyTitleStr = localStorage.getItem('companyTitle');
-          const defaultWatermark = companyTitleStr === null ? "FarEye" : (companyTitleStr ? companyTitleStr.split(' ')[0] : "");
-          
-          if (defaultWatermark.trim() !== '') {
-              const textWidth = doc.getTextWidth(defaultWatermark);
-              const x = (doc.internal.pageSize.getWidth() - textWidth) / 2;
-              const y = doc.internal.pageSize.getHeight() / 2;
-              doc.text(defaultWatermark, x, y);
-          }
-          doc.setGState(new doc.GState({ opacity: 1.0 }));
-          
-          doc.setLineWidth(0.5);
-          doc.setDrawColor(200, 200, 200);
-          doc.line(14, doc.internal.pageSize.getHeight() - 15, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 15);
-          
-          doc.setFontSize(10);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(100, 100, 100);
-          doc.text("Page " + data.pageNumber, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-        }
-      });
-      
-      doc.save(`GSCSCL_${(reportTitle || activeReport || 'Report').replace(/[^a-z0-9]/gi, '_')}_Pivot.pdf`);
-      return;
-    }
 
     if (activeReport === 'lifting-report') {
          const tps = gtLifting.tpsGenerated || 0;
@@ -3290,54 +2441,6 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
       XLSX.utils.book_append_sheet(wb, ws, "Trip Summary");
       const safeTitle = (reportTitle || 'Last_Mile_Godown_Trip_Summary').replace(/[^a-z0-9]/gi, '_');
       XLSX.writeFile(wb, `GSCSCL_${safeTitle}.xlsx`);
-      return;
-    }
-
-    if (activeReport === 'first-mile-vehicle-registered' && fmVehicleTab === 'pivot') {
-      const distCount = {};
-      const distTransCount = {};
-      displayData.filter(row => !row.isSubtotal).forEach(row => {
-          const dist = row.district || 'Unknown';
-          const trans = row.transporterName || 'Unknown';
-          distCount[dist] = (distCount[dist] || 0) + 1;
-          const dtKey = dist + '|||' + trans;
-          distTransCount[dtKey] = (distTransCount[dtKey] || 0) + 1;
-      });
-
-      const table1Rows = Object.keys(distCount).sort().map(d => ({
-          district: d,
-          count: distCount[d]
-      }));
-
-      const table2Rows = Object.keys(distTransCount).sort().map(dt => {
-          const [d, t] = dt.split('|||');
-          return { district: d, transporter: t, count: distTransCount[dt] };
-      });
-
-      if (pivotExportSelection === 'both' || pivotExportSelection === 'table1') {
-        const wsData1 = [
-          ["Sr. No.", "District", "No. of Vehicle"]
-        ];
-        table1Rows.forEach((r, i) => wsData1.push([i + 1, r.district, r.count]));
-        wsData1.push(["", "Total", table1Rows.reduce((s, r) => s + r.count, 0)]);
-        const ws1 = XLSX.utils.aoa_to_sheet(wsData1);
-        ws1['!cols'] = [{ wch: 10 }, { wch: 20 }, { wch: 15 }];
-        XLSX.utils.book_append_sheet(wb, ws1, "District Wise");
-      }
-
-      if (pivotExportSelection === 'both' || pivotExportSelection === 'table2') {
-        const wsData2 = [
-          ["Sr. No.", "District", "Transporter Name", "No. of Vehicle"]
-        ];
-        table2Rows.forEach((r, i) => wsData2.push([i + 1, r.district, r.transporter, r.count]));
-        wsData2.push(["", "", "Total", table2Rows.reduce((s, r) => s + r.count, 0)]);
-        const ws2 = XLSX.utils.aoa_to_sheet(wsData2);
-        ws2['!cols'] = [{ wch: 10 }, { wch: 20 }, { wch: 40 }, { wch: 15 }];
-        XLSX.utils.book_append_sheet(wb, ws2, "Transporter Wise");
-      }
-
-      const safeTitle = (reportTitle || activeReport || 'Report').replace(/[^a-z0-9]/gi, '_');
-      XLSX.writeFile(wb, `GSCSCL_${safeTitle}_Pivot.xlsx`);
       return;
     }
 
@@ -3851,93 +2954,7 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
              { content: 'Total Weighbridge Used', styles: { halign: 'center', fillColor: [180, 198, 231], textColor: [0,0,0], fontStyle: 'bold' } }
           ]
        ];
-    }
-    if (activeReport === 'first-mile-vehicle-registered' && fmVehicleTab === 'pivot') {
-      const distCount = {};
-      const distTransCount = {};
-      displayData.filter(row => !row.isSubtotal).forEach(row => {
-          const dist = row.district || 'Unknown';
-          const trans = row.transporterName || 'Unknown';
-          distCount[dist] = (distCount[dist] || 0) + 1;
-          const dtKey = dist + '|||' + trans;
-          distTransCount[dtKey] = (distTransCount[dtKey] || 0) + 1;
-      });
-
-      const table1Rows = Object.keys(distCount).sort().map(d => ({
-          district: d,
-          count: distCount[d]
-      }));
-
-      const table2Rows = Object.keys(distTransCount).sort().map(dt => {
-          const [d, t] = dt.split('|||');
-          return { district: d, transporter: t, count: distTransCount[dt] };
-      });
-
-      const didDrawPageFunc = function (data) {
-          doc.setGState(new doc.GState({ opacity: 0.15 }));
-          doc.setFontSize(80);
-          doc.setTextColor(150, 150, 150);
-          doc.setFont("helvetica", "bold");
-          const companyTitleStr = localStorage.getItem('companyTitle');
-          const defaultWatermark = companyTitleStr === null ? "FarEye" : (companyTitleStr ? companyTitleStr.split(' ')[0] : "");
-          if (defaultWatermark.trim() !== '') {
-              const textWidth = doc.getTextWidth(defaultWatermark);
-              const x = (doc.internal.pageSize.getWidth() - textWidth) / 2;
-              const y = doc.internal.pageSize.getHeight() / 2;
-              doc.text(defaultWatermark, x, y);
-          }
-          doc.setGState(new doc.GState({ opacity: 1.0 }));
-          doc.setLineWidth(0.5);
-          doc.setDrawColor(200, 200, 200);
-          doc.line(14, doc.internal.pageSize.getHeight() - 15, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 15);
-          doc.setFontSize(10);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(100, 100, 100);
-          doc.text("Page " + data.pageNumber, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-      };
-
-      if (pivotExportSelection === 'both' || pivotExportSelection === 'table1') {
-          const t1Data = table1Rows.map((r, i) => [String(i + 1), r.district, String(r.count)]);
-          t1Data.push([{ content: 'Total', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } }, { content: String(table1Rows.reduce((s, r) => s + r.count, 0)), styles: { halign: 'right', fontStyle: 'bold', textColor: [0,0,255] } }]);
-
-          autoTable(doc, {
-            head: [["Sr. No.", "District", "No. of Vehicle"]],
-            body: t1Data,
-            startY: 35,
-            theme: 'grid',
-            styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
-            headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
-            columnStyles: { 2: { halign: 'right' } },
-            margin: { left: 14 },
-            didDrawPage: didDrawPageFunc
-          });
-      }
-
-      if (pivotExportSelection === 'both' || pivotExportSelection === 'table2') {
-          const t2Data = table2Rows.map((r, i) => [String(i + 1), r.district, r.transporter, String(r.count)]);
-          t2Data.push([{ content: 'Total', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold' } }, { content: String(table2Rows.reduce((s, r) => s + r.count, 0)), styles: { halign: 'right', fontStyle: 'bold', textColor: [0,0,255] } }]);
-
-          let t2StartY = 35;
-          if ((pivotExportSelection === 'both' || pivotExportSelection === 'table1') && doc.lastAutoTable) {
-              t2StartY = doc.lastAutoTable.finalY + 15;
-          }
-
-          autoTable(doc, {
-            head: [["Sr. No.", "District", "Transporter Name", "No. of Vehicle"]],
-            body: t2Data,
-            startY: t2StartY,
-            theme: 'grid',
-            styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
-            headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
-            columnStyles: { 3: { halign: 'right' } },
-            margin: { left: 14 },
-            didDrawPage: didDrawPageFunc
-          });
-      }
-
-      doc.save(`GSCSCL_${(reportTitle || activeReport || 'Report').replace(/[^a-z0-9]/gi, '_')}_Pivot.pdf`);
-      return;
-    }
+     }
 
     if (activeReport === 'lifting-report') {
       const unitsRow = visibleColumns.map(col => {
@@ -4155,133 +3172,6 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
               doc.text(str, pageWidth - 8, pageHeight - 8, { align: 'right' });
             }
           });
-    }
-
-    if (activeReport === 'first-mile-vehicle-registered' && fmVehicleTab === 'pivot') {
-      const distCount = {};
-      const distTransCount = {};
-      displayData.filter(row => !row.isSubtotal).forEach(row => {
-          const dist = row.district || 'Unknown';
-          const trans = row.transporterName || 'Unknown';
-          distCount[dist] = (distCount[dist] || 0) + 1;
-          const dtKey = dist + '|||' + trans;
-          distTransCount[dtKey] = (distTransCount[dtKey] || 0) + 1;
-      });
-
-      const table1Rows = Object.keys(distCount).sort().map(d => ({
-          district: d,
-          count: distCount[d]
-      }));
-
-      const table2Rows = Object.keys(distTransCount).sort().map(dt => {
-          const [d, t] = dt.split('|||');
-          return { district: d, transporter: t, count: distTransCount[dt] };
-      });
-
-      const t1Data = table1Rows.map((r, i) => [String(i + 1), r.district, String(r.count)]);
-      t1Data.push([{ content: 'Total', colSpan: 2, styles: { halign: 'right', fontStyle: 'bold' } }, { content: String(table1Rows.reduce((s, r) => s + r.count, 0)), styles: { halign: 'right', fontStyle: 'bold', textColor: [0,0,255] } }]);
-
-      autoTable(doc, {
-        head: [["Sr. No.", "District", "No. of Vehicle"]],
-        body: t1Data,
-        startY: 35,
-        theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
-        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
-        columnStyles: {
-            2: { halign: 'right' }
-        },
-        margin: { left: 14 },
-        didDrawPage: function (data) {
-          doc.setGState(new doc.GState({ opacity: 0.15 }));
-          doc.setFontSize(80);
-          doc.setTextColor(150, 150, 150);
-          doc.setFont("helvetica", "bold");
-          const companyTitleStr = localStorage.getItem('companyTitle');
-          const defaultWatermark = companyTitleStr === null ? "FarEye" : (companyTitleStr ? companyTitleStr.split(' ')[0] : "");
-          if (defaultWatermark.trim() !== '') {
-              const textWidth = doc.getTextWidth(defaultWatermark);
-              const x = (doc.internal.pageSize.getWidth() - textWidth) / 2;
-              const y = doc.internal.pageSize.getHeight() / 2;
-              doc.text(defaultWatermark, x, y);
-          }
-          doc.setGState(new doc.GState({ opacity: 1.0 }));
-          doc.setLineWidth(0.5);
-          doc.setDrawColor(200, 200, 200);
-          doc.line(14, doc.internal.pageSize.getHeight() - 15, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 15);
-          doc.setFontSize(10);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(100, 100, 100);
-          doc.text("Page " + data.pageNumber, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-        }
-      });
-
-      const t2Data = table2Rows.map((r, i) => [String(i + 1), r.district, r.transporter, String(r.count)]);
-      t2Data.push([{ content: 'Total', colSpan: 3, styles: { halign: 'right', fontStyle: 'bold' } }, { content: String(table2Rows.reduce((s, r) => s + r.count, 0)), styles: { halign: 'right', fontStyle: 'bold', textColor: [0,0,255] } }]);
-
-      autoTable(doc, {
-        head: [["Sr. No.", "District", "Transporter Name", "No. of Vehicle"]],
-        body: t2Data,
-        startY: doc.lastAutoTable.finalY + 15,
-        theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
-        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
-        columnStyles: {
-            3: { halign: 'right' }
-        },
-        margin: { left: 14 },
-        didDrawPage: function (data) {
-          doc.setGState(new doc.GState({ opacity: 0.15 }));
-          doc.setFontSize(80);
-          doc.setTextColor(150, 150, 150);
-          doc.setFont("helvetica", "bold");
-          const companyTitleStr = localStorage.getItem('companyTitle');
-          const defaultWatermark = companyTitleStr === null ? "FarEye" : (companyTitleStr ? companyTitleStr.split(' ')[0] : "");
-          if (defaultWatermark.trim() !== '') {
-              const textWidth = doc.getTextWidth(defaultWatermark);
-              const x = (doc.internal.pageSize.getWidth() - textWidth) / 2;
-              const y = doc.internal.pageSize.getHeight() / 2;
-              doc.text(defaultWatermark, x, y);
-          }
-          doc.setGState(new doc.GState({ opacity: 1.0 }));
-          doc.setLineWidth(0.5);
-          doc.setDrawColor(200, 200, 200);
-          doc.line(14, doc.internal.pageSize.getHeight() - 15, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 15);
-          doc.setFontSize(10);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(100, 100, 100);
-          doc.text("Page " + data.pageNumber, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-        },
-        didDrawPage: function (data) {
-          doc.setGState(new doc.GState({ opacity: 0.15 }));
-          doc.setFontSize(80);
-          doc.setTextColor(150, 150, 150);
-          doc.setFont("helvetica", "bold");
-          
-          const companyTitleStr = localStorage.getItem('companyTitle');
-          const defaultWatermark = companyTitleStr === null ? "FarEye" : (companyTitleStr ? companyTitleStr.split(' ')[0] : "");
-          
-          if (defaultWatermark.trim() !== '') {
-              const textWidth = doc.getTextWidth(defaultWatermark);
-              const x = (doc.internal.pageSize.getWidth() - textWidth) / 2;
-              const y = doc.internal.pageSize.getHeight() / 2;
-              doc.text(defaultWatermark, x, y);
-          }
-          doc.setGState(new doc.GState({ opacity: 1.0 }));
-          
-          doc.setLineWidth(0.5);
-          doc.setDrawColor(200, 200, 200);
-          doc.line(14, doc.internal.pageSize.getHeight() - 15, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 15);
-          
-          doc.setFontSize(10);
-          doc.setFont("helvetica", "normal");
-          doc.setTextColor(100, 100, 100);
-          doc.text("Page " + data.pageNumber, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
-        }
-      });
-      
-      doc.save(`GSCSCL_${(reportTitle || activeReport || 'Report').replace(/[^a-z0-9]/gi, '_')}_Pivot.pdf`);
-      return;
     }
 
     if (activeReport === 'lifting-report') {
@@ -4561,14 +3451,6 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                   <FileText className="nav-icon" size={16} />
                   <span>RO Allocation (DSM)</span>
                 </div>
-
-                <div
-                  className={`nav-item ${activeReport === 'first-mile-vehicle-registered' ? 'active' : ''}`}
-                  onClick={() => handleMenuClick('first-mile-vehicle-registered')}
-                >
-                  <FileText className="nav-icon" size={16} />
-                  <span>First Mile Vehicle Registered</span>
-                </div>
                 <div
                   className={`nav-item ${activeReport === 'vehicle-assigned' ? 'active' : ''}`}
                   onClick={() => handleMenuClick('vehicle-assigned')}
@@ -4808,7 +3690,7 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
           {activeReport === 'customize-report' && <CustomizeReport />}
 
         {/* Render content based on active report */}
-        {(activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown' || activeReport === 'first-mile-epod' || activeReport === 'last-mile-epod' || activeReport === 'last-mile-imei' || activeReport === 'lifting-report' || activeReport === 'multi-trip-analysis' || activeReport === 'gps-analysis' || activeReport === 'eta-route' || activeReport === 'vehicle-assigned' || activeReport === 'last-mile-vehicle-assigned' || activeReport === 'first-mile-vehicle-registered' || activeReport === 'weighbridge-report' || activeReport === 'penalty-epod' || activeReport === 'last-mile-commodity' || activeReport === 'ro-allocation-dsm' || activeReport === 'epod-photo-analysis') && (
+        {(activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown' || activeReport === 'first-mile-epod' || activeReport === 'last-mile-epod' || activeReport === 'last-mile-imei' || activeReport === 'lifting-report' || activeReport === 'multi-trip-analysis' || activeReport === 'gps-analysis' || activeReport === 'eta-route' || activeReport === 'vehicle-assigned' || activeReport === 'last-mile-vehicle-assigned' || activeReport === 'weighbridge-report' || activeReport === 'penalty-epod' || activeReport === 'last-mile-commodity' || activeReport === 'ro-allocation-dsm' || activeReport === 'epod-photo-analysis') && (
           <>
             <div className="page-header">
               <div style={{ flex: 1, maxWidth: '72%' }}>
@@ -4993,7 +3875,7 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
               </div>
             )}
 
-            {!isLoading && rawData.length === 0 && activeReport !== 'lifting-report' && activeReport !== 'eta-route' && activeReport !== 'last-mile-commodity' && activeReport !== 'first-mile-vehicle-registered' && (
+            {!isLoading && rawData.length === 0 && activeReport !== 'lifting-report' && activeReport !== 'eta-route' && activeReport !== 'last-mile-commodity' && (
               <div 
                 className={`upload-area ${isDragging ? 'active' : ''} glass-panel`}
                 onDragOver={handleDragOver}
@@ -5072,7 +3954,7 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
               </div>
             )}
             
-            {!isLoading && rawData.length === 0 && (activeReport === 'lifting-report' || activeReport === 'last-mile-commodity' || activeReport === 'first-mile-vehicle-registered') && (
+            {!isLoading && rawData.length === 0 && (activeReport === 'lifting-report' || activeReport === 'last-mile-commodity') && (
               <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap', width: '100%' }}>
                 <div 
                   className="upload-area glass-panel"
@@ -5081,9 +3963,9 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                 >
                   <input type="file" multiple ref={mainLiftingRef} onChange={e => setMainLiftingFile(e.target.files[0])} accept=".xlsx, .xls, .csv" style={{ display: 'none' }} />
                   <UploadCloud className="upload-icon" />
-                  <h3 className="upload-title">1. Upload {activeReport === 'first-mile-vehicle-registered' ? 'Vehicle Raw Data' : 'Main Data'}</h3>
+                  <h3 className="upload-title">1. Upload Main Data</h3>
                   <p className="upload-subtitle" style={{ color: mainLiftingFile ? '#2ed573' : 'var(--text-muted)' }}>
-                    {mainLiftingFile ? mainLiftingFile.name : `Select ${activeReport === 'lifting-report' ? 'FM Report' : activeReport === 'first-mile-vehicle-registered' ? 'Vehicle Data' : 'Main Report'} Excel`}
+                    {mainLiftingFile ? mainLiftingFile.name : `Select ${activeReport === 'lifting-report' ? 'FM Report' : 'Main Report'} Excel`}
                   </p>
                 </div>
 
@@ -5094,9 +3976,9 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                 >
                   <input type="file" multiple ref={trackLiftingRef} onChange={e => setTrackLiftingFile(e.target.files[0])} accept=".xlsx, .xls, .csv" style={{ display: 'none' }} />
                   <UploadCloud className="upload-icon" />
-                  <h3 className="upload-title">2. Upload {activeReport === 'last-mile-commodity' ? 'Trip Data (LM_TRIP_DC)' : activeReport === 'first-mile-vehicle-registered' ? 'Transporter Master' : 'Tracking Data'} (Optional)</h3>
+                  <h3 className="upload-title">2. Upload {activeReport === 'last-mile-commodity' ? 'Trip Data (LM_TRIP_DC)' : 'Tracking Data'} (Optional)</h3>
                   <p className="upload-subtitle" style={{ color: trackLiftingFile ? '#2ed573' : 'var(--text-muted)' }}>
-                    {trackLiftingFile ? trackLiftingFile.name : `Select ${activeReport === 'last-mile-commodity' ? 'LM_TRIP_DC' : activeReport === 'first-mile-vehicle-registered' ? 'Transporter Master' : 'Tracking Data'} Excel`}
+                    {trackLiftingFile ? trackLiftingFile.name : `Select ${activeReport === 'last-mile-commodity' ? 'LM_TRIP_DC' : 'Tracking Data'} Excel`}
                   </p>
                 </div>
                 
@@ -5351,27 +4233,6 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                           selected={districtFilter} 
                           onChange={setDistrictFilter} 
                       />
-                    ) : activeReport === 'first-mile-vehicle-registered' ? (
-                      <>
-                        <MultiSelectDropdown
-                            placeholder="District"
-                            options={uniqueDistricts}
-                            selected={districtFilter}
-                            onChange={setDistrictFilter}
-                        />
-                        <MultiSelectDropdown
-                            placeholder="Vehicle No"
-                            options={uniqueVehicles}
-                            selected={vehicleFilter}
-                            onChange={setVehicleFilter}
-                        />
-                        <MultiSelectDropdown
-                            placeholder="Multiple Mapping"
-                            options={['Yes', 'No']}
-                            selected={multipleMappingFilter}
-                            onChange={setMultipleMappingFilter}
-                        />
-                      </>
                     ) : (activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown' || activeReport === 'ro-allocation-dsm') ? (
                       <>
                         <MultiSelectDropdown 
@@ -5513,172 +4374,6 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                   </div>
                 ) : (
                   <>
-                    {activeReport === 'first-mile-vehicle-registered' && (
-                      <>
-                        <div className="report-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '0', alignItems: 'center' }}>
-                          <button
-                            className={`tab-btn ${fmVehicleTab === 'raw' ? 'active' : ''}`}
-                            onClick={() => setFmVehicleTab('raw')}
-                            style={{
-                              padding: '10px 20px', background: 'none', border: 'none', borderBottom: fmVehicleTab === 'raw' ? '2px solid var(--primary-color)' : '2px solid transparent',
-                              color: fmVehicleTab === 'raw' ? 'var(--primary-color)' : 'var(--text-muted)', fontWeight: fmVehicleTab === 'raw' ? '600' : 'normal', cursor: 'pointer', fontSize: '1rem'
-                            }}
-                          >
-                            Main Report
-                          </button>
-                          <button
-                            className={`tab-btn ${fmVehicleTab === 'pivot' ? 'active' : ''}`}
-                            onClick={() => setFmVehicleTab('pivot')}
-                            style={{
-                              padding: '10px 20px', background: 'none', border: 'none', borderBottom: fmVehicleTab === 'pivot' ? '2px solid var(--primary-color)' : '2px solid transparent',
-                              color: fmVehicleTab === 'pivot' ? 'var(--primary-color)' : 'var(--text-muted)', fontWeight: fmVehicleTab === 'pivot' ? '600' : 'normal', cursor: 'pointer', fontSize: '1rem'
-                            }}
-                          >
-                            Pivot Analysis
-                          </button>
-                          {fmVehicleTab === 'pivot' && (
-                             <select 
-                               value={pivotExportSelection} 
-                               onChange={(e) => setPivotExportSelection(e.target.value)}
-                               style={{ marginLeft: 'auto', padding: '6px 12px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-main)', color: 'var(--text-main)', outline: 'none' }}
-                             >
-                                <option value="both">Export Both Tables</option>
-                                <option value="table1">Export District-wise Only</option>
-                                <option value="table2">Export Transporter-wise Only</option>
-                             </select>
-                          )}
-                        </div>
-                        
-                        {fmVehicleTab === 'raw' ? (
-                          <div className="summary-cards" style={{ marginBottom: '24px', backgroundColor: 'var(--bg-panel)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-color)', overflowX: 'auto' }}>
-                        
-                        <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
-                            {(() => {
-                                const uniqueVendorsSet = new Set();
-                                const uniqueVehiclesSet = new Set();
-                                const multipleSet = new Set();
-                                displayData.forEach(row => {
-                                    if (row.transporter) uniqueVendorsSet.add(row.transporter);
-                                    if (row.vehicleNo) uniqueVehiclesSet.add(row.vehicleNo);
-                                    if (row.isMultipleMapping === 'Yes' && row.vehicleNo) multipleSet.add(row.vehicleNo);
-                                });
-                                
-                                const isFilteredByMultiple = vehicleFilter && multipleSet.size > 0 && vehicleFilter.length === multipleSet.size && Array.from(multipleSet).every(v => vehicleFilter.includes(v));
-                                
-                                return (
-                                    <>
-                                      <div style={{ padding: '16px', backgroundColor: 'var(--bg-color)', borderRadius: '8px', border: '1px solid var(--border-color)', flex: 1, textAlign: 'center' }}>
-                                        <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '8px' }}>Total Unique Vendors</div>
-                                        <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'var(--primary-color)' }}>{uniqueVendorsSet.size}</div>
-                                      </div>
-                                      <div style={{ padding: '16px', backgroundColor: 'var(--bg-color)', borderRadius: '8px', border: '1px solid var(--border-color)', flex: 1, textAlign: 'center' }}>
-                                        <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)', marginBottom: '8px' }}>Total Unique Vehicles</div>
-                                        <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'var(--primary-color)' }}>{uniqueVehiclesSet.size}</div>
-                                      </div>
-                                      <div style={{ padding: '16px', backgroundColor: isFilteredByMultiple ? 'rgba(255,107,107,0.1)' : 'var(--bg-color)', borderRadius: '8px', border: isFilteredByMultiple ? '1px solid var(--danger)' : '1px solid var(--border-color)', flex: 1, textAlign: 'center', cursor: 'pointer', transition: 'all 0.2s' }}
-                                           onClick={() => setVehicleFilter(isFilteredByMultiple ? [] : Array.from(multipleSet))}
-                                           title="Click to filter table by Multiple Mapped Vehicles"
-                                      >
-                                        <div style={{ fontSize: '0.9rem', color: isFilteredByMultiple ? 'var(--danger)' : 'var(--text-muted)', marginBottom: '8px' }}>Multiple Mapped Vehicles</div>
-                                        <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: 'var(--danger)' }}>{multipleSet.size}</div>
-                                      </div>
-                                    </>
-                                );
-                            })()}
-                        </div>
-
-
-                      </div>
-                        ) : (
-                          <div style={{ marginTop: '16px', backgroundColor: 'var(--bg-panel)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-color)', overflowX: 'auto', minHeight: '400px' }}>
-                             {(() => {
-                                const distCount = {};
-                                const distTransCount = {};
-                                
-                                displayData.forEach(row => {
-                                    const dist = row.district || 'Unknown';
-                                    const trans = row.transporter || 'Unknown';
-                                    
-                                    distCount[dist] = (distCount[dist] || 0) + 1;
-                                    
-                                    const dtKey = dist + '|||' + trans;
-                                    distTransCount[dtKey] = (distTransCount[dtKey] || 0) + 1;
-                                });
-                                
-                                const table1Rows = Object.keys(distCount).sort().map(d => ({
-                                    district: d,
-                                    count: distCount[d]
-                                }));
-                                
-                                const table2Rows = Object.keys(distTransCount).sort().map(dt => {
-                                    const [d, t] = dt.split('|||');
-                                    return { district: d, transporter: t, count: distTransCount[dt] };
-                                });
-
-                                return (
-                                   <div style={{ display: 'flex', gap: '32px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                                      <div style={{ flex: '1', minWidth: '300px', backgroundColor: 'var(--bg-main)', borderRadius: '8px', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
-                                          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                                              <thead style={{ backgroundColor: 'var(--bg-panel)' }}>
-                                                  <tr>
-                                                      <th style={{ padding: '12px', borderBottom: '2px solid var(--border-color)', fontWeight: '600', width: '60px' }}>Sr. No.</th>
-                                                      <th style={{ padding: '12px', borderBottom: '2px solid var(--border-color)', fontWeight: '600' }}>District</th>
-                                                      <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid var(--border-color)', fontWeight: '600' }}>No. of Vehicle</th>
-                                                  </tr>
-                                              </thead>
-                                              <tbody>
-                                                  {table1Rows.map((r, i) => (
-                                                      <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                                                          <td style={{ padding: '10px 12px', color: 'var(--text-muted)' }}>{i + 1}</td>
-                                                          <td style={{ padding: '10px 12px' }}>{r.district}</td>
-                                                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '500' }}>{r.count}</td>
-                                                      </tr>
-                                                  ))}
-                                                  <tr style={{ backgroundColor: 'var(--bg-panel)', fontWeight: 'bold' }}>
-                                                      <td colSpan="2" style={{ padding: '12px', textAlign: 'right' }}>Total</td>
-                                                      <td style={{ padding: '12px', textAlign: 'right', color: 'var(--primary-color)' }}>
-                                                          {table1Rows.reduce((sum, r) => sum + r.count, 0)}
-                                                      </td>
-                                                  </tr>
-                                              </tbody>
-                                          </table>
-                                      </div>
-
-                                      <div style={{ flex: '2', minWidth: '500px', backgroundColor: 'var(--bg-main)', borderRadius: '8px', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
-                                          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                                              <thead style={{ backgroundColor: 'var(--bg-panel)' }}>
-                                                  <tr>
-                                                      <th style={{ padding: '12px', borderBottom: '2px solid var(--border-color)', fontWeight: '600', width: '60px' }}>Sr. No.</th>
-                                                      <th style={{ padding: '12px', borderBottom: '2px solid var(--border-color)', fontWeight: '600' }}>District</th>
-                                                      <th style={{ padding: '12px', borderBottom: '2px solid var(--border-color)', fontWeight: '600' }}>Transporter Name</th>
-                                                      <th style={{ padding: '12px', textAlign: 'right', borderBottom: '2px solid var(--border-color)', fontWeight: '600' }}>No. of Vehicle</th>
-                                                  </tr>
-                                              </thead>
-                                              <tbody>
-                                                  {table2Rows.map((r, i) => (
-                                                      <tr key={i} style={{ borderBottom: '1px solid var(--border-color)' }}>
-                                                          <td style={{ padding: '10px 12px', color: 'var(--text-muted)' }}>{i + 1}</td>
-                                                          <td style={{ padding: '10px 12px' }}>{r.district}</td>
-                                                          <td style={{ padding: '10px 12px' }}>{r.transporter}</td>
-                                                          <td style={{ padding: '10px 12px', textAlign: 'right', fontWeight: '500' }}>{r.count}</td>
-                                                      </tr>
-                                                  ))}
-                                                  <tr style={{ backgroundColor: 'var(--bg-panel)', fontWeight: 'bold' }}>
-                                                      <td colSpan="3" style={{ padding: '12px', textAlign: 'right' }}>Total</td>
-                                                      <td style={{ padding: '12px', textAlign: 'right', color: 'var(--primary-color)' }}>
-                                                          {table2Rows.reduce((sum, r) => sum + r.count, 0)}
-                                                      </td>
-                                                  </tr>
-                                              </tbody>
-                                          </table>
-                                      </div>
-                                   </div>
-                                );
-                             })()}
-                          </div>
-                        )}
-                      </>
-                    )}
                     {activeReport === 'last-mile-vehicle-assigned' && (
                       <div className="summary-cards" style={{ marginBottom: '24px', backgroundColor: 'var(--bg-panel)', padding: '16px', borderRadius: '8px', border: '1px solid var(--border-color)', overflowX: 'auto' }}>
                         <h3 style={{ margin: '0 0 16px 0', fontSize: '1.1rem', color: 'var(--text-main)' }}>LR Assignment Summary (Top LRs by DCs)</h3>
@@ -5771,9 +4466,8 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                         </button>
                       </div>
                     )}
-                    {(activeReport !== 'first-mile-vehicle-registered' || fmVehicleTab === 'raw') && (
-                      <>
-                        {activeReport === 'last-mile-epod' && (
+                    <>
+                      {activeReport === 'last-mile-epod' && (
                           <div className="report-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '0' }}>
                             <button 
                               className={`tab-btn ${lastMileEpodTab === 'pending' ? 'active' : ''}`}
@@ -6040,7 +4734,6 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                        </div>
                      )}
                      </>
-                    )}
                   </>
                 )}
               </div>
@@ -6161,7 +4854,6 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                     else if (activeReport === 'lifting-report') defaultConf = liftingTab === 'commodity' ? DEFAULT_LIFTING_COMMODITY_CONFIG : DEFAULT_LIFTING_CONFIG;
                     else if (activeReport === 'multi-trip-analysis') defaultConf = DEFAULT_MULTI_TRIP_CONFIG;
                     else if (activeReport === 'eta-route') defaultConf = DEFAULT_ETA_ROUTE_CONFIG;
-                    else if (activeReport === 'first-mile-vehicle-registered') defaultConf = DEFAULT_FIRST_MILE_VEHICLE_REGISTERED_CONFIG;
                     else if (activeReport === 'vehicle-assigned') defaultConf = DEFAULT_VEHICLE_ASSIGNED_CONFIG;
                     else if (activeReport === 'weighbridge-report') defaultConf = DEFAULT_WEIGHBRIDGE_CONFIG;
                     else if (activeReport === 'epod-photo-analysis') defaultConf = DEFAULT_EPOD_PHOTO_ANALYSIS_CONFIG;
