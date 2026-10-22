@@ -11,6 +11,8 @@ import PenaltyDashboard from './components/PenaltyDashboard';
 import GpsAnalysisDashboard from './components/GpsAnalysisDashboard';
 import EpodPhotoAnalysisDashboard from './components/EpodPhotoAnalysisDashboard';
 import LastMileTripsSummary from './components/LastMileTripsSummary';
+import LastMileDcSummary from './components/LastMileDcSummary';
+import LiftingCommoditySummary from './components/LiftingCommoditySummary';
 import { DEFAULT_REPORT_ATTRIBUTES } from './reportAttributes';
 
 const DEFAULT_GM_CONFIG = [
@@ -100,6 +102,17 @@ const DEFAULT_LAST_MILE_TRIPS_SUMMARY_CONFIG = [
   { id: 'closedTrips', label: 'Closed Trips', visible: true }
 ];
 
+const DEFAULT_LAST_MILE_DC_SUMMARY_CONFIG = [
+  { id: 'srNo', label: 'Sr. No.', visible: true },
+  { id: 'district', label: 'District', visible: true },
+  { id: 'godown', label: 'GSCSCL Godown', visible: true },
+  { id: 'transporter', label: 'Transporter Name', visible: true },
+  { id: 'tripCreated', label: 'Trip Created', visible: true },
+  { id: 'dcNumber', label: 'DC Number', visible: true },
+  { id: 'epod', label: 'EPOD', visible: true },
+  { id: 'endTrip', label: 'End Trip', visible: true }
+];
+
 const DEFAULT_LAST_MILE_EPOD_CONFIG = [
   { id: 'district', label: 'District', visible: true },
   { id: 'godown', label: 'GSCSCL Godown', visible: true },
@@ -126,6 +139,15 @@ const DEFAULT_LIFTING_CONFIG = [
   { id: 'epodManager', label: 'No.of EPOD (Godown Manager)', visible: true },
   { id: 'pendingEpodManager', label: 'Pending EPOD (Godown Manager)', visible: true },
   { id: 'percentEpodManager', label: '% of EPOD', visible: true }
+];
+
+const DEFAULT_LIFTING_COMMODITY_CONFIG = [
+  { id: 'district', label: 'District', visible: true },
+  { id: 'commodity', label: 'Commodity', visible: true },
+  { id: 'refCount', label: 'Total No. of TP generated', visible: true },
+  { id: 'sumQty', label: 'Lifted Quantity(MT)', visible: true },
+  { id: 'startPhotoCount', label: 'No. of trip started', visible: true },
+  { id: 'endPhotoCount', label: 'No. of trip ended', visible: true }
 ];
 
 const DEFAULT_MULTI_TRIP_CONFIG = [
@@ -481,6 +503,7 @@ function App() {
   const [pivotState, setPivotState] = useState({});
   const [roTab, setRoTab] = useState('flat');
   const [lastMileEpodTab, setLastMileEpodTab] = useState('pending');
+  const [liftingTab, setLiftingTab] = useState('summary');
   const [vaStartDate, setVaStartDate] = useState('');
   const [vaEndDate, setVaEndDate] = useState('');
   
@@ -568,10 +591,16 @@ function App() {
       if (tab === 'trips-summary') {
         return "Last Mile EPOD - Godown Wise Trip Summary";
       }
+      if (tab === 'dc-summary') {
+        return "Last Mile Report 21st October'26 ( 00:00-18:00)";
+      }
       return "Last Mile EPOD Pending Report of Till 30th July'26 ( 00:00-23:59)";
     } else if (reportKey === 'miller-to-godown') {
       return "Miller to Godown Trips";
     } else if (reportKey === 'lifting-report') {
+      if (tab === 'commodity') {
+        return "Lifting Report - Commodity Wise Summary";
+      }
       return "Lifting Report";
     } else if (reportKey === 'first-mile-vehicle-registered') {
       return "First Mile Vehicle Registered";
@@ -601,21 +630,32 @@ function App() {
     return "Godown to Miller Trips";
   };
 
+  const getLastMileTitleKey = () => {
+    if (activeReport === 'last-mile-epod') {
+      if (lastMileEpodTab === 'trips-summary') return `custom_report_title_${activeReport}_trips-summary`;
+      if (lastMileEpodTab === 'dc-summary') return `custom_report_title_${activeReport}_dc-summary`;
+    }
+    if (activeReport === 'lifting-report') {
+      if (liftingTab === 'commodity') return `custom_report_title_${activeReport}_commodity`;
+    }
+    return `custom_report_title_${activeReport}`;
+  };
+
   const handleSaveReportTitle = () => {
     if (!reportTitle || !reportTitle.trim()) return;
-    const titleKey = (activeReport === 'last-mile-epod' && lastMileEpodTab === 'trips-summary')
-      ? `custom_report_title_${activeReport}_trips-summary`
-      : `custom_report_title_${activeReport}`;
+    const titleKey = getLastMileTitleKey();
+
+
     localStorage.setItem(titleKey, reportTitle.trim());
     showToast(`Title header saved! It will be remembered automatically.`, 'success');
   };
 
   const handleResetReportTitle = () => {
-    const titleKey = (activeReport === 'last-mile-epod' && lastMileEpodTab === 'trips-summary')
-      ? `custom_report_title_${activeReport}_trips-summary`
-      : `custom_report_title_${activeReport}`;
+    const titleKey = getLastMileTitleKey();
+
+
     localStorage.removeItem(titleKey);
-    const currentTab = activeReport === 'last-mile-epod' ? lastMileEpodTab : firstMileTab;
+    const currentTab = activeReport === 'last-mile-epod' ? lastMileEpodTab : (activeReport === 'lifting-report' ? liftingTab : firstMileTab);
     const def = getDefaultReportTitle(activeReport, currentTab, rawData, tpDateFilter);
     setReportTitle(def);
     showToast('Title reset to default template.', 'info');
@@ -626,11 +666,11 @@ function App() {
     localStorage.setItem('activeReportTab', activeReport);
 
     // Set title: If user saved a custom template title, load it; otherwise load default title
-    const customTitleKey = (activeReport === 'last-mile-epod' && lastMileEpodTab === 'trips-summary')
-      ? `custom_report_title_${activeReport}_trips-summary`
-      : `custom_report_title_${activeReport}`;
+    const customTitleKey = getLastMileTitleKey();
+
+
     const savedCustomTitle = localStorage.getItem(customTitleKey);
-    const currentTab = activeReport === 'last-mile-epod' ? lastMileEpodTab : firstMileTab;
+    const currentTab = activeReport === 'last-mile-epod' ? lastMileEpodTab : (activeReport === 'lifting-report' ? liftingTab : firstMileTab);
     if (savedCustomTitle && savedCustomTitle.trim()) {
       setReportTitle(savedCustomTitle);
     } else {
@@ -642,6 +682,10 @@ function App() {
       storageKey = 'reportConfig_first-mile-epod-grouped_v3';
     } else if (activeReport === 'last-mile-epod' && lastMileEpodTab === 'trips-summary') {
       storageKey = 'reportConfig_last-mile-epod-trips-summary_v3';
+    } else if (activeReport === 'last-mile-epod' && lastMileEpodTab === 'dc-summary') {
+      storageKey = 'reportConfig_last-mile-epod-dc-summary_v3';
+    } else if (activeReport === 'lifting-report' && liftingTab === 'commodity') {
+      storageKey = 'reportConfig_lifting-commodity_v3';
     }
     const savedConfig = localStorage.getItem(storageKey);
     let defaultConf = [...DEFAULT_GM_CONFIG];
@@ -650,7 +694,9 @@ function App() {
     }
     else if (activeReport === 'ro-allocation-dsm') defaultConf = [...DEFAULT_RO_ALLOCATION_CONFIG];
     else if (activeReport === 'last-mile-epod') {
-      defaultConf = lastMileEpodTab === 'trips-summary'
+      defaultConf = lastMileEpodTab === 'dc-summary'
+        ? [...DEFAULT_LAST_MILE_DC_SUMMARY_CONFIG]
+        : lastMileEpodTab === 'trips-summary'
         ? [...DEFAULT_LAST_MILE_TRIPS_SUMMARY_CONFIG]
         : [...DEFAULT_LAST_MILE_EPOD_CONFIG];
     }
@@ -658,7 +704,7 @@ function App() {
     else if (activeReport === 'last-mile-imei') defaultConf = [...DEFAULT_LAST_MILE_IMEI_CONFIG];
     else if (activeReport === 'last-mile-commodity') defaultConf = [...DEFAULT_LAST_MILE_COMMODITY_CONFIG];
     else if (activeReport === 'miller-to-godown') defaultConf = [...DEFAULT_MG_CONFIG];
-    else if (activeReport === 'lifting-report') defaultConf = [...DEFAULT_LIFTING_CONFIG];
+    else if (activeReport === 'lifting-report') defaultConf = liftingTab === 'commodity' ? [...DEFAULT_LIFTING_COMMODITY_CONFIG] : [...DEFAULT_LIFTING_CONFIG];
     else if (activeReport === 'multi-trip-analysis') defaultConf = [...DEFAULT_MULTI_TRIP_CONFIG];
     else if (activeReport === 'eta-route') defaultConf = [...DEFAULT_ETA_ROUTE_CONFIG];
     else if (activeReport === 'penalty-epod') defaultConf = [...DEFAULT_PENALTY_EPOD_CONFIG];
@@ -718,7 +764,7 @@ function App() {
     } else {
       setColumnConfig([...defaultConf]);
     }
-  }, [activeReport, firstMileTab, lastMileEpodTab]);
+  }, [activeReport, firstMileTab, lastMileEpodTab, liftingTab]);
 
   const saveConfig = (newConfig) => {
     setColumnConfig(newConfig);
@@ -727,6 +773,10 @@ function App() {
       storageKey = 'reportConfig_first-mile-epod-grouped_v3';
     } else if (activeReport === 'last-mile-epod' && lastMileEpodTab === 'trips-summary') {
       storageKey = 'reportConfig_last-mile-epod-trips-summary_v3';
+    } else if (activeReport === 'last-mile-epod' && lastMileEpodTab === 'dc-summary') {
+      storageKey = 'reportConfig_last-mile-epod-dc-summary_v3';
+    } else if (activeReport === 'lifting-report' && liftingTab === 'commodity') {
+      storageKey = 'reportConfig_lifting-commodity_v3';
     }
     localStorage.setItem(storageKey, JSON.stringify(newConfig));
   };
@@ -1328,6 +1378,274 @@ function App() {
     return { rows, grandTotal };
   };
 
+  const calculateLastMileDcSummary = (data) => {
+    const distMap = {};
+    const grandTotal = { tripCreated: 0, dcNumber: 0, epod: 0, endTrip: 0 };
+    const validRows = (data || []).filter(r => !r.isSubtotal && !r.isGrandTotal);
+
+    validRows.forEach((row) => {
+      const dist = String(row.district || row.District || row['District'] || row['TP District'] || row['Godown District'] || row.district_name || 'Unknown').trim();
+      const godown = String(row.godown || row.godownName || row['GSCSCL Godown'] || row['Godown Name'] || row['Godown'] || row['Destination Godown'] || 'Unknown').trim() || '(Blank Godown)';
+      const transporter = String(row.transporter || row.transporterName || row['Transporter Name'] || row['Transporter'] || row['DSD Transporter Name'] || row.transporter_name || '').trim() || '(Blank Transporter)';
+
+      if (!distMap[dist]) distMap[dist] = {};
+      const gtKey = `${godown}|||${transporter}`;
+      if (!distMap[dist][gtKey]) {
+        distMap[dist][gtKey] = {
+          godown,
+          transporter,
+          trips: new Set(),
+          closedTrips: new Set(),
+          dcCount: 0,
+          epodCount: 0
+        };
+      }
+
+      const group = distMap[dist][gtKey];
+
+      // 1. Total DC Count
+      group.dcCount += 1;
+
+      // 2. EPOD Count: Delivered / Completed
+      const epodStatus = String(row.epodStatusRaw || row.epodStatus || row['EPOD Status'] || '').toUpperCase().trim();
+      const isEpodDone = (row.epodComplete === 1) || epodStatus === 'DELIVERED' || epodStatus === 'COMPLETED';
+      if (isEpodDone) {
+        group.epodCount += 1;
+      }
+
+      // 3. LR Extraction: Unique LR numbers; blank/empty LR becomes 0
+      let rawLr = row.lrNo || row.lrNumber || row['LR Number'] || row['LR No'] || row['LR No.'] || row['lr_number'] || row['lr_no'] || row['LR'] || row['LR NO'] || row['LR NO.'] || row['lr'] || row['LR#'] || row.trip_id || row['trip_id'] || row['Trip ID'] || row['Trip No'] || row['Trip Number'] || row['trip_no'] || row['LR_Number'] || row['lr_num'] || row['LR_No'];
+      if (rawLr === undefined || rawLr === null || String(rawLr).trim() === '') {
+        for (const k in row) {
+          const cleanK = String(k).toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (cleanK.includes('lrno') || cleanK.includes('lrnum') || cleanK.includes('tripno') || cleanK.includes('tripid') || cleanK.includes('tripnum')) {
+            if (row[k] !== undefined && row[k] !== null && String(row[k]).trim() !== '') {
+              rawLr = row[k];
+              break;
+            }
+          }
+        }
+      }
+
+      const lrKey = (rawLr !== undefined && rawLr !== null) ? String(rawLr).replace(/\u00A0/g, ' ').trim() : '';
+      const hasValidLr = lrKey && lrKey !== 'null' && lrKey !== 'undefined' && lrKey.toLowerCase() !== '(blank)' && lrKey !== '-' && lrKey !== '0';
+
+      if (hasValidLr) {
+        group.trips.add(lrKey);
+
+        // 4. End Trip: Unique LR numbers that have ended trip
+        const rawEndTime = row.trip_end_datetime || row['trip_end_datetime'] || row['Trip End Datetime'] || row['Trip End Date Time'] || row['trip_end_date_time'] || row['end_trip_datetime'] || row['End Trip Date Time'] || row['End Trip Date'] || row['Trip End Time'] || row['end_trip_time'];
+        let isClosed = Boolean(row.isClosedTrip);
+        if (!isClosed && rawEndTime !== undefined && rawEndTime !== null) {
+          const strEndTime = String(rawEndTime).trim().toLowerCase();
+          if (strEndTime !== '' && strEndTime !== 'nat' && strEndTime !== 'null' && strEndTime !== '(blank)' && strEndTime !== '-' && strEndTime !== 'none' && strEndTime !== 'undefined') {
+            isClosed = true;
+          }
+        }
+
+        if (isClosed) {
+          group.closedTrips.add(lrKey);
+        }
+      }
+    });
+
+    const rows = [];
+    const sortedDistricts = Object.keys(distMap).sort((a, b) => a.localeCompare(b));
+
+    sortedDistricts.forEach(dist => {
+      const sortedKeys = Object.keys(distMap[dist]).sort((a, b) => {
+        const ga = distMap[dist][a].godown;
+        const gb = distMap[dist][b].godown;
+        const c = ga.localeCompare(gb);
+        if (c !== 0) return c;
+        return distMap[dist][a].transporter.localeCompare(distMap[dist][b].transporter);
+      });
+
+      let distTripCreated = 0;
+      let distDcNumber = 0;
+      let distEpod = 0;
+      let distEndTrip = 0;
+
+      sortedKeys.forEach(key => {
+        const g = distMap[dist][key];
+        const tripCreated = g.trips.size;
+        const dcNumber = g.dcCount;
+        const epod = g.epodCount;
+        const endTrip = g.closedTrips.size;
+
+        distTripCreated += tripCreated;
+        distDcNumber += dcNumber;
+        distEpod += epod;
+        distEndTrip += endTrip;
+
+        rows.push({
+          district: dist,
+          godown: g.godown,
+          godownName: g.godown,
+          transporter: g.transporter,
+          transporterName: g.transporter,
+          tripCreated: tripCreated,
+          dcNumber: dcNumber,
+          epod: epod,
+          endTrip: endTrip,
+          isSubtotal: false,
+          isGrandTotal: false
+        });
+      });
+
+      // District Subtotal Row
+      rows.push({
+        district: `${dist} Total`,
+        godown: '',
+        godownName: '',
+        transporter: '',
+        transporterName: '',
+        tripCreated: distTripCreated,
+        dcNumber: distDcNumber,
+        epod: distEpod,
+        endTrip: distEndTrip,
+        isSubtotal: true,
+        isGrandTotal: false
+      });
+
+      grandTotal.tripCreated += distTripCreated;
+      grandTotal.dcNumber += distDcNumber;
+      grandTotal.epod += distEpod;
+      grandTotal.endTrip += distEndTrip;
+    });
+
+    if (rows.length > 0) {
+      rows.push({
+        district: 'Grand Total',
+        godown: '',
+        godownName: '',
+        transporter: '',
+        transporterName: '',
+        tripCreated: grandTotal.tripCreated,
+        dcNumber: grandTotal.dcNumber,
+        epod: grandTotal.epod,
+        endTrip: grandTotal.endTrip,
+        isSubtotal: true,
+        isGrandTotal: true
+      });
+    }
+
+    return { rows, grandTotal };
+  };
+
+  const calculateLiftingCommoditySummary = (data) => {
+    const distMap = {};
+    const grandTotal = { refCount: 0, sumQty: 0, startPhotoCount: 0, endPhotoCount: 0 };
+    const validRows = (data || []).filter(r => !r.isSubtotal && !r.isGrandTotal);
+
+    validRows.forEach((row) => {
+      const dist = String(row.district || row.District || row['TP District'] || 'Unknown').trim();
+      if (!dist) return;
+
+      const commodity = String(row.commodity || row.Commodity || row['Commodity Name'] || row['Commodity ID/Name'] || row['Item Name'] || row.item || 'Unknown Commodity').trim();
+      const qty = Number(row.liftedQty !== undefined ? row.liftedQty : (row['Final Quantity Allocated'] || row['TP Qty (MT)'] || row['TP Qty'] || row.qty || 0)) || 0;
+
+      let hasStart = 0;
+      if (row.hasStartPhoto !== undefined) {
+        hasStart = Number(row.hasStartPhoto) || 0;
+      } else {
+        const val = String(row['Start Trip Photo'] || row['Start Trip Image'] || row['Start Photo'] || row.startTripImage || '').trim();
+        hasStart = (val && !['n/a', 'na', 'null', 'undefined', '-', '#n/a', 'none', '0'].includes(val.toLowerCase())) ? 1 : 0;
+      }
+
+      let hasEnd = 0;
+      if (row.hasEndPhoto !== undefined) {
+        hasEnd = Number(row.hasEndPhoto) || 0;
+      } else {
+        const val = String(row['End Trip Photo'] || row['End Trip Image'] || row['EPOD Photo'] || row.epodImage || '').trim();
+        hasEnd = (val && !['n/a', 'na', 'null', 'undefined', '-', '#n/a', 'none', '0'].includes(val.toLowerCase())) ? 1 : 0;
+      }
+
+      if (!distMap[dist]) distMap[dist] = {};
+      if (!distMap[dist][commodity]) {
+        distMap[dist][commodity] = {
+          refCount: 0,
+          sumQty: 0,
+          startPhotoCount: 0,
+          endPhotoCount: 0
+        };
+      }
+
+      const item = distMap[dist][commodity];
+      item.refCount += 1;
+      item.sumQty += qty;
+      item.startPhotoCount += hasStart;
+      item.endPhotoCount += hasEnd;
+    });
+
+    const rows = [];
+    const sortedDistricts = Object.keys(distMap).sort((a, b) => a.localeCompare(b));
+
+    sortedDistricts.forEach((dist) => {
+      const sortedCommodities = Object.keys(distMap[dist]).sort((a, b) => a.localeCompare(b));
+
+      let distRefCount = 0;
+      let distSumQty = 0;
+      let distStartCount = 0;
+      let distEndCount = 0;
+
+      sortedCommodities.forEach((comm, commIdx) => {
+        const stats = distMap[dist][comm];
+        distRefCount += stats.refCount;
+        distSumQty += stats.sumQty;
+        distStartCount += stats.startPhotoCount;
+        distEndCount += stats.endPhotoCount;
+
+        rows.push({
+          district: dist,
+          displayDistrict: commIdx === 0 ? dist : '',
+          commodity: comm,
+          refCount: stats.refCount,
+          sumQty: Number(stats.sumQty.toFixed(5)),
+          startPhotoCount: stats.startPhotoCount,
+          endPhotoCount: stats.endPhotoCount,
+          isSubtotal: false,
+          isGrandTotal: false
+        });
+      });
+
+      rows.push({
+        district: `${dist} Total`,
+        displayDistrict: `${dist} Total`,
+        commodity: '',
+        refCount: distRefCount,
+        sumQty: Number(distSumQty.toFixed(5)),
+        startPhotoCount: distStartCount,
+        endPhotoCount: distEndCount,
+        isSubtotal: true,
+        isGrandTotal: false
+      });
+
+      grandTotal.refCount += distRefCount;
+      grandTotal.sumQty += distSumQty;
+      grandTotal.startPhotoCount += distStartCount;
+      grandTotal.endPhotoCount += distEndCount;
+    });
+
+    grandTotal.sumQty = Number(grandTotal.sumQty.toFixed(5));
+
+    if (rows.length > 0) {
+      rows.push({
+        district: 'Grand Total',
+        displayDistrict: 'Grand Total',
+        commodity: '',
+        refCount: grandTotal.refCount,
+        sumQty: grandTotal.sumQty,
+        startPhotoCount: grandTotal.startPhotoCount,
+        endPhotoCount: grandTotal.endPhotoCount,
+        isSubtotal: true,
+        isGrandTotal: true
+      });
+    }
+
+    return { rows, grandTotal };
+  };
+
   const handleDeleteHistoryItem = (id) => {
     setAlertConfig({
       isOpen: true,
@@ -1350,6 +1668,7 @@ function App() {
     setImeiStatusFilter(null);
     setMultipleMappingFilter(null);
     setLastMileEpodTab('pending');
+    setLiftingTab('summary');
     setFilterStatus('All');
     setDcMonthFilter(null);
     setDcDateFilter(null);
@@ -1368,6 +1687,7 @@ function App() {
     setImeiStatusFilter(null);
     setMultipleMappingFilter(null);
     setLastMileEpodTab('pending');
+    setLiftingTab('summary');
     setReportData(prev => ({ ...prev, [activeReport]: [] }));
     setDcMonthFilter(null);
     setDcDateFilter(null);
@@ -1442,6 +1762,18 @@ function App() {
     }
     return filtered;
   }, [rawData, activeReport, globalSearchTerm, districtFilter, dcMonthFilter, dcDateFilter, epodStatusFilter]);
+
+  const filteredLiftingData = useMemo(() => {
+    if (activeReport !== 'lifting-report' || rawData.length === 0) return [];
+    let filtered = rawData;
+    if (districtFilter && districtFilter.length > 0) {
+      filtered = filtered.filter(row => districtFilter.includes(row.district));
+    }
+    if (tpDateFilter !== null) {
+      filtered = filtered.filter(row => tpDateFilter.includes(row.tpDate));
+    }
+    return filtered;
+  }, [rawData, activeReport, districtFilter, tpDateFilter]);
 
   // Filter and Group data dynamically
   const displayData = useMemo(() => {
@@ -1661,8 +1993,8 @@ function App() {
         body: t1Data,
         startY: 35,
         theme: 'grid',
-        styles: { fontSize: 8, textColor: [0,0,0], lineColor: [200,200,200], lineWidth: 0.1 },
-        headStyles: { fillColor: [240,240,240], textColor: [0,0,0], fontStyle: 'bold', halign: 'left' },
+        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
+        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
         columnStyles: {
             2: { halign: 'right' }
         },
@@ -1699,8 +2031,8 @@ function App() {
         body: t2Data,
         startY: doc.lastAutoTable.finalY + 15,
         theme: 'grid',
-        styles: { fontSize: 8, textColor: [0,0,0], lineColor: [200,200,200], lineWidth: 0.1 },
-        headStyles: { fillColor: [240,240,240], textColor: [0,0,0], fontStyle: 'bold', halign: 'left' },
+        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
+        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
         columnStyles: {
             3: { halign: 'right' }
         },
@@ -1931,8 +2263,8 @@ function App() {
         body: t1Data,
         startY: 35,
         theme: 'grid',
-        styles: { fontSize: 8, textColor: [0,0,0], lineColor: [200,200,200], lineWidth: 0.1 },
-        headStyles: { fillColor: [240,240,240], textColor: [0,0,0], fontStyle: 'bold', halign: 'left' },
+        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
+        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
         columnStyles: {
             2: { halign: 'right' }
         },
@@ -1969,8 +2301,8 @@ function App() {
         body: t2Data,
         startY: doc.lastAutoTable.finalY + 15,
         theme: 'grid',
-        styles: { fontSize: 8, textColor: [0,0,0], lineColor: [200,200,200], lineWidth: 0.1 },
-        headStyles: { fillColor: [240,240,240], textColor: [0,0,0], fontStyle: 'bold', halign: 'left' },
+        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
+        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
         columnStyles: {
             3: { halign: 'right' }
         },
@@ -2067,8 +2399,8 @@ function App() {
         body: t1Data,
         startY: 35,
         theme: 'grid',
-        styles: { fontSize: 8, textColor: [0,0,0], lineColor: [200,200,200], lineWidth: 0.1 },
-        headStyles: { fillColor: [240,240,240], textColor: [0,0,0], fontStyle: 'bold', halign: 'left' },
+        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
+        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
         columnStyles: {
             2: { halign: 'right' }
         },
@@ -2105,8 +2437,8 @@ function App() {
         body: t2Data,
         startY: doc.lastAutoTable.finalY + 15,
         theme: 'grid',
-        styles: { fontSize: 8, textColor: [0,0,0], lineColor: [200,200,200], lineWidth: 0.1 },
-        headStyles: { fillColor: [240,240,240], textColor: [0,0,0], fontStyle: 'bold', halign: 'left' },
+        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
+        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
         columnStyles: {
             3: { halign: 'right' }
         },
@@ -2257,8 +2589,8 @@ function App() {
         body: t1Data,
         startY: 35,
         theme: 'grid',
-        styles: { fontSize: 8, textColor: [0,0,0], lineColor: [200,200,200], lineWidth: 0.1 },
-        headStyles: { fillColor: [240,240,240], textColor: [0,0,0], fontStyle: 'bold', halign: 'left' },
+        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
+        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
         columnStyles: {
             2: { halign: 'right' }
         },
@@ -2295,8 +2627,8 @@ function App() {
         body: t2Data,
         startY: doc.lastAutoTable.finalY + 15,
         theme: 'grid',
-        styles: { fontSize: 8, textColor: [0,0,0], lineColor: [200,200,200], lineWidth: 0.1 },
-        headStyles: { fillColor: [240,240,240], textColor: [0,0,0], fontStyle: 'bold', halign: 'left' },
+        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
+        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
         columnStyles: {
             3: { halign: 'right' }
         },
@@ -2394,8 +2726,8 @@ function App() {
         body: t1Data,
         startY: 35,
         theme: 'grid',
-        styles: { fontSize: 8, textColor: [0,0,0], lineColor: [200,200,200], lineWidth: 0.1 },
-        headStyles: { fillColor: [240,240,240], textColor: [0,0,0], fontStyle: 'bold', halign: 'left' },
+        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
+        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
         columnStyles: {
             2: { halign: 'right' }
         },
@@ -2432,8 +2764,8 @@ function App() {
         body: t2Data,
         startY: doc.lastAutoTable.finalY + 15,
         theme: 'grid',
-        styles: { fontSize: 8, textColor: [0,0,0], lineColor: [200,200,200], lineWidth: 0.1 },
-        headStyles: { fillColor: [240,240,240], textColor: [0,0,0], fontStyle: 'bold', halign: 'left' },
+        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
+        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
         columnStyles: {
             3: { halign: 'right' }
         },
@@ -2654,8 +2986,8 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
         body: t1Data,
         startY: 35,
         theme: 'grid',
-        styles: { fontSize: 8, textColor: [0,0,0], lineColor: [200,200,200], lineWidth: 0.1 },
-        headStyles: { fillColor: [240,240,240], textColor: [0,0,0], fontStyle: 'bold', halign: 'left' },
+        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
+        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
         columnStyles: {
             2: { halign: 'right' }
         },
@@ -2692,8 +3024,8 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
         body: t2Data,
         startY: doc.lastAutoTable.finalY + 15,
         theme: 'grid',
-        styles: { fontSize: 8, textColor: [0,0,0], lineColor: [200,200,200], lineWidth: 0.1 },
-        headStyles: { fillColor: [240,240,240], textColor: [0,0,0], fontStyle: 'bold', halign: 'left' },
+        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
+        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
         columnStyles: {
             3: { halign: 'right' }
         },
@@ -2793,12 +3125,119 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
   };
 
   const exportExcel = () => {
-    if (activeReport === 'last-mile-epod' && lastMileEpodTab === 'trips-summary') {
-      if (filteredLastMileData.length === 0) return;
+    if (activeReport === 'last-mile-epod' && (lastMileEpodTab === 'trips-summary' || lastMileEpodTab === 'dc-summary')) {
+      if (activeReport !== 'lifting-report' && filteredLastMileData.length === 0) return;
+    } else if (activeReport === 'lifting-report' && liftingTab === 'commodity') {
+      if (filteredLiftingData.length === 0) return;
+      if (activeReport !== 'lifting-report' && filteredLastMileData.length === 0) return;
     } else if (displayData.length === 0) return;
 
     const wb = XLSX.utils.book_new();
 
+    if (activeReport === 'lifting-report' && liftingTab === 'commodity') {
+      const { rows } = calculateLiftingCommoditySummary(filteredLiftingData);
+      const activeCols = visibleColumns && visibleColumns.length > 0 ? visibleColumns : DEFAULT_LIFTING_COMMODITY_CONFIG;
+      const wsData = [activeCols.map(c => c.label)];
+      rows.forEach(r => {
+        if (r.isGrandTotal) {
+          wsData.push(activeCols.map(c => {
+            if (c.id === 'district') return "Grand Total";
+            if (c.id === 'commodity') return "";
+            if (c.id === 'refCount') return r.refCount;
+            if (c.id === 'sumQty') return r.sumQty;
+            if (c.id === 'startPhotoCount') return r.startPhotoCount ?? 0;
+            if (c.id === 'endPhotoCount') return r.endPhotoCount ?? 0;
+            return "";
+          }));
+        } else if (r.isSubtotal) {
+          wsData.push(activeCols.map(c => {
+            if (c.id === 'district') return r.district;
+            if (c.id === 'commodity') return "";
+            if (c.id === 'refCount') return r.refCount;
+            if (c.id === 'sumQty') return r.sumQty;
+            if (c.id === 'startPhotoCount') return r.startPhotoCount ?? 0;
+            if (c.id === 'endPhotoCount') return r.endPhotoCount ?? 0;
+            return "";
+          }));
+        } else {
+          wsData.push(activeCols.map(c => {
+            if (c.id === 'district') return r.displayDistrict || "";
+            if (c.id === 'commodity') return r.commodity;
+            if (c.id === 'refCount') return r.refCount;
+            if (c.id === 'sumQty') return r.sumQty;
+            if (c.id === 'startPhotoCount') return r.startPhotoCount ?? 0;
+            if (c.id === 'endPhotoCount') return r.endPhotoCount ?? 0;
+            return r[c.id] ?? "";
+          }));
+        }
+      });
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      XLSX.utils.book_append_sheet(wb, ws, "Commodity Lifting");
+      XLSX.writeFile(wb, `GSCSCL_Lifting_Commodity_${new Date().toISOString().split('T')[0]}.xlsx`);
+      return;
+    }
+
+    if (activeReport === 'last-mile-epod' && lastMileEpodTab === 'dc-summary') {
+      const { rows } = calculateLastMileDcSummary(filteredLastMileData);
+      const activeCols = visibleColumns && visibleColumns.length > 0 ? visibleColumns : DEFAULT_LAST_MILE_DC_SUMMARY_CONFIG;
+      const wsData = [activeCols.map(c => c.label)];
+      let sr = 1;
+      rows.forEach(r => {
+        if (r.isGrandTotal) {
+          const rowData = activeCols.map(c => {
+            if (c.id === 'district' || (c.id === 'srNo' && !activeCols.some(ac => ac.id === 'district'))) return "Grand Total";
+            if (c.id === 'tripCreated') return r.tripCreated;
+            if (c.id === 'dcNumber') return r.dcNumber;
+            if (c.id === 'epod') return r.epod;
+            if (c.id === 'endTrip') return r.endTrip;
+            return "";
+          });
+          wsData.push(rowData);
+        } else if (r.isSubtotal) {
+          const rowData = activeCols.map(c => {
+            if (c.id === 'district' || (c.id === 'srNo' && !activeCols.some(ac => ac.id === 'district'))) return r.district;
+            if (c.id === 'tripCreated') return r.tripCreated;
+            if (c.id === 'dcNumber') return r.dcNumber;
+            if (c.id === 'epod') return r.epod;
+            if (c.id === 'endTrip') return r.endTrip;
+            return "";
+          });
+          wsData.push(rowData);
+        } else {
+          const currentSr = sr++;
+          const rowData = activeCols.map(c => {
+            if (c.id === 'srNo') return currentSr;
+            if (c.id === 'district') return r.district;
+            if (c.id === 'godown') return r.godown || r.godownName;
+            if (c.id === 'transporter') return r.transporter || r.transporterName;
+            if (c.id === 'tripCreated') return r.tripCreated;
+            if (c.id === 'dcNumber') return r.dcNumber;
+            if (c.id === 'epod') return r.epod;
+            if (c.id === 'endTrip') return r.endTrip;
+            return r[c.id] ?? "";
+          });
+          wsData.push(rowData);
+        }
+      });
+      const ws = XLSX.utils.aoa_to_sheet(wsData);
+      ws['!cols'] = activeCols.map(c => {
+        if (c.id === 'srNo') return { wch: 8 };
+        if (c.id === 'district') return { wch: 22 };
+        if (c.id === 'godown') return { wch: 25 };
+        if (c.id === 'transporter') return { wch: 30 };
+        return { wch: 15 };
+      });
+      XLSX.utils.book_append_sheet(wb, ws, "DC Wise Summary");
+      const safeTitle = (reportTitle || 'Last_Mile_DC_Wise_Summary').replace(/[^a-z0-9]/gi, '_');
+      XLSX.writeFile(wb, `GSCSCL_${safeTitle}.xlsx`);
+      return;
+    }
+
+    if (activeReport === 'last-mile-epod' && (lastMileEpodTab === 'trips-summary' || lastMileEpodTab === 'dc-summary')) {
+      if (activeReport !== 'lifting-report' && filteredLastMileData.length === 0) return;
+    } else if (activeReport === 'lifting-report' && liftingTab === 'commodity') {
+      if (filteredLiftingData.length === 0) return;
+    }
     if (activeReport === 'last-mile-epod' && lastMileEpodTab === 'trips-summary') {
       const { rows } = calculateLastMileGodownTrips(filteredLastMileData);
       const activeCols = visibleColumns && visibleColumns.length > 0 ? visibleColumns : DEFAULT_LAST_MILE_TRIPS_SUMMARY_CONFIG;
@@ -3086,8 +3525,11 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
   };
 
   const handleOpenPdfModal = () => {
-    if (activeReport === 'last-mile-epod' && lastMileEpodTab === 'trips-summary') {
-      if (filteredLastMileData.length === 0) return;
+    if (activeReport === 'last-mile-epod' && (lastMileEpodTab === 'trips-summary' || lastMileEpodTab === 'dc-summary')) {
+      if (activeReport !== 'lifting-report' && filteredLastMileData.length === 0) return;
+    } else if (activeReport === 'lifting-report' && liftingTab === 'commodity') {
+      if (filteredLiftingData.length === 0) return;
+      if (activeReport !== 'lifting-report' && filteredLastMileData.length === 0) return;
     } else if (displayData.length === 0) return;
     const defaultForReport = (activeReport === 'lifting-report' || activeReport === 'vehicle-assigned' || activeReport === 'multi-trip-analysis' || activeReport === 'last-mile-imei' || activeReport === 'last-mile-vehicle-assigned' || activeReport === 'last-mile-commodity' || activeReport === 'ro-allocation-dsm' || visibleColumns.length > 7) ? 'landscape' : 'portrait';
     setPdfOrientation(defaultForReport);
@@ -3095,8 +3537,11 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
   };
 
   const exportPDF = (selectedOrientation) => {
-    if (activeReport === 'last-mile-epod' && lastMileEpodTab === 'trips-summary') {
-      if (filteredLastMileData.length === 0) return;
+    if (activeReport === 'last-mile-epod' && (lastMileEpodTab === 'trips-summary' || lastMileEpodTab === 'dc-summary')) {
+      if (activeReport !== 'lifting-report' && filteredLastMileData.length === 0) return;
+    } else if (activeReport === 'lifting-report' && liftingTab === 'commodity') {
+      if (filteredLiftingData.length === 0) return;
+      if (activeReport !== 'lifting-report' && filteredLastMileData.length === 0) return;
     } else if (displayData.length === 0) return;
 
     const isLandscape = (selectedOrientation || pdfOrientation) === 'landscape';
@@ -3138,6 +3583,181 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
 
     drawHeader();
 
+    if (activeReport === 'lifting-report' && liftingTab === 'commodity') {
+      const { rows } = calculateLiftingCommoditySummary(filteredLiftingData);
+      const activeCols = visibleColumns && visibleColumns.length > 0 ? visibleColumns : DEFAULT_LIFTING_COMMODITY_CONFIG;
+      const pdfBody = [];
+      rows.forEach(r => {
+        if (r.isGrandTotal) {
+          pdfBody.push(activeCols.map(c => ({
+            content: c.id === 'district' ? 'Grand Total' : (c.id === 'commodity' ? '' : (c.id === 'sumQty' ? Number(r.sumQty).toFixed(4) : String(r[c.id] ?? 0))),
+            styles: { halign: ['refCount', 'sumQty', 'startPhotoCount', 'endPhotoCount'].includes(c.id) ? 'center' : 'left', fontStyle: 'bold', fillColor: [252, 213, 180], textColor: [0, 0, 0] }
+          })));
+        } else if (r.isSubtotal) {
+          pdfBody.push(activeCols.map(c => ({
+            content: c.id === 'district' ? r.district : (c.id === 'commodity' ? '' : (c.id === 'sumQty' ? Number(r.sumQty).toFixed(4) : String(r[c.id] ?? 0))),
+            styles: { halign: ['refCount', 'sumQty', 'startPhotoCount', 'endPhotoCount'].includes(c.id) ? 'center' : 'left', fontStyle: 'bold', fillColor: [217, 217, 217], textColor: [0, 0, 0] }
+          })));
+        } else {
+          pdfBody.push(activeCols.map(c => ({
+            content: c.id === 'district' ? (r.displayDistrict || '') : (c.id === 'commodity' ? r.commodity : (c.id === 'sumQty' ? Number(r.sumQty).toFixed(4) : String(r[c.id] ?? 0))),
+            styles: { halign: ['refCount', 'sumQty', 'startPhotoCount', 'endPhotoCount'].includes(c.id) ? 'center' : 'left' }
+          })));
+        }
+      });
+
+      const colStyles = {};
+      activeCols.forEach((c, idx) => {
+        if (['refCount', 'sumQty', 'startPhotoCount', 'endPhotoCount'].includes(c.id)) {
+          colStyles[idx] = { halign: 'center' };
+        }
+      });
+
+      autoTable(doc, {
+        head: [activeCols.map(c => c.label)],
+        body: pdfBody,
+        startY: 35,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
+        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
+        columnStyles: colStyles,
+        margin: { left: 8, right: 8, top: 10, bottom: 15 },
+        didDrawPage: function (data) {
+          doc.setGState(new doc.GState({ opacity: 0.15 }));
+          doc.setFontSize(80);
+          doc.setTextColor(150, 150, 150);
+          doc.setFont("helvetica", "bold");
+          const companyTitleStr = localStorage.getItem('companyTitle');
+          const defaultWatermark = companyTitleStr === null ? "FarEye" : (companyTitleStr ? companyTitleStr.split(' ')[0] : "");
+          if (defaultWatermark.trim() !== '') {
+            const textWidth = doc.getTextWidth(defaultWatermark);
+            const x = (pageWidth - textWidth) / 2;
+            const y = pageHeight / 2;
+            doc.text(defaultWatermark, x, y);
+          }
+          doc.setGState(new doc.GState({ opacity: 1.0 }));
+
+          doc.setLineWidth(0.5);
+          doc.setDrawColor(200, 200, 200);
+          doc.line(14, pageHeight - 15, pageWidth - 14, pageHeight - 15);
+          doc.setFontSize(10);
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(100, 100, 100);
+          doc.text("Page " + data.pageNumber, pageWidth - 14, pageHeight - 10, { align: 'right' });
+        }
+      });
+      doc.save(`GSCSCL_${(reportTitle || 'Lifting_Report_Commodity_Wise_Summary').replace(/[^a-z0-9]/gi, '_')}.pdf`);
+      return;
+    }
+
+    if (activeReport === 'last-mile-epod' && lastMileEpodTab === 'dc-summary') {
+      const { rows } = calculateLastMileDcSummary(filteredLastMileData);
+      const activeCols = visibleColumns && visibleColumns.length > 0 ? visibleColumns : DEFAULT_LAST_MILE_DC_SUMMARY_CONFIG;
+      const pdfBody = [];
+      const metricCols = ['tripCreated', 'dcNumber', 'epod', 'endTrip'];
+      const firstMetricIndex = activeCols.findIndex(c => metricCols.includes(c.id));
+      const leadingColSpan = firstMetricIndex > 0 ? firstMetricIndex : (firstMetricIndex === -1 ? activeCols.length : 1);
+
+      let sr = 1;
+      rows.forEach(r => {
+        if (r.isGrandTotal) {
+          if (firstMetricIndex > 0) {
+            const cells = [
+              { content: 'Grand Total', colSpan: leadingColSpan, styles: { halign: 'center', fontStyle: 'bold', fillColor: [240, 240, 240] } }
+            ];
+            activeCols.slice(firstMetricIndex).forEach(c => {
+              cells.push({ content: String(r[c.id] ?? ''), styles: { halign: 'center', fontStyle: 'bold', fillColor: [240, 240, 240] } });
+            });
+            pdfBody.push(cells);
+          } else {
+            pdfBody.push(activeCols.map(c => ({
+              content: c.id === 'district' ? 'Grand Total' : (metricCols.includes(c.id) ? String(r[c.id] ?? '') : ''),
+              styles: { halign: 'center', fontStyle: 'bold', fillColor: [240, 240, 240] }
+            })));
+          }
+        } else if (r.isSubtotal) {
+          if (firstMetricIndex > 0) {
+            const cells = [
+              { content: r.district, colSpan: leadingColSpan, styles: { halign: 'left', fontStyle: 'bold', fillColor: [248, 249, 250] } }
+            ];
+            activeCols.slice(firstMetricIndex).forEach(c => {
+              cells.push({ content: String(r[c.id] ?? ''), styles: { halign: 'center', fontStyle: 'bold', fillColor: [248, 249, 250] } });
+            });
+            pdfBody.push(cells);
+          } else {
+            pdfBody.push(activeCols.map(c => ({
+              content: c.id === 'district' ? r.district : (metricCols.includes(c.id) ? String(r[c.id] ?? '') : ''),
+              styles: { halign: 'center', fontStyle: 'bold', fillColor: [248, 249, 250] }
+            })));
+          }
+        } else {
+          const currentSr = sr++;
+          pdfBody.push(activeCols.map(c => {
+            if (c.id === 'srNo') return String(currentSr);
+            if (c.id === 'district') return r.district || '';
+            if (c.id === 'godown') return r.godown || r.godownName || '';
+            if (c.id === 'transporter') return r.transporter || r.transporterName || '';
+            if (metricCols.includes(c.id)) return String(r[c.id] ?? 0);
+            return String(r[c.id] ?? '');
+          }));
+        }
+      });
+
+      const colStyles = {};
+      activeCols.forEach((c, idx) => {
+        if (c.id === 'srNo') colStyles[idx] = { halign: 'center', cellWidth: 15 };
+        else if (metricCols.includes(c.id)) colStyles[idx] = { halign: 'center' };
+      });
+
+      autoTable(doc, {
+        head: [activeCols.map(c => c.label)],
+        body: pdfBody,
+        startY: 35,
+        theme: 'grid',
+        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
+        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
+        columnStyles: colStyles,
+        margin: { left: 8, right: 8, top: 10, bottom: 15 },
+        didDrawPage: function (data) {
+          doc.setGState(new doc.GState({ opacity: 0.15 }));
+          doc.setFontSize(80);
+          doc.setTextColor(150, 150, 150);
+          doc.setFont("helvetica", "bold");
+          const companyTitleStr = localStorage.getItem('companyTitle');
+          const defaultWatermark = companyTitleStr === null ? "FarEye" : (companyTitleStr ? companyTitleStr.split(' ')[0] : "");
+          if (defaultWatermark.trim() !== '') {
+            const textWidth = doc.getTextWidth(defaultWatermark);
+            const x = (pageWidth - textWidth) / 2;
+            const y = pageHeight / 2;
+            doc.text(defaultWatermark, x, y);
+          }
+          doc.setGState(new doc.GState({ opacity: 1.0 }));
+
+          doc.setLineWidth(0.5);
+          doc.setDrawColor(200, 200, 200);
+          doc.line(14, pageHeight - 15, pageWidth - 14, pageHeight - 15);
+          doc.setFontSize(10);
+          doc.setFont("helvetica", "normal");
+          doc.setTextColor(100, 100, 100);
+          doc.text("Page " + data.pageNumber, pageWidth - 14, pageHeight - 10, { align: 'right' });
+        },
+        didDrawPage: function (data) {
+          doc.setFontSize(10);
+          doc.setTextColor(100, 100, 100);
+          doc.text("Page " + data.pageNumber, doc.internal.pageSize.getWidth() - 14, doc.internal.pageSize.getHeight() - 10, { align: 'right' });
+        }
+      });
+
+      const safeTitle = (reportTitle || 'Last_Mile_DC_Wise_Summary').replace(/[^a-z0-9]/gi, '_');
+      doc.save(`GSCSCL_${safeTitle}.pdf`);
+      return;
+    }
+
+    if (activeReport === 'last-mile-epod' && (lastMileEpodTab === 'trips-summary' || lastMileEpodTab === 'dc-summary')) {
+      if (activeReport !== 'lifting-report' && filteredLastMileData.length === 0) return;
+    } else if (activeReport === 'lifting-report' && liftingTab === 'commodity') {
+      if (filteredLiftingData.length === 0) return;
+    }
     if (activeReport === 'last-mile-epod' && lastMileEpodTab === 'trips-summary') {
       const { rows } = calculateLastMileGodownTrips(filteredLastMileData);
       const activeCols = visibleColumns && visibleColumns.length > 0 ? visibleColumns : DEFAULT_LAST_MILE_TRIPS_SUMMARY_CONFIG;
@@ -3202,8 +3822,8 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
         body: pdfBody,
         startY: 35,
         theme: 'grid',
-        styles: { fontSize: 8, textColor: [0,0,0], lineColor: [200,200,200], lineWidth: 0.1 },
-        headStyles: { fillColor: [240,240,240], textColor: [0,0,0], fontStyle: 'bold', halign: 'left' },
+        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
+        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
         columnStyles: colStyles,
         margin: { left: 14 },
         didDrawPage: function (data) {
@@ -3283,8 +3903,8 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
             body: t1Data,
             startY: 35,
             theme: 'grid',
-            styles: { fontSize: 8, textColor: [0,0,0], lineColor: [200,200,200], lineWidth: 0.1 },
-            headStyles: { fillColor: [240,240,240], textColor: [0,0,0], fontStyle: 'bold', halign: 'left' },
+            styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
+            headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
             columnStyles: { 2: { halign: 'right' } },
             margin: { left: 14 },
             didDrawPage: didDrawPageFunc
@@ -3305,8 +3925,8 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
             body: t2Data,
             startY: t2StartY,
             theme: 'grid',
-            styles: { fontSize: 8, textColor: [0,0,0], lineColor: [200,200,200], lineWidth: 0.1 },
-            headStyles: { fillColor: [240,240,240], textColor: [0,0,0], fontStyle: 'bold', halign: 'left' },
+            styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
+            headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
             columnStyles: { 3: { halign: 'right' } },
             margin: { left: 14 },
             didDrawPage: didDrawPageFunc
@@ -3564,8 +4184,8 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
         body: t1Data,
         startY: 35,
         theme: 'grid',
-        styles: { fontSize: 8, textColor: [0,0,0], lineColor: [200,200,200], lineWidth: 0.1 },
-        headStyles: { fillColor: [240,240,240], textColor: [0,0,0], fontStyle: 'bold', halign: 'left' },
+        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
+        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
         columnStyles: {
             2: { halign: 'right' }
         },
@@ -3602,8 +4222,8 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
         body: t2Data,
         startY: doc.lastAutoTable.finalY + 15,
         theme: 'grid',
-        styles: { fontSize: 8, textColor: [0,0,0], lineColor: [200,200,200], lineWidth: 0.1 },
-        headStyles: { fillColor: [240,240,240], textColor: [0,0,0], fontStyle: 'bold', halign: 'left' },
+        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
+        headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
         columnStyles: {
             3: { halign: 'right' }
         },
@@ -4451,7 +5071,7 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
 
             {!isLoading && rawData.length > 0 && (
               <>
-              {activeReport === 'lifting-report' && displayData.length > 0 && (
+              {activeReport === 'lifting-report' && liftingTab === 'summary' && displayData.length > 0 && (
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '24px' }}>
                    {(() => {
                      const grandTotal = displayData.find(r => r.isGrandTotal) || {};
@@ -5140,11 +5760,59 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                             >
                               Trip Summary (Godown Wise)
                             </button>
+                            <button 
+                              className={`tab-btn ${lastMileEpodTab === 'dc-summary' ? 'active' : ''}`}
+                              onClick={() => setLastMileEpodTab('dc-summary')}
+                              style={{
+                                padding: '10px 20px', background: 'none', border: 'none',
+                                borderBottom: lastMileEpodTab === 'dc-summary' ? '2px solid var(--primary-color)' : '2px solid transparent',
+                                color: lastMileEpodTab === 'dc-summary' ? 'var(--primary-color)' : 'var(--text-muted)',
+                                fontWeight: lastMileEpodTab === 'dc-summary' ? '600' : 'normal',
+                                cursor: 'pointer', fontSize: '1rem'
+                              }}
+                            >
+                              Trip summary DC wise Report
+                            </button>
+                          </div>
+                        )}
+
+                        {activeReport === 'lifting-report' && (
+                          <div className="report-tabs" style={{ display: 'flex', gap: '10px', marginBottom: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '0' }}>
+                            <button 
+                              className={`tab-btn ${liftingTab === 'summary' ? 'active' : ''}`}
+                              onClick={() => setLiftingTab('summary')}
+                              style={{
+                                padding: '10px 20px', background: 'none', border: 'none',
+                                borderBottom: liftingTab === 'summary' ? '2px solid var(--primary-color)' : '2px solid transparent',
+                                color: liftingTab === 'summary' ? 'var(--primary-color)' : 'var(--text-muted)',
+                                fontWeight: liftingTab === 'summary' ? '600' : 'normal',
+                                cursor: 'pointer', fontSize: '1rem'
+                              }}
+                            >
+                              Lifting Analysis
+                            </button>
+                            <button 
+                              className={`tab-btn ${liftingTab === 'commodity' ? 'active' : ''}`}
+                              onClick={() => setLiftingTab('commodity')}
+                              style={{
+                                padding: '10px 20px', background: 'none', border: 'none',
+                                borderBottom: liftingTab === 'commodity' ? '2px solid var(--primary-color)' : '2px solid transparent',
+                                color: liftingTab === 'commodity' ? 'var(--primary-color)' : 'var(--text-muted)',
+                                fontWeight: liftingTab === 'commodity' ? '600' : 'normal',
+                                cursor: 'pointer', fontSize: '1rem'
+                              }}
+                            >
+                              Commodity Wise Lifting Summary
+                            </button>
                           </div>
                         )}
 
                         {activeReport === 'last-mile-epod' && lastMileEpodTab === 'trips-summary' ? (
                           <LastMileTripsSummary data={filteredLastMileData} calculateLastMileGodownTrips={calculateLastMileGodownTrips} visibleColumns={visibleColumns} />
+                        ) : activeReport === 'last-mile-epod' && lastMileEpodTab === 'dc-summary' ? (
+                          <LastMileDcSummary data={filteredLastMileData} calculateLastMileDcSummary={calculateLastMileDcSummary} visibleColumns={visibleColumns} />
+                        ) : activeReport === 'lifting-report' && liftingTab === 'commodity' ? (
+                          <LiftingCommoditySummary data={filteredLiftingData} calculateLiftingCommoditySummary={calculateLiftingCommoditySummary} visibleColumns={visibleColumns} />
                         ) : (
                           <div className="table-container" style={{ marginTop: 0 }}>
                           <table>
@@ -5284,7 +5952,7 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                   )}
 
                     {/* Pagination Controls */}
-                    {displayData.length > 0 && (activeReport !== 'last-mile-epod' || lastMileEpodTab !== 'trips-summary') && (
+                    {displayData.length > 0 && (activeReport !== 'last-mile-epod' || (lastMileEpodTab !== 'trips-summary' && lastMileEpodTab !== 'dc-summary')) && (activeReport !== 'lifting-report' || liftingTab !== 'commodity') && (
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', padding: '12px 16px', background: 'var(--bg-panel)', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                             <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
@@ -5438,13 +6106,15 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                     }
                     else if (activeReport === 'ro-allocation-dsm') defaultConf = DEFAULT_RO_ALLOCATION_CONFIG;
                     else if (activeReport === 'last-mile-epod') {
-                        defaultConf = lastMileEpodTab === 'trips-summary' ? DEFAULT_LAST_MILE_TRIPS_SUMMARY_CONFIG : DEFAULT_LAST_MILE_EPOD_CONFIG;
+                        defaultConf = lastMileEpodTab === 'dc-summary'
+        ? [...DEFAULT_LAST_MILE_DC_SUMMARY_CONFIG]
+        : lastMileEpodTab === 'trips-summary' ? DEFAULT_LAST_MILE_TRIPS_SUMMARY_CONFIG : DEFAULT_LAST_MILE_EPOD_CONFIG;
                     }
                     else if (activeReport === 'last-mile-vehicle-assigned') defaultConf = DEFAULT_LAST_MILE_VEHICLE_ASSIGNED_CONFIG;
                     else if (activeReport === 'last-mile-imei') defaultConf = DEFAULT_LAST_MILE_IMEI_CONFIG;
                     else if (activeReport === 'last-mile-commodity') defaultConf = DEFAULT_LAST_MILE_COMMODITY_CONFIG;
                     else if (activeReport === 'miller-to-godown') defaultConf = DEFAULT_MG_CONFIG;
-                    else if (activeReport === 'lifting-report') defaultConf = DEFAULT_LIFTING_CONFIG;
+                    else if (activeReport === 'lifting-report') defaultConf = liftingTab === 'commodity' ? DEFAULT_LIFTING_COMMODITY_CONFIG : DEFAULT_LIFTING_CONFIG;
                     else if (activeReport === 'multi-trip-analysis') defaultConf = DEFAULT_MULTI_TRIP_CONFIG;
                     else if (activeReport === 'eta-route') defaultConf = DEFAULT_ETA_ROUTE_CONFIG;
                     else if (activeReport === 'first-mile-vehicle-registered') defaultConf = DEFAULT_FIRST_MILE_VEHICLE_REGISTERED_CONFIG;

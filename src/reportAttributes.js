@@ -36,10 +36,13 @@ export const DEFAULT_REPORT_ATTRIBUTES = {
     'Reference Number': ['Reference Number', 'Reference No'],
     'District': ['District', 'TP District'],
     'TP Creation Mode': ['TP Creation Mode', 'created_from'],
-    'Final Quantity Allocated': ['Final Quantity Allocated'],
+    'Final Quantity Allocated': ['Final Quantity Allocated', 'TP Qty (MT)', 'TP Qty', 'Net Weight', 'Lifted Qty', 'Qty (MT)', 'Quantity'],
     'Vehicle Number': ['Vehicle Number', 'Vehicle No'],
     'Driver Status': ['Driver Status'],
-    'EPOD status': ['EPOD status']
+    'EPOD status': ['EPOD status'],
+    'Commodity': ['Commodity', 'Commodity Name', 'Commodity ID/Name', 'Item Name', 'item', 'Item', 'Commodity_Name', 'commodity_name'],
+    'Start Trip Photo': ['Start Trip Photo', 'Start Trip Image', 'Start Photo', 'start_trip_image', 'start_trip_photo', 'Start Image', 'Driver Start Trip Photo', 'Start Trip Photo URL'],
+    'End Trip Photo': ['End Trip Photo', 'End Trip Image', 'End Trip Image - EPOD', 'EPOD Photo', 'EPOD Image', 'Delivered Photo', 'Delivered Image', 'End Photo', 'end_trip_photo', 'end_trip_image', 'End Trip Photo URL']
   },
   'vehicle-assigned': {
     'Reference Number': ['Reference Number', 'Reference No'],
@@ -58,11 +61,15 @@ export const DEFAULT_REPORT_ATTRIBUTES = {
     'TP date': ['TP date', 'TP Date'],
     'District': ['District'],
     'Destination Godown': ['Destination Godown'],
-    'EPOD status': ['EPOD status']
+    'EPOD status': ['EPOD status'],
+    'Commodity': ['Commodity', 'Commodity Name', 'Commodity ID/Name', 'Item Name', 'item', 'Item', 'Commodity_Name', 'commodity_name'],
+    'Start Trip Photo': ['Start Trip Photo', 'Start Trip Image', 'Start Photo', 'start_trip_image', 'start_trip_photo', 'Start Image', 'Driver Start Trip Photo', 'Start Trip Photo URL'],
+    'End Trip Photo': ['End Trip Photo', 'End Trip Image', 'End Trip Image - EPOD', 'EPOD Photo', 'EPOD Image', 'Delivered Photo', 'Delivered Image', 'End Photo', 'end_trip_photo', 'end_trip_image', 'End Trip Photo URL']
   },
   'last-mile-epod': {
     'District': ['District', 'TP District', 'Godown District', 'district', 'district_name'],
     'GSCSCL Godown': ['GSCSCL Godown', 'Godown Name', 'Godown', 'Destination Godown', 'Lifting Location Name', 'godown_name', 'godown', 'Taluka Godown'],
+    'Transporter Name': ['Transporter Name', 'Transporter', 'DSD Transporter Name', 'transporter_name', 'transporter'],
     'Trip Status': ['Trip Status', 'Current Status', 'Status', 'Driver Status', 'Trip State', 'Stage', 'Delivery Status', 'Trip Current Status', 'trip_status', 'driver_status'],
     'trip_end_datetime': ['trip_end_datetime', 'Trip End Datetime', 'Trip End Date Time', 'trip_end_date_time', 'end_trip_datetime', 'End Trip Date Time', 'End Trip Date', 'Trip End Time', 'end_trip_time', 'End Date Time', 'Trip End'],
     'LR Number': ['LR Number', 'LR Numbe', 'LR No', 'LR No.', 'lr_number', 'lr_no', 'LR', 'LR NO', 'LR NO.', 'lr', 'LR#', 'trip_id', 'trip_no', 'Trip ID', 'Trip No', 'Trip Number', 'LR_Number', 'LR_No', 'lr_num', 'lrnumbe', 'lr number', 'lr numbe'],
