@@ -1150,6 +1150,7 @@ self.onmessage = async (e) => {
     const fmDistrictKey = resolveKey('District');
     const fmDestLocKey = resolveKey('Destination Godown');
     const fmTransporterKey = resolveKey('Transporter Name', 'Transporter', 'DSD Transporter Name');
+    {
 
     const tripEndAliases = [
        'trip_end_datetime', 'Trip End Datetime', 'Trip End Date Time', 'trip_end_date_time', 
@@ -1802,6 +1803,7 @@ self.onmessage = async (e) => {
          }
 
          let epodStatus = getVal(row, 'EPOD Status') || '(Blanks)';
+         var district = getVal(row, 'District', 'TP District', 'Godown District') || '';
          if (epodStatus) uniqueEpodStatuses.add(epodStatus);
 
          processed.push({ ...row, ...extractDynamicColumns(row),
@@ -1825,7 +1827,7 @@ self.onmessage = async (e) => {
          return;
       }
 
-      let district = '';
+      district = '';
       let sourceLoc = '';
       let destLoc = '';
       
@@ -1943,6 +1945,8 @@ self.onmessage = async (e) => {
         _ref: refNo
       });
     });
+
+    }
 
     if (processed.length === 0) {
       self.postMessage({ type: 'error', message: 'Data Not Match or no valid records found for this report.' });
