@@ -253,7 +253,52 @@ self.onmessage = async (e) => {
                 isValid = false;
                 expectedColumns = requiredAttributes.join(', ');
             }
-        } else if (activeReport === 'epod-photo-analysis') {
+        } else if (false) /*
+        if (activeReport === 'first-mile-epod') {
+         const refNoStr = fmRefKey && row[fmRefKey] !== undefined ? String(row[fmRefKey]).trim() : '';
+         if (refNoStr.includes('_cancel')) return;
+         
+         const tpDateRaw = fmTpDateKey ? row[fmTpDateKey] : undefined;
+         if (tpDateRaw === undefined || tpDateRaw === null || String(tpDateRaw).trim() === '') return;
+         
+         const dtStr = formatExcelDate(tpDateRaw);
+         if (dtStr) uniqueTpDates.add(dtStr);
+
+         const district = (fmDistrictKey && row[fmDistrictKey] !== undefined ? String(row[fmDistrictKey]).trim() : '') || 'Unknown';
+         if (district) uniqueDistricts.add(district);
+
+         const epodDateRaw = fmEpodDateKey ? row[fmEpodDateKey] : undefined;
+         const epodStatusVal = fmEpodStatusKey && row[fmEpodStatusKey] !== undefined ? String(row[fmEpodStatusKey]).toUpperCase().trim() : '';
+         const isCompleted = (epodDateRaw !== undefined && epodDateRaw !== null && String(epodDateRaw).trim() !== '') || epodStatusVal === 'COMPLETED' || epodStatusVal === 'DELIVERED';
+
+         const destLoc = fmDestLocKey && row[fmDestLocKey] !== undefined ? String(row[fmDestLocKey]).trim() : '';
+         const transporter = fmTransporterKey && row[fmTransporterKey] !== undefined ? String(row[fmTransporterKey]).trim() : '';
+
+         processed.push({ ...row, ...extractDynamicColumns(row),
+           district: district,
+           destLoc: destLoc,
+           transporter: transporter,
+           transporterName: transporter,
+           tpDate: dtStr,
+           status: isCompleted ? 'Completed' : 'Pending',
+           epodComplete: isCompleted ? 1 : 0,
+           epodPending: isCompleted ? 0 : 1,
+           trips: isCompleted ? 0 : 1,
+           totalTps: 1,
+           _ref: refNoStr
+         });
+         return;
+      }
+
+      if (false && activeReport === 'first-mile-epod') {
+            const hasStatus = getAliases('EPOD status').some(alias => headers.includes(alias.toLowerCase()));
+            const hasRef = getAliases('Reference Number').some(alias => headers.includes(alias.toLowerCase()));
+            const hasTrack = headers.includes('tracking');
+            if (!hasStatus && !hasRef && !hasTrack) {
+                isValid = false;
+                expectedColumns = requiredAttributes.join(', ');
+            }
+        */ } else if (activeReport === 'epod-photo-analysis') {
             // Very lenient validation for EPOD photo analysis
             isValid = true;
         } else {
@@ -278,7 +323,49 @@ self.onmessage = async (e) => {
            isValid = false;
            expectedColumns = 'Reference No, EPOD status, TP date';
          }
-       } else if (activeReport === 'godown-to-miller') {
+       } else if (false) /*
+       if (activeReport === 'first-mile-epod') {
+         const refNoStr = fmRefKey && row[fmRefKey] !== undefined ? String(row[fmRefKey]).trim() : '';
+         if (refNoStr.includes('_cancel')) return;
+         
+         const tpDateRaw = fmTpDateKey ? row[fmTpDateKey] : undefined;
+         if (tpDateRaw === undefined || tpDateRaw === null || String(tpDateRaw).trim() === '') return;
+         
+         const dtStr = formatExcelDate(tpDateRaw);
+         if (dtStr) uniqueTpDates.add(dtStr);
+
+         const district = (fmDistrictKey && row[fmDistrictKey] !== undefined ? String(row[fmDistrictKey]).trim() : '') || 'Unknown';
+         if (district) uniqueDistricts.add(district);
+
+         const epodDateRaw = fmEpodDateKey ? row[fmEpodDateKey] : undefined;
+         const epodStatusVal = fmEpodStatusKey && row[fmEpodStatusKey] !== undefined ? String(row[fmEpodStatusKey]).toUpperCase().trim() : '';
+         const isCompleted = (epodDateRaw !== undefined && epodDateRaw !== null && String(epodDateRaw).trim() !== '') || epodStatusVal === 'COMPLETED' || epodStatusVal === 'DELIVERED';
+
+         const destLoc = fmDestLocKey && row[fmDestLocKey] !== undefined ? String(row[fmDestLocKey]).trim() : '';
+         const transporter = fmTransporterKey && row[fmTransporterKey] !== undefined ? String(row[fmTransporterKey]).trim() : '';
+
+         processed.push({ ...row, ...extractDynamicColumns(row),
+           district: district,
+           destLoc: destLoc,
+           transporter: transporter,
+           transporterName: transporter,
+           tpDate: dtStr,
+           status: isCompleted ? 'Completed' : 'Pending',
+           epodComplete: isCompleted ? 1 : 0,
+           epodPending: isCompleted ? 0 : 1,
+           trips: isCompleted ? 0 : 1,
+           totalTps: 1,
+           _ref: refNoStr
+         });
+         return;
+      }
+
+      if (false && activeReport === 'first-mile-epod') {
+         if (!headers.includes('epod status') && !headers.includes('reference no') && !headers.includes('reference number') && !headers.includes('tracking')) {
+           isValid = false;
+           expectedColumns = 'Reference No, EPOD status, TP date';
+         }
+       */ } else if (activeReport === 'godown-to-miller') {
          if (!headers.includes('tp district') && !headers.includes('lifting location name')) {
            isValid = false;
            expectedColumns = 'TP District, Lifting Location Name, TP Destination Name';
@@ -346,6 +433,7 @@ self.onmessage = async (e) => {
     const uniqueEpodStatuses = new Set();
     const uniqueImeiStatuses = new Set();
     const uniqueTpDates = new Set();
+    const uniqueDistricts = new Set();
 
     // Use the combined data from all sheets
     const jsonDataRaw = allJsonDataRaw;
@@ -401,7 +489,7 @@ self.onmessage = async (e) => {
     // Helper to get value using custom resolved aliases
     const getVal = (row, standardAttribute, ...fallbackAliases) => {
         const fastKey = resolveKey(standardAttribute, ...fallbackAliases);
-        if (fastKey && row[fastKey] !== undefined) return row[fastKey];
+        return (fastKey && row[fastKey] !== undefined) ? row[fastKey] : undefined;
         let aliases = [standardAttribute];
         if (customAttributes && customAttributes[activeReport] && customAttributes[activeReport][standardAttribute]) {
            aliases = customAttributes[activeReport][standardAttribute];
@@ -421,7 +509,20 @@ self.onmessage = async (e) => {
         }
         return undefined;
     };
+    const dynamicAttrs = (customAttributes && customAttributes[activeReport]) ? Object.keys(customAttributes[activeReport]) : [];
+    const dynamicKeyMap = {};
+    dynamicAttrs.forEach(attr => { dynamicKeyMap[attr] = resolveKey(attr); });
     const extractDynamicColumns = (row) => {
+        if (dynamicAttrs.length === 0) return {};
+        const dynamicProps = {};
+        for (let i = 0; i < dynamicAttrs.length; i++) {
+            const attr = dynamicAttrs[i];
+            const k = dynamicKeyMap[attr];
+            dynamicProps[attr] = (k && row[k] !== undefined) ? row[k] : '';
+        }
+        return dynamicProps;
+    };
+    const _legacyExtractDynamic = (row) => {
         const dynamicProps = {};
         if (customAttributes && customAttributes[activeReport]) {
             Object.keys(customAttributes[activeReport]).forEach(attr => {
@@ -431,7 +532,7 @@ self.onmessage = async (e) => {
         return dynamicProps;
     };
     
-    const jsonData = jsonDataRaw; /*
+    const jsonData = jsonDataRaw;
     
     const tripEndAliases = [
        'trip_end_datetime', 'Trip End Datetime', 'Trip End Date Time', 'trip_end_date_time', 
@@ -446,7 +547,7 @@ self.onmessage = async (e) => {
     ));
     
     // Parse tracking data if provided
-    */ let trackingMap = null;
+    let trackingMap = null;
     let distanceMap = null;
     if (trackingData) {
       try {
@@ -488,6 +589,16 @@ self.onmessage = async (e) => {
 
     // cleaned
 
+    let liftRefKey = resolveKey('Reference Number', 'Reference No', 'Ref No');
+    let liftDistKey = resolveKey('District', 'TP District');
+    let liftVehKey = resolveKey('Vehicle Number', 'Vehicle No');
+    let liftModeKey = resolveKey('TP Creation Mode', 'created_from');
+    let liftQtyKey = resolveKey('Final Quantity Allocated', 'TP Qty (MT)', 'TP Qty', 'Net Weight', 'Lifted Qty', 'Qty (MT)', 'Quantity');
+    let liftDriverStatusKey = resolveKey('Driver Status');
+    let liftEpodStatusKey = resolveKey('EPOD status');
+    let liftCommodityKey = resolveKey('Commodity', 'Commodity Name', 'Commodity ID/Name', 'Item Name', 'item', 'Item', 'Commodity_Name', 'commodity_name');
+    let liftStartPhotoKey = resolveKey('Start Trip Photo', 'Start Trip Image', 'Start Photo', 'start_trip_image', 'start_trip_photo', 'Start Image');
+    let liftEndPhotoKey = resolveKey('End Trip Photo', 'End Trip Image', 'End Trip Image - EPOD', 'EPOD Photo', 'EPOD Image', 'Delivered Photo', 'Delivered Image', 'end_trip_photo', 'end_trip_image');
     let lastFmVehicleNo = '';
       let lastProgressTime = Date.now();
     const totalCount = jsonData.length;
@@ -500,11 +611,12 @@ self.onmessage = async (e) => {
         const refNum = String(getVal(row, 'Reference Number', 'Reference No', 'Ref No') || '').trim();
 
         if (refNum.toLowerCase().includes('_cancel')) return;
-        const hasCancel = Object.values(row).some(v => typeof v === 'string' && v.toLowerCase().includes('_cancel'));
+        const hasCancel = false;
         if (hasCancel) return;
 
         const dist = (getVal(row, 'District', 'TP District') || '').trim();
         if (!dist) return;
+        uniqueDistricts.add(dist);
         
         const veh = String(getVal(row, 'Vehicle Number') || getVal(row, 'Vehicle No') || '').trim();
         const createdFrom = String(getVal(row, 'TP Creation Mode') || getVal(row, 'created_from') || '').toLowerCase();
@@ -614,6 +726,16 @@ self.onmessage = async (e) => {
 
     // cleaned
 
+    let liftRefKey = resolveKey('Reference Number', 'Reference No', 'Ref No');
+    let liftDistKey = resolveKey('District', 'TP District');
+    let liftVehKey = resolveKey('Vehicle Number', 'Vehicle No');
+    let liftModeKey = resolveKey('TP Creation Mode', 'created_from');
+    let liftQtyKey = resolveKey('Final Quantity Allocated', 'TP Qty (MT)', 'TP Qty', 'Net Weight', 'Lifted Qty', 'Qty (MT)', 'Quantity');
+    let liftDriverStatusKey = resolveKey('Driver Status');
+    let liftEpodStatusKey = resolveKey('EPOD status');
+    let liftCommodityKey = resolveKey('Commodity', 'Commodity Name', 'Commodity ID/Name', 'Item Name', 'item', 'Item', 'Commodity_Name', 'commodity_name');
+    let liftStartPhotoKey = resolveKey('Start Trip Photo', 'Start Trip Image', 'Start Photo', 'start_trip_image', 'start_trip_photo', 'Start Image');
+    let liftEndPhotoKey = resolveKey('End Trip Photo', 'End Trip Image', 'End Trip Image - EPOD', 'EPOD Photo', 'EPOD Image', 'Delivered Photo', 'Delivered Image', 'end_trip_photo', 'end_trip_image');
     let lastFmVehicleNo = '';
        let lastProgressTime = Date.now();
     const totalCount = jsonData.length;
@@ -724,6 +846,16 @@ self.onmessage = async (e) => {
        });
        
        processed.sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+       self.postMessage({ 
+         type: 'success', 
+         data: processed,
+         filters: {
+           uniqueDistricts: Array.from(uniqueDistricts),
+           uniqueTpDates: Array.from(uniqueTpDates)
+         }
+       });
+       return;
+       // done
        
        self.postMessage({ type: 'success', data: processed });
        return;
@@ -1000,6 +1132,25 @@ self.onmessage = async (e) => {
     let lmFpsName = '';
     let lmTransporter = '';
 
+    const lmDistrictKey = resolveKey('District', 'TP District', 'Godown District', 'district_name', 'district');
+    const lmRefNoKey = resolveKey('Reference Number', 'Reference No', 'Ref No');
+    const lmEpodStatusKey = resolveKey('EPOD Status');
+    const lmLrNoKey = resolveKey('LR Number', 'LR No', 'LR No.', 'lr_number', 'lr_no', 'LR', 'LR NO', 'LR NO.', 'lr', 'LR#', 'trip_id', 'trip_no', 'Trip ID', 'Trip No', 'Trip Number', 'trip_number', 'LR_Number', 'LR_No', 'lr_num');
+    const lmDcMonthKey = resolveKey('DC Month');
+    const lmDcDateKey = resolveKey('DC Creation Date');
+    const lmGodownKey = resolveKey('GSCSCL Godown', 'Godown Name', 'Godown', 'Destination Godown', 'Lifting Location Name', 'godown_name', 'godown', 'Taluka Godown');
+    const lmTripStatusKey = resolveKey('Trip Status', 'Current Status', 'Driver Status', 'Trip State', 'Stage', 'Delivery Status', 'Trip Current Status');
+    const lmTripEndTimeKey = resolveKey('trip_end_datetime', 'Trip End Datetime', 'Trip End Date Time', 'trip_end_date_time', 'end_trip_datetime', 'End Trip Date Time', 'End Trip Date', 'Trip End Time', 'end_trip_time', 'End Date Time', 'Trip End');
+    const lmTransporterKey = resolveKey('Transporter Name', 'Transporter', 'DSD Transporter Name');
+
+    const fmRefKey = resolveKey('Reference No', 'Reference Number');
+    const fmTpDateKey = resolveKey('TP date', 'TP Date');
+    const fmEpodDateKey = resolveKey('EPOD Date');
+    const fmEpodStatusKey = resolveKey('EPOD status', 'EPOD Status');
+    const fmDistrictKey = resolveKey('District');
+    const fmDestLocKey = resolveKey('Destination Godown');
+    const fmTransporterKey = resolveKey('Transporter Name', 'Transporter', 'DSD Transporter Name');
+
     const tripEndAliases = [
        'trip_end_datetime', 'Trip End Datetime', 'Trip End Date Time', 'trip_end_date_time', 
        'end_trip_datetime', 'End Trip Date Time', 'End Trip Date', 'Trip End Time', 'end_trip_time', 
@@ -1012,6 +1163,16 @@ self.onmessage = async (e) => {
        Object.keys(r).some(k => cleanTripAliases.includes(String(k || '').toLowerCase().replace(/[^a-z0-9]/g, '')))
     ));
 
+    let liftRefKey = resolveKey('Reference Number', 'Reference No', 'Ref No');
+    let liftDistKey = resolveKey('District', 'TP District');
+    let liftVehKey = resolveKey('Vehicle Number', 'Vehicle No');
+    let liftModeKey = resolveKey('TP Creation Mode', 'created_from');
+    let liftQtyKey = resolveKey('Final Quantity Allocated', 'TP Qty (MT)', 'TP Qty', 'Net Weight', 'Lifted Qty', 'Qty (MT)', 'Quantity');
+    let liftDriverStatusKey = resolveKey('Driver Status');
+    let liftEpodStatusKey = resolveKey('EPOD status');
+    let liftCommodityKey = resolveKey('Commodity', 'Commodity Name', 'Commodity ID/Name', 'Item Name', 'item', 'Item', 'Commodity_Name', 'commodity_name');
+    let liftStartPhotoKey = resolveKey('Start Trip Photo', 'Start Trip Image', 'Start Photo', 'start_trip_image', 'start_trip_photo', 'Start Image');
+    let liftEndPhotoKey = resolveKey('End Trip Photo', 'End Trip Image', 'End Trip Image - EPOD', 'EPOD Photo', 'EPOD Image', 'Delivered Photo', 'Delivered Image', 'end_trip_photo', 'end_trip_image');
     let lastFmVehicleNo = '';
     let lastProgressTime = Date.now();
     const totalCount = jsonData.length;
@@ -1148,6 +1309,42 @@ self.onmessage = async (e) => {
       }
 
       if (activeReport === 'first-mile-epod') {
+         const refNoStr = fmRefKey && row[fmRefKey] !== undefined ? String(row[fmRefKey]).trim() : '';
+         if (refNoStr.includes('_cancel')) return;
+         
+         const tpDateRaw = fmTpDateKey ? row[fmTpDateKey] : undefined;
+         if (tpDateRaw === undefined || tpDateRaw === null || String(tpDateRaw).trim() === '') return;
+         
+         const dtStr = formatExcelDate(tpDateRaw);
+         if (dtStr) uniqueTpDates.add(dtStr);
+
+         const district = (fmDistrictKey && row[fmDistrictKey] !== undefined ? String(row[fmDistrictKey]).trim() : '') || 'Unknown';
+         if (district) uniqueDistricts.add(district);
+
+         const epodDateRaw = fmEpodDateKey ? row[fmEpodDateKey] : undefined;
+         const epodStatusVal = fmEpodStatusKey && row[fmEpodStatusKey] !== undefined ? String(row[fmEpodStatusKey]).toUpperCase().trim() : '';
+         const isCompleted = (epodDateRaw !== undefined && epodDateRaw !== null && String(epodDateRaw).trim() !== '') || epodStatusVal === 'COMPLETED' || epodStatusVal === 'DELIVERED';
+
+         const destLoc = fmDestLocKey && row[fmDestLocKey] !== undefined ? String(row[fmDestLocKey]).trim() : '';
+         const transporter = fmTransporterKey && row[fmTransporterKey] !== undefined ? String(row[fmTransporterKey]).trim() : '';
+
+         processed.push({ ...row, ...extractDynamicColumns(row),
+           district: district,
+           destLoc: destLoc,
+           transporter: transporter,
+           transporterName: transporter,
+           tpDate: dtStr,
+           status: isCompleted ? 'Completed' : 'Pending',
+           epodComplete: isCompleted ? 1 : 0,
+           epodPending: isCompleted ? 0 : 1,
+           trips: isCompleted ? 0 : 1,
+           totalTps: 1,
+           _ref: refNoStr
+         });
+         return;
+      }
+
+      if (false && activeReport === 'first-mile-epod') {
          const refNoStr = String(getVal(row, 'Reference No') || getVal(row, 'Reference Number') || '');
          if (refNoStr.includes('_cancel')) return;
          
@@ -1180,6 +1377,85 @@ self.onmessage = async (e) => {
       }
 
       if (activeReport === 'last-mile-epod') {
+         const district = (lmDistrictKey && row[lmDistrictKey] !== undefined ? String(row[lmDistrictKey]).trim() : '') || 'Unknown';
+         if (!district) return;
+
+         const refNo = lmRefNoKey && row[lmRefNoKey] !== undefined ? String(row[lmRefNoKey]).trim() : '';
+         const hasRef = refNo.length > 0;
+
+         const statusRaw = lmEpodStatusKey && row[lmEpodStatusKey] !== undefined ? String(row[lmEpodStatusKey]).trim() : '(blank)';
+         const epodStatus = statusRaw.toUpperCase();
+         const isComplete = epodStatus === 'DELIVERED' || epodStatus === 'COMPLETED';
+         const lrNo = lmLrNoKey && row[lmLrNoKey] !== undefined ? String(row[lmLrNoKey]).trim() : '';
+
+         let dcMonth = lmDcMonthKey && row[lmDcMonthKey] !== undefined ? String(row[lmDcMonthKey]).trim() : '';
+         const dcDate = lmDcDateKey && row[lmDcDateKey] !== undefined ? formatExcelDate(row[lmDcDateKey]) : '';
+         if (!dcMonth && dcDate && dcDate.length >= 7) {
+            dcMonth = dcDate.substring(0, 7);
+         }
+
+         if (dcMonth) uniqueDcMonths.add(dcMonth);
+         if (dcDate) uniqueDcDates.add(dcDate);
+         uniqueEpodStatuses.add(statusRaw || '(blank)');
+         uniqueDistricts.add(district);
+
+         const godownName = lmGodownKey && row[lmGodownKey] !== undefined ? String(row[lmGodownKey]).trim() : '';
+         const transporter = lmTransporterKey && row[lmTransporterKey] !== undefined ? String(row[lmTransporterKey]).trim() : '';
+
+         const rawTripStatus = lmTripStatusKey && row[lmTripStatusKey] !== undefined ? String(row[lmTripStatusKey]).trim() : '';
+         const cleanTripStatus = rawTripStatus.toLowerCase();
+
+         const rawTripEndTime = lmTripEndTimeKey ? row[lmTripEndTimeKey] : undefined;
+         let hasTripEndTime = false;
+         if (rawTripEndTime !== undefined && rawTripEndTime !== null) {
+            const strEndTime = String(rawTripEndTime).trim().toLowerCase();
+            if (strEndTime !== '' && strEndTime !== 'nat' && strEndTime !== 'null' && strEndTime !== '(blank)' && strEndTime !== '-' && strEndTime !== 'none' && strEndTime !== 'undefined') {
+               hasTripEndTime = true;
+            }
+         }
+
+         let isActiveTrip = 0;
+         let isClosedTrip = 0;
+
+         if (fileHasTripEndCol) {
+            if (hasTripEndTime) {
+               isClosedTrip = 1;
+            } else {
+               isActiveTrip = 1;
+            }
+         } else if (cleanTripStatus.includes('transit') || cleanTripStatus.includes('lm-transp') || cleanTripStatus.startsWith('start') || cleanTripStatus === 'active' || cleanTripStatus === 'running' || cleanTripStatus === 'open') {
+            isActiveTrip = 1;
+         } else if (cleanTripStatus.startsWith('end') || cleanTripStatus.includes('clos') || cleanTripStatus.includes('deliver') || cleanTripStatus.includes('complet')) {
+            isClosedTrip = 1;
+         } else if (isComplete) {
+            isClosedTrip = 1;
+         } else {
+            isActiveTrip = 1;
+         }
+
+         processed.push({ ...row, ...extractDynamicColumns(row),
+           district: district,
+           godown: godownName,
+           godownName: godownName,
+           transporter: transporter,
+           transporterName: transporter,
+           deliveryChallan: hasRef ? 1 : 0,
+           lrNo: lrNo,
+           lrNumber: lrNo,
+           tripStatus: rawTripStatus || (isClosedTrip ? 'Closed' : 'Active'),
+           isActiveTrip: isActiveTrip,
+           isClosedTrip: isClosedTrip,
+           totalTripCount: 1,
+           epodComplete: (hasRef && isComplete) ? 1 : 0,
+           epodPending: (hasRef && !isComplete) ? 1 : 0,
+           dcMonth: dcMonth,
+           dcCreationDate: dcDate,
+           epodStatusRaw: statusRaw || '(blank)'
+         });
+         return;
+      }
+
+      if (false && activeReport === 'last-mile-epod') {
          const district = String(getVal(row, 'District', 'TP District', 'Godown District', 'district_name', 'district') || '').trim() || 'Unknown';
          if (!district) return;
 
@@ -1682,7 +1958,9 @@ self.onmessage = async (e) => {
         uniqueDcMonths: Array.from(uniqueDcMonths), 
         uniqueDcDates: Array.from(uniqueDcDates), 
         uniqueEpodStatuses: Array.from(uniqueEpodStatuses),
-        uniqueImeiStatuses: Array.from(uniqueImeiStatuses)
+        uniqueImeiStatuses: Array.from(uniqueImeiStatuses),
+        uniqueDistricts: Array.from(uniqueDistricts),
+        uniqueTpDates: Array.from(uniqueTpDates)
       }
     });
   } catch (error) {

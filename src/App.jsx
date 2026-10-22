@@ -473,6 +473,7 @@ function App() {
     document.title = finalTitle.trim() === '' ? 'Report Dashboard' : finalTitle;
   }, []);
   const [reportData, setReportData] = useState({});
+  const [reportFilters, setReportFilters] = useState({});
   const rawData = reportData[activeReport] || [];
   const [filterStatus, setFilterStatus] = useState('All');
   const [isDragging, setIsDragging] = useState(false);
@@ -907,6 +908,9 @@ function App() {
             if (fileInputRef.current) fileInputRef.current.value = '';
             setReportData(prev => ({ ...prev, [activeReport]: [] }));
           } else {
+            if (e.data.filters) {
+              setReportFilters(prev => ({ ...prev, [activeReport]: e.data.filters }));
+            }
             setReportData(prev => ({ ...prev, [activeReport]: e.data.data }));
             showToast('Data Uploaded Successfully!', 'success', 3000);
           }
@@ -944,7 +948,7 @@ function App() {
         }
       } catch(e) {}
 
-      worker.postMessage({ data: arrayBuffer, activeReport, etaApiKey, etaVehicleType, weighbridgeVendors, customAttributes: customAttrs });
+      worker.postMessage({ data: arrayBuffer, activeReport, etaApiKey, etaVehicleType, weighbridgeVendors, customAttributes: customAttrs }, [arrayBuffer]);
     };
     reader.readAsArrayBuffer(file);
   };
@@ -992,6 +996,9 @@ function App() {
             showToast('No valid data found for this report type. Please check your Excel file.', 'error', 5000);
             setReportData(prev => ({ ...prev, [activeReport]: [] }));
           } else {
+            if (e.data.filters) {
+              setReportFilters(prev => ({ ...prev, [activeReport]: e.data.filters }));
+            }
             setReportData(prev => ({ ...prev, [activeReport]: e.data.data }));
             showToast('Data Uploaded Successfully!', 'success', 3000);
           }
@@ -1029,7 +1036,9 @@ function App() {
          console.error('Failed to parse custom attributes in App.jsx', e);
       }
 
-      worker.postMessage({ data: mainBuffer, trackingData: trackBuffer, activeReport, customAttributes: customAttrs });
+      const transferList = [mainBuffer];
+      if (trackBuffer) transferList.push(trackBuffer);
+      worker.postMessage({ data: mainBuffer, trackingData: trackBuffer, activeReport, customAttributes: customAttrs }, transferList);
     }).catch(err => {
       setIsLoading(false);
       showToast('Failed to read uploaded files.', 'error', 5000);
@@ -1135,11 +1144,12 @@ function App() {
     const districtLRs = {};
     const allLRs = new Map();
     const grandTotal = { totalTrips: 0, activeTrips: 0, closedTrips: 0 };
-    const validRows = (data || []).filter(r => !r.isSubtotal);
+    const validRows = data || [];
 
     validRows.forEach((row) => {
+      if (row.isSubtotal) return;
       let rawLr = row.lrNo || row.lrNumber || row['LR Number'] || row['LR No'] || row['LR No.'] || row['lr_number'] || row['lr_no'] || row['LR'] || row['LR NO'] || row['LR NO.'] || row['lr'] || row['LR#'] || row.trip_id || row['trip_id'] || row['Trip ID'] || row['Trip No'] || row['Trip Number'] || row['trip_no'] || row['LR_Number'] || row['lr_num'] || row['LR_No'];
-      if (rawLr === undefined || rawLr === null || String(rawLr).trim() === '') {
+      if (false) {
         for (const k in row) {
           const cleanK = String(k).toLowerCase().replace(/[^a-z0-9]/g, '');
           if (cleanK.includes('lrno') || cleanK.includes('lrnum') || cleanK.includes('tripno') || cleanK.includes('tripid') || cleanK.includes('tripnum')) {
@@ -1320,6 +1330,7 @@ function App() {
     const validRows = (data || []).filter(r => !r.isSubtotal && !r.isGrandTotal);
 
     validRows.forEach((row) => {
+      if (row.isSubtotal) return;
       const dist = String(row.district || row.District || row['District'] || row['TP District'] || row['Godown District'] || row.district_name || 'Unknown').trim();
       const godown = String(row.godown || row.godownName || row['GSCSCL Godown'] || row['Godown Name'] || row['Godown'] || row['Destination Godown'] || 'Unknown').trim() || '(Blank Godown)';
       const transporter = String(row.transporter || row.transporterName || row['Transporter Name'] || row['Transporter'] || row['DSD Transporter Name'] || row.transporter_name || '').trim() || '(Blank Transporter)';
@@ -1351,7 +1362,7 @@ function App() {
 
       // 3. LR Extraction: Unique LR numbers; blank/empty LR becomes 0
       let rawLr = row.lrNo || row.lrNumber || row['LR Number'] || row['LR No'] || row['LR No.'] || row['lr_number'] || row['lr_no'] || row['LR'] || row['LR NO'] || row['LR NO.'] || row['lr'] || row['LR#'] || row.trip_id || row['trip_id'] || row['Trip ID'] || row['Trip No'] || row['Trip Number'] || row['trip_no'] || row['LR_Number'] || row['lr_num'] || row['LR_No'];
-      if (rawLr === undefined || rawLr === null || String(rawLr).trim() === '') {
+      if (false) {
         for (const k in row) {
           const cleanK = String(k).toLowerCase().replace(/[^a-z0-9]/g, '');
           if (cleanK.includes('lrno') || cleanK.includes('lrnum') || cleanK.includes('tripno') || cleanK.includes('tripid') || cleanK.includes('tripnum')) {
@@ -1475,6 +1486,7 @@ function App() {
     const validRows = (data || []).filter(r => !r.isSubtotal && !r.isGrandTotal);
 
     validRows.forEach((row) => {
+      if (row.isSubtotal) return;
       const dist = String(row.district || row.District || row['TP District'] || 'Unknown').trim();
       if (!dist) return;
 
@@ -1633,6 +1645,20 @@ function App() {
 
   // Extract unique filter options for Last Mile EPOD, Lifting Report, and Multi-Trip
   const { uniqueDcMonths, uniqueDcDates, uniqueEpodStatuses, uniqueTpDates, uniqueRemarks, uniqueWbIds, uniqueImeiStatuses, uniqueDistricts, uniqueVehicles } = useMemo(() => {
+    const cached = reportFilters[activeReport];
+    if (cached && (cached.uniqueDcMonths || cached.uniqueDistricts || cached.uniqueTpDates)) {
+      return {
+        uniqueDcMonths: cached.uniqueDcMonths || [],
+        uniqueDcDates: cached.uniqueDcDates || [],
+        uniqueEpodStatuses: cached.uniqueEpodStatuses || [],
+        uniqueTpDates: cached.uniqueTpDates || [],
+        uniqueRemarks: [],
+        uniqueWbIds: [],
+        uniqueImeiStatuses: cached.uniqueImeiStatuses || [],
+        uniqueDistricts: cached.uniqueDistricts || [],
+        uniqueVehicles: []
+      };
+    }
     if (rawData.length === 0) {
         return { uniqueDcMonths: [], uniqueDcDates: [], uniqueEpodStatuses: [], uniqueTpDates: [], uniqueRemarks: [], uniqueWbIds: [], uniqueImeiStatuses: [], uniqueDistricts: [], uniqueVehicles: [] };
     }
@@ -1669,9 +1695,42 @@ function App() {
       uniqueDistricts: Array.from(districts).sort(),
       uniqueVehicles: Array.from(vehicles).sort()
     };
-  }, [rawData, activeReport]);
+  }, [rawData, activeReport, reportFilters]);
 
   const filteredLastMileData = useMemo(() => {
+    if (activeReport !== 'last-mile-epod' || rawData.length === 0) return [];
+    const hasSearch = Boolean(globalSearchTerm);
+    const hasDist = districtFilter && districtFilter.length > 0;
+    const hasMonth = dcMonthFilter !== null;
+    const hasDate = dcDateFilter !== null;
+    const hasStatus = epodStatusFilter !== null;
+
+    if (!hasSearch && !hasDist && !hasMonth && !hasDate && !hasStatus) return rawData;
+
+    const lowerSearch = hasSearch ? globalSearchTerm.toLowerCase() : '';
+    const distSet = hasDist ? new Set(districtFilter) : null;
+    const monthSet = hasMonth ? new Set(dcMonthFilter) : null;
+    const dateSet = hasDate ? new Set(dcDateFilter) : null;
+    const statusSet = hasStatus ? new Set(epodStatusFilter) : null;
+
+    return rawData.filter(row => {
+      if (distSet && !distSet.has(row.district)) return false;
+      if (monthSet && !monthSet.has(row.dcMonth)) return false;
+      if (dateSet && !dateSet.has(row.dcCreationDate)) return false;
+      if (statusSet && !statusSet.has(row.epodStatusRaw)) return false;
+      if (hasSearch) {
+        const matches = (row.district && String(row.district).toLowerCase().includes(lowerSearch)) ||
+                        (row.godown && String(row.godown).toLowerCase().includes(lowerSearch)) ||
+                        (row.lrNo && String(row.lrNo).toLowerCase().includes(lowerSearch)) ||
+                        (row.transporter && String(row.transporter).toLowerCase().includes(lowerSearch)) ||
+                        (row.refNo && String(row.refNo).toLowerCase().includes(lowerSearch));
+        if (!matches) return false;
+      }
+      return true;
+    });
+  }, [rawData, activeReport, globalSearchTerm, districtFilter, dcMonthFilter, dcDateFilter, epodStatusFilter]);
+
+  const _legacyFilteredLastMile = useMemo(() => {
     if (activeReport !== 'last-mile-epod' || rawData.length === 0) return [];
     let filtered = rawData;
     if (globalSearchTerm) {
@@ -1699,6 +1758,20 @@ function App() {
 
   const filteredLiftingData = useMemo(() => {
     if (activeReport !== 'lifting-report' || rawData.length === 0) return [];
+    const hasDist = districtFilter && districtFilter.length > 0;
+    const hasDate = tpDateFilter !== null;
+    if (!hasDist && !hasDate) return rawData;
+    const distSet = hasDist ? new Set(districtFilter) : null;
+    const dateSet = hasDate ? new Set(tpDateFilter) : null;
+    return rawData.filter(row => {
+      if (distSet && !distSet.has(row.district)) return false;
+      if (dateSet && !dateSet.has(row.tpDate)) return false;
+      return true;
+    });
+  }, [rawData, activeReport, districtFilter, tpDateFilter]);
+
+  const _legacyFilteredLifting = useMemo(() => {
+    if (activeReport !== 'lifting-report' || rawData.length === 0) return [];
     let filtered = rawData;
     if (districtFilter && districtFilter.length > 0) {
       filtered = filtered.filter(row => districtFilter.includes(row.district));
@@ -1712,6 +1785,12 @@ function App() {
   // Filter and Group data dynamically
   const displayData = useMemo(() => {
     if (rawData.length === 0) return [];
+    if (activeReport === 'last-mile-epod' && (lastMileEpodTab === 'trips-summary' || lastMileEpodTab === 'dc-summary')) {
+       return [];
+    }
+    if (activeReport === 'lifting-report' && liftingTab === 'commodity') {
+       return [];
+    }
     
     let filtered = rawData;
     
@@ -2254,7 +2333,7 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
       groupedData.push(grandTotalRow);
     }
     return groupedData;
-  }, [rawData, filterStatus, activeReport, dcMonthFilter, dcDateFilter, epodStatusFilter, visibleColumns, globalSearchTerm, tpDateFilter, wbIdFilter, remarksFilter, imeiStatusFilter, districtFilter, firstMileTab, roTab]);
+  }, [rawData, filterStatus, activeReport, dcMonthFilter, dcDateFilter, epodStatusFilter, visibleColumns, globalSearchTerm, tpDateFilter, wbIdFilter, remarksFilter, imeiStatusFilter, districtFilter, firstMileTab, roTab, lastMileEpodTab, liftingTab]);
 
   // Reset pagination when data or filters change
   useEffect(() => {
@@ -4319,7 +4398,7 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                   })()
                 )}
 
-                {displayData.length === 0 ? (
+                {(displayData.length === 0 && !(activeReport === 'last-mile-epod' && (lastMileEpodTab === 'trips-summary' || lastMileEpodTab === 'dc-summary') && filteredLastMileData.length > 0) && !(activeReport === 'lifting-report' && liftingTab === 'commodity' && filteredLiftingData.length > 0)) ? (
                   <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
                     <AlertCircle size={48} style={{ opacity: 0.3, margin: '0 auto 16px' }} />
                     <p style={{ fontSize: '1.1rem' }}>No trips found for the selected filter.</p>
