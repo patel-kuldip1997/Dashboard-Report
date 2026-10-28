@@ -434,6 +434,7 @@ self.onmessage = async (e) => {
     const uniqueImeiStatuses = new Set();
     const uniqueTpDates = new Set();
     const uniqueDistricts = new Set();
+    const uniqueLrNumbers = new Set();
 
     // Use the combined data from all sheets
     const jsonDataRaw = allJsonDataRaw;
@@ -851,7 +852,8 @@ self.onmessage = async (e) => {
          data: processed,
          filters: {
            uniqueDistricts: Array.from(uniqueDistricts),
-           uniqueTpDates: Array.from(uniqueTpDates)
+           uniqueTpDates: Array.from(uniqueTpDates),
+        uniqueLrNumbers: Array.from(uniqueLrNumbers)
          }
        });
        return;
@@ -1400,6 +1402,9 @@ self.onmessage = async (e) => {
          uniqueEpodStatuses.add(statusRaw || '(blank)');
          uniqueDistricts.add(district);
 
+         if (lrNo && lrNo !== 'null' && lrNo !== 'undefined' && lrNo !== '-' && lrNo !== '0' && lrNo.toLowerCase() !== '(blank)') {
+            uniqueLrNumbers.add(lrNo);
+         }
          const godownName = lmGodownKey && row[lmGodownKey] !== undefined ? String(row[lmGodownKey]).trim() : '';
          const transporter = lmTransporterKey && row[lmTransporterKey] !== undefined ? String(row[lmTransporterKey]).trim() : '';
 
@@ -1964,7 +1969,8 @@ self.onmessage = async (e) => {
         uniqueEpodStatuses: Array.from(uniqueEpodStatuses),
         uniqueImeiStatuses: Array.from(uniqueImeiStatuses),
         uniqueDistricts: Array.from(uniqueDistricts),
-        uniqueTpDates: Array.from(uniqueTpDates)
+        uniqueTpDates: Array.from(uniqueTpDates),
+        uniqueLrNumbers: Array.from(uniqueLrNumbers)
       }
     });
   } catch (error) {

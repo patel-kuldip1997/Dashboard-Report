@@ -350,6 +350,259 @@ function MultiSelectDropdown({ options, selected, onChange, placeholder }) {
   );
 }
 
+const getRowLrValue = (row) => {
+  if (!row) return '';
+  const val = row.lrNo ?? row.lrNumber ?? row['LR Number'] ?? row['LR No'] ?? row['LR No.'] ?? row['lr_number'] ?? row['lr_no'] ?? row['LR'] ?? row['LR NO'] ?? row['LR NO.'] ?? row['lr'] ?? row['LR#'] ?? row.trip_id ?? row['trip_id'] ?? row['Trip ID'] ?? row['Trip No'] ?? row['Trip Number'] ?? row['trip_no'] ?? row['LR_Number'] ?? row['lr_num'] ?? row['LR_No'] ?? '';
+  return String(val).replace(/\u00A0/g, ' ').trim();
+};
+
+const isRowHasValidLr = (row) => {
+  const lr = getRowLrValue(row);
+  if (!lr) return false;
+  const lower = lr.toLowerCase();
+  return lower !== 'null' && lower !== 'undefined' && lower !== '-' && lower !== '0' && lower !== '(blank)' && lower !== 'n/a' && lower !== 'na' && lower !== '#n/a' && lower !== 'none';
+};
+
+function LRFilterDropdown({ options = [], selected, onChange, lrMode = 'all', onModeChange }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const activeSelected = selected === null ? options : selected;
+  const isAllSelected = selected === null || (options.length > 0 && activeSelected.length === options.length);
+
+  const filteredOptions = useMemo(() => {
+    if (!search.trim()) return options;
+    const s = search.toLowerCase();
+    return options.filter(opt => String(opt).toLowerCase().includes(s));
+  }, [options, search]);
+
+  const handleToggleSelectAll = () => {
+    if (isAllSelected) {
+      onChange([]);
+    } else {
+      onChange(null);
+    }
+  };
+
+  const handleToggleOption = (opt) => {
+    let newSelected;
+    if (activeSelected.includes(opt)) {
+      newSelected = activeSelected.filter(o => o !== opt);
+    } else {
+      newSelected = [...activeSelected, opt];
+    }
+    if (newSelected.length === options.length) {
+      onChange(null);
+    } else {
+      onChange(newSelected);
+    }
+  };
+
+  const handleSetMode = (mode) => {
+    if (onModeChange) onModeChange(mode);
+    if (mode === 'without_lr') {
+      onChange(null);
+    }
+  };
+
+  let labelText = 'LR Number: All';
+  let badgeColor = 'var(--text-main)';
+  if (lrMode === 'with_lr') {
+    if (!isAllSelected && selected && selected.length > 0) {
+      labelText = `LR: ${selected.length} Selected`;
+      badgeColor = '#10b981';
+    } else {
+      labelText = 'LR: With LR Only';
+      badgeColor = '#10b981';
+    }
+  } else if (lrMode === 'without_lr') {
+    labelText = 'LR: Without LR (Blank)';
+    badgeColor = '#ef4444';
+  } else {
+    if (!isAllSelected && selected && selected.length > 0) {
+      labelText = `LR: ${selected.length} Selected`;
+      badgeColor = 'var(--accent-primary, #3b82f6)';
+    } else {
+      labelText = 'LR Number: All';
+    }
+  }
+
+  const displayedOptions = filteredOptions.slice(0, 150);
+
+  return (
+    <div ref={dropdownRef} style={{ position: 'relative', display: 'inline-block', minWidth: '180px' }}>
+      <div 
+        className="btn-secondary"
+        style={{ 
+          cursor: 'pointer', 
+          display: 'flex', 
+          justifyContent: 'space-between', 
+          alignItems: 'center',
+          borderColor: lrMode !== 'all' ? badgeColor : undefined
+        }}
+        onClick={() => setIsOpen(!isOpen)}
+        title="Filter by LR Number or Exclude Blank LR"
+      >
+        <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '150px', color: badgeColor, fontWeight: lrMode !== 'all' ? '600' : 'normal' }}>
+          {labelText}
+        </span>
+        <ChevronDown size={16} style={{ marginLeft: '8px', flexShrink: 0 }} />
+      </div>
+
+      {isOpen && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, marginTop: '4px', zIndex: 110,
+          background: 'var(--bg-panel)', border: '1px solid rgba(255,255,255,0.15)',
+          borderRadius: '8px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', width: '280px',
+          padding: '10px'
+        }}>
+          <div style={{ marginBottom: '10px' }}>
+            <div style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '6px', textTransform: 'uppercase' }}>
+              LR Filter Option
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginBottom: '4px' }}>
+              <button
+                type="button"
+                onClick={() => handleSetMode('all')}
+                style={{
+                  padding: '5px 8px', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border-color)',
+                  cursor: 'pointer',
+                  background: lrMode === 'all' ? 'var(--accent-primary, #3b82f6)' : 'transparent',
+                  color: lrMode === 'all' ? '#fff' : 'var(--text-main)',
+                  fontWeight: lrMode === 'all' ? '600' : 'normal'
+                }}
+              >
+                All Data
+              </button>
+              <button
+                type="button"
+                onClick={() => handleSetMode('with_lr')}
+                style={{
+                  padding: '5px 8px', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border-color)',
+                  cursor: 'pointer',
+                  background: lrMode === 'with_lr' ? '#10b981' : 'transparent',
+                  color: lrMode === 'with_lr' ? '#fff' : 'var(--text-main)',
+                  fontWeight: lrMode === 'with_lr' ? '600' : 'normal'
+                }}
+                title="Exclude rows where LR Number is missing or blank"
+              >
+                ✓ With LR Only
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleSetMode('without_lr')}
+              style={{
+                width: '100%', padding: '5px 8px', fontSize: '0.75rem', borderRadius: '4px', border: '1px solid var(--border-color)',
+                cursor: 'pointer',
+                background: lrMode === 'without_lr' ? '#ef4444' : 'transparent',
+                color: lrMode === 'without_lr' ? '#fff' : 'var(--text-main)',
+                fontWeight: lrMode === 'without_lr' ? '600' : 'normal'
+              }}
+              title="Show only rows where LR Number is missing or blank"
+            >
+              Without LR (Blank)
+            </button>
+          </div>
+
+          {lrMode === 'without_lr' ? (
+            <div style={{ padding: '12px 8px', textAlign: 'center', fontSize: '0.8rem', color: '#ef4444', background: 'rgba(239, 68, 68, 0.1)', borderRadius: '6px' }}>
+              Showing only records where LR Number is empty / blank.
+            </div>
+          ) : (
+            <>
+              <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '8px', marginBottom: '8px' }}>
+                <div style={{ position: 'relative', marginBottom: '6px' }}>
+                  <Search size={14} style={{ position: 'absolute', left: '8px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                  <input 
+                    type="text" 
+                    placeholder={`Search ${options.length} LRs...`} 
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    style={{
+                      width: '100%', padding: '5px 8px 5px 28px', borderRadius: '4px',
+                      background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)',
+                      color: 'white', outline: 'none', fontSize: '0.8rem'
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ maxHeight: '180px', overflowY: 'auto' }}>
+                <label style={{ display: 'flex', alignItems: 'center', padding: '5px 6px', cursor: 'pointer', borderBottom: '1px solid rgba(255,255,200,0.1)', fontSize: '0.8rem' }}>
+                  <input 
+                    type="checkbox" 
+                    checked={isAllSelected}
+                    onChange={handleToggleSelectAll}
+                    style={{ marginRight: '8px' }}
+                  />
+                  <span>(Select All) - {options.length} Total</span>
+                </label>
+                {displayedOptions.map(opt => (
+                  <label key={opt} style={{ display: 'flex', alignItems: 'center', padding: '4px 6px', cursor: 'pointer', fontSize: '0.8rem' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={activeSelected.includes(opt)}
+                      onChange={() => handleToggleOption(opt)}
+                      style={{ marginRight: '8px' }}
+                    />
+                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{opt}</span>
+                  </label>
+                ))}
+                {filteredOptions.length > displayedOptions.length && (
+                  <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'center', padding: '6px 4px' }}>
+                    Showing first {displayedOptions.length} of {filteredOptions.length}. Search to refine.
+                  </div>
+                )}
+                {filteredOptions.length === 0 && (
+                  <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textAlign: 'center', padding: '10px 4px' }}>
+                    No matching LR numbers
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+
+          <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <button
+              type="button"
+              onClick={() => {
+                handleSetMode('all');
+                onChange(null);
+                setSearch('');
+              }}
+              style={{
+                background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '0.75rem', cursor: 'pointer', padding: '2px 4px'
+              }}
+            >
+              Reset Filter
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="btn-primary"
+              style={{ padding: '3px 10px', fontSize: '0.75rem' }}
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 const ALL_DISTRICTS = [
   "Ahmedabad", "AhmedabadCity", "Amreli", "Anand", "Arvalli", "Banaskantha", "Baroda", "Bharuch", "Bhavanagar", "Botad", 
   "Chottaudepur", "Dahod", "Dang", "DevbhumiDwarka", "Gandhinagar", "GirSomnath", "Jamnagar", "Junagadh", "Kheda", "Kutch", 
@@ -549,6 +802,8 @@ function App() {
   const [imeiStatusFilter, setImeiStatusFilter] = useState(null);
   const [districtFilter, setDistrictFilter] = useState(null);
   const [vehicleFilter, setVehicleFilter] = useState(null);
+  const [lrFilterMode, setLrFilterMode] = useState('all'); // 'all' | 'with_lr' | 'without_lr'
+  const [lrNumberFilter, setLrNumberFilter] = useState(null); // null means all, or Array of selected LR numbers
   const [topNLimit, setTopNLimit] = useState(10);
   const [globalSearchTerm, setGlobalSearchTerm] = useState('');
   
@@ -622,9 +877,19 @@ function App() {
     return "Godown to Miller Trips";
   };
 
-  const getLastMileTitleKey = () => {
+  const getLastMileTitleKey = () => { /*
     if (activeReport === 'last-mile-epod') {
-      if (lastMileEpodTab === 'trips-summary') return `custom_report_title_${activeReport}_trips-summary`;
+       if (lrFilterMode && lrFilterMode !== 'all') {
+          filtered = filtered.filter(row => {
+             const hasValid = isRowHasValidLr(row);
+             return lrFilterMode === 'with_lr' ? hasValid : !hasValid;
+          });
+       }
+       if (lrNumberFilter !== null && lrNumberFilter.length > 0) {
+          const lrSet = new Set(lrNumberFilter);
+          filtered = filtered.filter(row => lrSet.has(getRowLrValue(row)));
+       }
+*/ if (activeReport === 'last-mile-epod') { if (lastMileEpodTab === 'trips-summary') return `custom_report_title_${activeReport}_trips-summary`;
       if (lastMileEpodTab === 'dc-summary') return `custom_report_title_${activeReport}_dc-summary`;
     }
     if (activeReport === 'lifting-report') {
@@ -962,6 +1227,8 @@ function App() {
     setDcDateFilter(null);
     setEpodStatusFilter(null);
     setTpDateFilter(null);
+    setLrFilterMode('all');
+    setLrNumberFilter(null);
     setFilterStatus('All');
     
     const readAsArrayBuffer = (file) => new Promise((resolve, reject) => {
@@ -1081,6 +1348,8 @@ function App() {
     setDcDateFilter(null);
     setEpodStatusFilter(null);
     setTpDateFilter(null);
+    setLrFilterMode('all');
+    setLrNumberFilter(null);
     setActiveReport(report.type);
     setReportTitle(report.title);
     setReportData(prev => ({ ...prev, [report.type]: report.rawData }));
@@ -1621,6 +1890,8 @@ function App() {
     setDcDateFilter(null);
     setEpodStatusFilter(null);
     setTpDateFilter(null);
+    setLrFilterMode('all');
+    setLrNumberFilter(null);
     setRemarksFilter(null);
     setActiveReport(reportType);
     if (fileInputRef.current) fileInputRef.current.value = '';
@@ -1639,12 +1910,14 @@ function App() {
     setDcDateFilter(null);
     setEpodStatusFilter(null);
     setTpDateFilter(null);
+    setLrFilterMode('all');
+    setLrNumberFilter(null);
     setRemarksFilter(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   // Extract unique filter options for Last Mile EPOD, Lifting Report, and Multi-Trip
-  const { uniqueDcMonths, uniqueDcDates, uniqueEpodStatuses, uniqueTpDates, uniqueRemarks, uniqueWbIds, uniqueImeiStatuses, uniqueDistricts, uniqueVehicles } = useMemo(() => {
+  const { uniqueDcMonths, uniqueDcDates, uniqueEpodStatuses, uniqueTpDates, uniqueRemarks, uniqueWbIds, uniqueImeiStatuses, uniqueDistricts, uniqueVehicles, uniqueLrNumbers } = useMemo(() => {
     const cached = reportFilters[activeReport];
     if (cached && (cached.uniqueDcMonths || cached.uniqueDistricts || cached.uniqueTpDates)) {
       return {
@@ -1656,11 +1929,12 @@ function App() {
         uniqueWbIds: [],
         uniqueImeiStatuses: cached.uniqueImeiStatuses || [],
         uniqueDistricts: cached.uniqueDistricts || [],
-        uniqueVehicles: []
+        uniqueVehicles: [],
+        uniqueLrNumbers: cached.uniqueLrNumbers || []
       };
     }
     if (rawData.length === 0) {
-        return { uniqueDcMonths: [], uniqueDcDates: [], uniqueEpodStatuses: [], uniqueTpDates: [], uniqueRemarks: [], uniqueWbIds: [], uniqueImeiStatuses: [], uniqueDistricts: [], uniqueVehicles: [] };
+        return { uniqueDcMonths: [], uniqueDcDates: [], uniqueEpodStatuses: [], uniqueTpDates: [], uniqueRemarks: [], uniqueWbIds: [], uniqueImeiStatuses: [], uniqueDistricts: [], uniqueVehicles: [], uniqueLrNumbers: [] };
     }
     const months = new Set();
     const dates = new Set();
@@ -1671,6 +1945,7 @@ function App() {
     const imeiStatuses = new Set();
     const districts = new Set();
     const vehicles = new Set();
+    const lrNumbers = new Set();
     rawData.forEach(r => {
       if (r.dcMonth) months.add(r.dcMonth);
       if (r.createMonth) months.add(r.createMonth);
@@ -1683,6 +1958,8 @@ function App() {
       if (r.weighbridgeId) wbIds.add(r.weighbridgeId);
       if (r.imeiStatus) imeiStatuses.add(r.imeiStatus);
       if (r.district) districts.add(r.district);
+      const lr = getRowLrValue(r);
+      if (lr && isRowHasValidLr(r)) lrNumbers.add(lr);
     });
     return {
       uniqueDcMonths: Array.from(months).sort(),
@@ -1693,7 +1970,8 @@ function App() {
       uniqueWbIds: Array.from(wbIds).sort(),
       uniqueImeiStatuses: Array.from(imeiStatuses).sort(),
       uniqueDistricts: Array.from(districts).sort(),
-      uniqueVehicles: Array.from(vehicles).sort()
+      uniqueVehicles: Array.from(vehicles).sort(),
+      uniqueLrNumbers: Array.from(lrNumbers).sort()
     };
   }, [rawData, activeReport, reportFilters]);
 
@@ -1704,16 +1982,28 @@ function App() {
     const hasMonth = dcMonthFilter !== null;
     const hasDate = dcDateFilter !== null;
     const hasStatus = epodStatusFilter !== null;
+    const hasLrMode = lrFilterMode && lrFilterMode !== 'all';
+    const hasLrNums = lrNumberFilter !== null && lrNumberFilter.length > 0;
 
-    if (!hasSearch && !hasDist && !hasMonth && !hasDate && !hasStatus) return rawData;
+    if (!hasSearch && !hasDist && !hasMonth && !hasDate && !hasStatus && !hasLrMode && !hasLrNums) return rawData;
 
     const lowerSearch = hasSearch ? globalSearchTerm.toLowerCase() : '';
     const distSet = hasDist ? new Set(districtFilter) : null;
     const monthSet = hasMonth ? new Set(dcMonthFilter) : null;
     const dateSet = hasDate ? new Set(dcDateFilter) : null;
     const statusSet = hasStatus ? new Set(epodStatusFilter) : null;
+    const lrSet = hasLrNums ? new Set(lrNumberFilter) : null;
 
     return rawData.filter(row => {
+      if (hasLrMode) {
+        const hasValid = isRowHasValidLr(row);
+        if (lrFilterMode === 'with_lr' && !hasValid) return false;
+        if (lrFilterMode === 'without_lr' && hasValid) return false;
+      }
+      if (lrSet) {
+        const val = getRowLrValue(row);
+        if (!lrSet.has(val)) return false;
+      }
       if (distSet && !distSet.has(row.district)) return false;
       if (monthSet && !monthSet.has(row.dcMonth)) return false;
       if (dateSet && !dateSet.has(row.dcCreationDate)) return false;
@@ -1728,7 +2018,7 @@ function App() {
       }
       return true;
     });
-  }, [rawData, activeReport, globalSearchTerm, districtFilter, dcMonthFilter, dcDateFilter, epodStatusFilter]);
+  }, [rawData, activeReport, globalSearchTerm, districtFilter, dcMonthFilter, dcDateFilter, epodStatusFilter, lrFilterMode, lrNumberFilter]);
 
   const _legacyFilteredLastMile = useMemo(() => {
     if (activeReport !== 'last-mile-epod' || rawData.length === 0) return [];
@@ -1754,7 +2044,7 @@ function App() {
       filtered = filtered.filter(row => epodStatusFilter.includes(row.epodStatusRaw));
     }
     return filtered;
-  }, [rawData, activeReport, globalSearchTerm, districtFilter, dcMonthFilter, dcDateFilter, epodStatusFilter]);
+  }, [rawData, activeReport, globalSearchTerm, districtFilter, dcMonthFilter, dcDateFilter, epodStatusFilter, lrFilterMode, lrNumberFilter]);
 
   const filteredLiftingData = useMemo(() => {
     if (activeReport !== 'lifting-report' || rawData.length === 0) return [];
@@ -1903,6 +2193,16 @@ function App() {
     }
 
     if (activeReport === 'last-mile-epod') {
+       if (lrFilterMode && lrFilterMode !== 'all') {
+          filtered = filtered.filter(row => {
+             const hasValid = isRowHasValidLr(row);
+             return lrFilterMode === 'with_lr' ? hasValid : !hasValid;
+          });
+       }
+       if (lrNumberFilter !== null && lrNumberFilter.length > 0) {
+          const lrSet = new Set(lrNumberFilter);
+          filtered = filtered.filter(row => lrSet.has(getRowLrValue(row)));
+       }
        if (dcMonthFilter !== null) {
           filtered = filtered.filter(row => dcMonthFilter.includes(row.dcMonth));
        }
@@ -2333,7 +2633,7 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
       groupedData.push(grandTotalRow);
     }
     return groupedData;
-  }, [rawData, filterStatus, activeReport, dcMonthFilter, dcDateFilter, epodStatusFilter, visibleColumns, globalSearchTerm, tpDateFilter, wbIdFilter, remarksFilter, imeiStatusFilter, districtFilter, firstMileTab, roTab, lastMileEpodTab, liftingTab]);
+  }, [rawData, filterStatus, activeReport, dcMonthFilter, dcDateFilter, epodStatusFilter, visibleColumns, globalSearchTerm, tpDateFilter, wbIdFilter, remarksFilter, imeiStatusFilter, districtFilter, firstMileTab, roTab, lastMileEpodTab, liftingTab, lrFilterMode, lrNumberFilter]);
 
   // Reset pagination when data or filters change
   useEffect(() => {
@@ -4259,6 +4559,13 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                           selected={districtFilter} 
                           onChange={setDistrictFilter} 
                         />
+                        <LRFilterDropdown 
+                          options={uniqueLrNumbers} 
+                          selected={lrNumberFilter} 
+                          onChange={setLrNumberFilter}
+                          lrMode={lrFilterMode}
+                          onModeChange={setLrFilterMode}
+                        />
                         <MultiSelectDropdown 
                           placeholder="DC Creation Date" 
                           options={uniqueDcDates} 
@@ -4322,14 +4629,21 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                             />
                         )}
                       </>
-                    ) : activeReport === 'last-mile-commodity' ? (
+                    ) : activeReport === 'last-mile-commodity' ? (<>
                       <MultiSelectDropdown 
                           placeholder="District" 
                           options={uniqueDistricts} 
                           selected={districtFilter} 
                           onChange={setDistrictFilter} 
+                        />
+                        <LRFilterDropdown 
+                          options={uniqueLrNumbers} 
+                          selected={lrNumberFilter} 
+                          onChange={setLrNumberFilter}
+                          lrMode={lrFilterMode}
+                          onModeChange={setLrFilterMode}
                       />
-                    ) : (activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown' || activeReport === 'ro-allocation-dsm') ? (
+                    </>) : (activeReport === 'godown-to-miller' || activeReport === 'miller-to-godown' || activeReport === 'ro-allocation-dsm') ? (
                       <>
                         <MultiSelectDropdown 
                           placeholder="Month" 
@@ -4639,9 +4953,9 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                         )}
 
                         {activeReport === 'last-mile-epod' && lastMileEpodTab === 'trips-summary' ? (
-                          <LastMileTripsSummary data={filteredLastMileData} calculateLastMileGodownTrips={calculateLastMileGodownTrips} visibleColumns={visibleColumns} />
+                          <LastMileTripsSummary data={filteredLastMileData} calculateLastMileGodownTrips={calculateLastMileGodownTrips} visibleColumns={visibleColumns} lrFilterMode={lrFilterMode} setLrFilterMode={setLrFilterMode} />
                         ) : activeReport === 'last-mile-epod' && lastMileEpodTab === 'dc-summary' ? (
-                          <LastMileDcSummary data={filteredLastMileData} calculateLastMileDcSummary={calculateLastMileDcSummary} visibleColumns={visibleColumns} />
+                          <LastMileDcSummary data={filteredLastMileData} calculateLastMileDcSummary={calculateLastMileDcSummary} visibleColumns={visibleColumns} lrFilterMode={lrFilterMode} setLrFilterMode={setLrFilterMode} />
                         ) : activeReport === 'lifting-report' && liftingTab === 'commodity' ? (
                           <LiftingCommoditySummary data={filteredLiftingData} calculateLiftingCommoditySummary={calculateLiftingCommoditySummary} visibleColumns={visibleColumns} />
                         ) : (

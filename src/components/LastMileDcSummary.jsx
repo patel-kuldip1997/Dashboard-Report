@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { Search, Truck, FileText, CheckCircle2, Clock, Building, Users } from 'lucide-react';
 
-export default function LastMileDcSummary({ data, calculateLastMileDcSummary, visibleColumns }) {
+export default function LastMileDcSummary({ data, calculateLastMileDcSummary, visibleColumns, lrFilterMode, setLrFilterMode }) {
   const [searchTerm, setSearchTerm] = useState('');
 
   const { rows, grandTotal } = useMemo(() => {
@@ -129,6 +129,64 @@ export default function LastMileDcSummary({ data, calculateLastMileDcSummary, vi
             ({rows.filter(r => !r.isSubtotal).length} Godowns & Transporters)
           </span>
         </div>
+
+        {setLrFilterMode && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontWeight: '500' }}>LR Filter:</span>
+            <div style={{ display: 'inline-flex', background: 'var(--bg-main)', padding: '2px', borderRadius: '6px', border: '1px solid var(--border-color)', gap: '2px' }}>
+              <button
+                type="button"
+                onClick={() => setLrFilterMode('all')}
+                style={{
+                  padding: '4px 10px',
+                  fontSize: '0.78rem',
+                  borderRadius: '4px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontWeight: (!lrFilterMode || lrFilterMode === 'all') ? '600' : 'normal',
+                  background: (!lrFilterMode || lrFilterMode === 'all') ? 'var(--accent-primary, #3b82f6)' : 'transparent',
+                  color: (!lrFilterMode || lrFilterMode === 'all') ? '#fff' : 'var(--text-muted)'
+                }}
+              >
+                All Data
+              </button>
+              <button
+                type="button"
+                onClick={() => setLrFilterMode('with_lr')}
+                style={{
+                  padding: '4px 10px',
+                  fontSize: '0.78rem',
+                  borderRadius: '4px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontWeight: lrFilterMode === 'with_lr' ? '600' : 'normal',
+                  background: lrFilterMode === 'with_lr' ? '#10b981' : 'transparent',
+                  color: lrFilterMode === 'with_lr' ? '#fff' : 'var(--text-muted)'
+                }}
+                title="Only show data with valid LR Number (Exclude blank LR)"
+              >
+                ✓ With LR Only
+              </button>
+              <button
+                type="button"
+                onClick={() => setLrFilterMode('without_lr')}
+                style={{
+                  padding: '4px 10px',
+                  fontSize: '0.78rem',
+                  borderRadius: '4px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontWeight: lrFilterMode === 'without_lr' ? '600' : 'normal',
+                  background: lrFilterMode === 'without_lr' ? '#ef4444' : 'transparent',
+                  color: lrFilterMode === 'without_lr' ? '#fff' : 'var(--text-muted)'
+                }}
+                title="Only show data with blank / missing LR"
+              >
+                Without LR (Blank)
+              </button>
+            </div>
+          </div>
+        )}
 
         <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
           <Search size={15} style={{ position: 'absolute', left: '10px', color: 'var(--text-muted)' }} />
