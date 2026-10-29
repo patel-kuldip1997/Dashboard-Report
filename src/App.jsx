@@ -264,7 +264,7 @@ function MultiSelectDropdown({ options, selected, onChange, placeholder }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const filteredOptions = options.filter(opt => opt.toLowerCase().includes(search.toLowerCase()));
+  const filteredOptions = options.filter(opt => String(opt).toLowerCase().includes(search.toLowerCase()));
   
   // If selected is null, it means ALL are selected. If [], NONE are selected.
   const activeSelected = selected === null ? options : selected;
@@ -1919,14 +1919,21 @@ function App() {
   // Extract unique filter options for Last Mile EPOD, Lifting Report, and Multi-Trip
   const { uniqueDcMonths, uniqueDcDates, uniqueEpodStatuses, uniqueTpDates, uniqueRemarks, uniqueWbIds, uniqueImeiStatuses, uniqueDistricts, uniqueVehicles, uniqueLrNumbers } = useMemo(() => {
     const cached = reportFilters[activeReport];
-    if (cached && (cached.uniqueDcMonths || cached.uniqueDistricts || cached.uniqueTpDates)) {
+    const hasCachedOptions = cached && (
+      (cached.uniqueDcMonths && cached.uniqueDcMonths.length > 0) ||
+      (cached.uniqueDistricts && cached.uniqueDistricts.length > 0) ||
+      (cached.uniqueTpDates && cached.uniqueTpDates.length > 0) ||
+      (cached.uniqueWbIds && cached.uniqueWbIds.length > 0) ||
+      (cached.uniqueLrNumbers && cached.uniqueLrNumbers.length > 0)
+    );
+    if (hasCachedOptions) {
       return {
         uniqueDcMonths: cached.uniqueDcMonths || [],
         uniqueDcDates: cached.uniqueDcDates || [],
         uniqueEpodStatuses: cached.uniqueEpodStatuses || [],
         uniqueTpDates: cached.uniqueTpDates || [],
         uniqueRemarks: [],
-        uniqueWbIds: [],
+        uniqueWbIds: cached.uniqueWbIds || [],
         uniqueImeiStatuses: cached.uniqueImeiStatuses || [],
         uniqueDistricts: cached.uniqueDistricts || [],
         uniqueVehicles: [],
@@ -1953,9 +1960,18 @@ function App() {
       if (r.createDate) dates.add(r.createDate);
       if (r.epodStatusRaw) epodStatuses.add(r.epodStatusRaw);
       if (r.epodStatus) epodStatuses.add(r.epodStatus);
-      if (r.tpDate) tpDates.add(r.tpDate);
+      if (r.tpDate && !r.isSubtotal) tpDates.add(r.tpDate);
       if (r.remarks && r.isSubtotal) remarks.add(r.remarks);
-      if (r.weighbridgeId) wbIds.add(r.weighbridgeId);
+      if (r.weighbridgeId && !r.isSubtotal) {
+        const idStr = String(r.weighbridgeId).trim();
+        if (idStr && idStr !== '0' && idStr.toLowerCase() !== 'null' && idStr.toLowerCase() !== 'undefined') {
+          wbIds.add(idStr);
+        } else if (activeReport === 'weighbridge-report') {
+          wbIds.add('(Blank)');
+        }
+      } else if (activeReport === 'weighbridge-report' && !r.isSubtotal) {
+        wbIds.add('(Blank)');
+      }
       if (r.imeiStatus) imeiStatuses.add(r.imeiStatus);
       if (r.district) districts.add(r.district);
       const lr = getRowLrValue(r);
@@ -2102,7 +2118,10 @@ function App() {
           filtered = filtered.filter(row => tpDateFilter.includes(row.tpDate));
        }
        if (wbIdFilter !== null) {
-          filtered = filtered.filter(row => wbIdFilter.includes(row.weighbridgeId));
+          filtered = filtered.filter(row => {
+             const id = (row.weighbridgeId && row.weighbridgeId !== '0') ? row.weighbridgeId : '(Blank)';
+             return wbIdFilter.includes(id) || wbIdFilter.includes(row.weighbridgeId);
+          });
        }
        
        const pivot = {};
@@ -4516,6 +4535,12 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                     {(activeReport === 'lifting-report' || activeReport === 'vehicle-assigned' || activeReport === 'first-mile-epod') ? (
                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
                         <MultiSelectDropdown 
+                          placeholder="District" 
+                          options={uniqueDistricts} 
+                          selected={districtFilter} 
+                          onChange={setDistrictFilter} 
+                        />
+                        <MultiSelectDropdown 
                           placeholder="TP Date" 
                           options={uniqueTpDates} 
                           selected={tpDateFilter} 
@@ -4531,6 +4556,12 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                        </div>
                     ) : activeReport === 'weighbridge-report' ? (
                        <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <MultiSelectDropdown 
+                          placeholder="District" 
+                          options={uniqueDistricts} 
+                          selected={districtFilter} 
+                          onChange={setDistrictFilter} 
+                        />
                         <MultiSelectDropdown 
                           placeholder="TP Date" 
                           options={uniqueTpDates} 

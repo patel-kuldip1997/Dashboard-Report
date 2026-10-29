@@ -435,6 +435,7 @@ self.onmessage = async (e) => {
     const uniqueTpDates = new Set();
     const uniqueDistricts = new Set();
     const uniqueLrNumbers = new Set();
+    const uniqueWbIds = new Set();
 
     // Use the combined data from all sheets
     const jsonDataRaw = allJsonDataRaw;
@@ -853,7 +854,8 @@ self.onmessage = async (e) => {
          filters: {
            uniqueDistricts: Array.from(uniqueDistricts),
            uniqueTpDates: Array.from(uniqueTpDates),
-        uniqueLrNumbers: Array.from(uniqueLrNumbers)
+        uniqueLrNumbers: Array.from(uniqueLrNumbers),
+        uniqueWbIds: Array.from(uniqueWbIds)
          }
        });
        return;
@@ -1716,13 +1718,14 @@ self.onmessage = async (e) => {
       }
       
       if (activeReport === 'weighbridge-report') {
-         const tpDateRaw = getVal(row, 'tp_date', 'tp date', 'tp date ');
+         const tpDateRaw = getVal(row, 'TP date', 'TP Date', 'tp_date', 'tp date', 'tp date ', 'Created At', 'Date');
          const tpDate = formatExcelDate(tpDateRaw);
+         if (tpDate) uniqueTpDates.add(tpDate);
          if (!tpDate) return;
          
-         const district = getVal(row, 'district') || '';
-         const destGodown = getVal(row, 'destination_godown', 'destination godown') || '';
-         const weighbridgeId = String(getVal(row, 'weighbridge_id', 'weighbridge id') || '').trim();
+         const district = getVal(row, 'District', 'district', 'TP District', 'Godown District') || '';
+         const destGodown = getVal(row, 'Destination Godown', 'destination_godown', 'destination godown', 'Destination', 'GSCSCL Godown', 'Godown') || '';
+         const weighbridgeId = String(getVal(row, 'Weighbridge ID', 'weighbridge_id', 'weighbridge id', 'Weigh Bridge ID', 'Weigh Bridge Id', 'Weighbridge Id', 'WB ID', 'wb_id') || '').trim();
          const grossWeight = String(getVal(row, 'Weigh Bridge Gross Weight') || '').trim();
          const tareWeight = String(getVal(row, 'Weigh Bridge Tare Weight') || '').trim();
          
@@ -1746,6 +1749,9 @@ self.onmessage = async (e) => {
          const isWbIdValid = (weighbridgeId !== '' && weighbridgeId !== '0' && weighbridgeId !== 'null' && weighbridgeId !== 'undefined' && weighbridgeId !== 'NaN');
          const isGrossValid = (grossWeight !== '' && grossWeight !== '0' && grossWeight !== 'null' && grossWeight !== 'undefined' && grossWeight !== 'NaN');
          const isTareValid = (tareWeight !== '' && tareWeight !== '0' && tareWeight !== 'null' && tareWeight !== 'undefined' && tareWeight !== 'NaN');
+
+         if (district) uniqueDistricts.add(district);
+         if (isWbIdValid) uniqueWbIds.add(weighbridgeId); else uniqueWbIds.add('(Blank)');
 
          let wbUsed = 0;
          if (isWbIdValid && (isGrossValid || isTareValid)) {
@@ -1970,7 +1976,8 @@ self.onmessage = async (e) => {
         uniqueImeiStatuses: Array.from(uniqueImeiStatuses),
         uniqueDistricts: Array.from(uniqueDistricts),
         uniqueTpDates: Array.from(uniqueTpDates),
-        uniqueLrNumbers: Array.from(uniqueLrNumbers)
+        uniqueLrNumbers: Array.from(uniqueLrNumbers),
+        uniqueWbIds: Array.from(uniqueWbIds)
       }
     });
   } catch (error) {
