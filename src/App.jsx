@@ -3832,8 +3832,7 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
           <div className="sidebar-header">
             <div className="sidebar-header-top">
               <div className="logo-container" onClick={() => handleMenuClick('amul-welcome')} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <img src="/amul-logo.svg" alt="Amul Logo" style={{ height: '34px', objectFit: 'contain' }} />
-                <span className="logo-text">AMUL</span>
+                <img src="/amul-logo.svg" alt="Amul Logo" style={{ height: '38px', objectFit: 'contain' }} />
               </div>
               <button className="close-btn" onClick={() => setSidebarOpen(false)} title="Close Sidebar">
                 <Menu size={20} />
