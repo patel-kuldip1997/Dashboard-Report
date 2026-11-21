@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 100" width="100%" height="100%">
+  <!-- Clean Amul Official Red Wordmark -->
+  <text x="120" y="65" 
+        font-family="'Trebuchet MS', 'Outfit', 'Montserrat', 'Segoe UI', Arial, sans-serif" 
+        font-size="64" 
+        font-weight="900" 
+        letter-spacing="-1.5"
+        fill="#E31E24" 
+        text-anchor="middle">Amul</text>
+  <text x="120" y="86" 
+        font-family="'Outfit', 'Segoe UI', Arial, sans-serif" 
+        font-size="10.5" 
+        font-weight="800" 
+        letter-spacing="3.5" 
+        fill="#1E3A8A" 
+        text-anchor="middle">THE TASTE OF INDIA</text>
+</svg>

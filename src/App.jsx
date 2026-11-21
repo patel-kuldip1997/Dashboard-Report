@@ -1,5 +1,5 @@
 import React, { useState, useRef, useMemo, useEffect } from 'react';
-import { UploadCloud, FileSpreadsheet, Download, Building2, Truck, FileText, Filter, AlertCircle, Database, Menu, X, ChevronDown, ChevronRight, FileDown, Settings, GripVertical, History, Trash2, FolderOpen, Search, CheckCircle, Repeat, MapPin, BarChart2, Camera, Image as ImageIcon, Save, RotateCcw } from 'lucide-react';
+import { Home, Layers, Route, UploadCloud, FileSpreadsheet, Download, Building2, Truck, FileText, Filter, AlertCircle, Database, Menu, X, ChevronDown, ChevronRight, FileDown, Settings, GripVertical, History, Trash2, FolderOpen, Search, CheckCircle, Repeat, MapPin, BarChart2, Camera, Image as ImageIcon, Save, RotateCcw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -13,6 +13,7 @@ import EpodPhotoAnalysisDashboard from './components/EpodPhotoAnalysisDashboard'
 import LastMileTripsSummary from './components/LastMileTripsSummary';
 import LastMileDcSummary from './components/LastMileDcSummary';
 import LiftingCommoditySummary from './components/LiftingCommoditySummary';
+import AmulDashboard from './components/amul/AmulDashboard';
 import { DEFAULT_REPORT_ATTRIBUTES } from './reportAttributes';
 import { APP_VERSION, RELEASE_DATE, APP_NAME, RELEASE_NOTES } from './version.js';
 
@@ -711,14 +712,49 @@ function WeighbridgeVendors({ vendors, setVendors }) {
 }
 
 function App() {
+  const checkIsAmulPath = () => {
+    const p = window.location.pathname.toLowerCase();
+    return p === '/amul' || p === '/amul/' || p.startsWith('/amul/') || p.endsWith('/amul');
+  };
+
   const [activeReport, setActiveReport] = useState(() => {
-    const saved = sessionStorage.getItem('activeReportTab') || 'welcome';
-    return saved === 'first-mile-vehicle-registered' ? 'welcome' : saved;
+    const isAmul = checkIsAmulPath();
+    if (isAmul) {
+      const savedAmul = sessionStorage.getItem('amul_activeReportTab');
+      return (savedAmul && (savedAmul === 'amul' || savedAmul.startsWith('amul-'))) ? savedAmul : 'amul-welcome';
+    } else {
+      const savedGscscl = sessionStorage.getItem('gscscl_activeReportTab');
+      if (savedGscscl && !savedGscscl.startsWith('amul') && savedGscscl !== 'first-mile-vehicle-registered') {
+        return savedGscscl;
+      }
+      return 'welcome';
+    }
   });
 
+  const isAmulPortal = checkIsAmulPath() || activeReport === 'amul' || activeReport.startsWith('amul-');
+
   useEffect(() => {
-    sessionStorage.setItem('activeReportTab', activeReport);
+    if (activeReport.startsWith('amul-') || activeReport === 'amul') {
+      sessionStorage.setItem('amul_activeReportTab', activeReport);
+    } else {
+      sessionStorage.setItem('gscscl_activeReportTab', activeReport);
+    }
   }, [activeReport]);
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const isAmul = checkIsAmulPath();
+      if (isAmul) {
+        const savedAmul = sessionStorage.getItem('amul_activeReportTab');
+        setActiveReport((savedAmul && (savedAmul === 'amul' || savedAmul.startsWith('amul-'))) ? savedAmul : 'amul-welcome');
+      } else {
+        const savedGscscl = sessionStorage.getItem('gscscl_activeReportTab');
+        setActiveReport((savedGscscl && !savedGscscl.startsWith('amul') && savedGscscl !== 'first-mile-vehicle-registered') ? savedGscscl : 'welcome');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   useEffect(() => {
     const companyTitleStr = localStorage.getItem('companyTitle');
@@ -1103,6 +1139,8 @@ function App() {
   const [analyticsMenuOpen, setAnalyticsMenuOpen] = useState(true);
   const [templatesMenuOpen, setTemplatesMenuOpen] = useState(true);
   const [penaltyMenuOpen, setPenaltyMenuOpen] = useState(true);
+  const [amulOperationsOpen, setAmulOperationsOpen] = useState(true);
+  const [amulDataOpen, setAmulDataOpen] = useState(true);
 
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 1024);
 
@@ -1894,6 +1932,15 @@ function App() {
     setLrNumberFilter(null);
     setRemarksFilter(null);
     setActiveReport(reportType);
+    if (reportType === 'amul' || reportType.startsWith('amul-')) {
+      if (!window.location.pathname.toLowerCase().includes('/amul')) {
+        window.history.pushState(null, '', '/amul');
+      }
+    } else {
+      if (window.location.pathname.toLowerCase().includes('/amul')) {
+        window.history.pushState(null, '', '/');
+      }
+    }
     if (fileInputRef.current) fileInputRef.current.value = '';
     if (isMobile) setSidebarOpen(false);
   };
@@ -3781,27 +3828,143 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
 
       {/* Premium Admin Sidebar */}
       <div className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
-        <div className="sidebar-header">
-          <div className="sidebar-header-top">
-            <div className="logo-container" onClick={() => handleMenuClick('welcome')} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <img src="/gscscl-logo.png" alt="GSCSCL Logo" style={{ height: '36px', objectFit: 'contain' }} />
-              <span className="logo-text">GSCSCL</span>
+        {isAmulPortal ? (
+          <div className="sidebar-header">
+            <div className="sidebar-header-top">
+              <div className="logo-container" onClick={() => handleMenuClick('amul-welcome')} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <img src="/amul-logo.svg" alt="Amul Logo" style={{ height: '34px', objectFit: 'contain' }} />
+                <span className="logo-text">AMUL</span>
+              </div>
+              <button className="close-btn" onClick={() => setSidebarOpen(false)} title="Close Sidebar">
+                <Menu size={20} />
+              </button>
             </div>
-            <button className="close-btn" onClick={() => setSidebarOpen(false)} title="Close Sidebar">
-              <Menu size={20} />
-            </button>
-          </div>
-          <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Analytics Portal</span>
-            <div className="version-pill" onClick={() => setShowVersionModal(true)} title="Click to view release notes">
-              <span className="version-dot"></span>
-              {APP_VERSION}
+            <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em' }}>THR Analytics Portal</span>
+              <div className="version-pill" onClick={() => setShowVersionModal(true)} title="Click to view release notes">
+                <span className="version-dot"></span>
+                {APP_VERSION}
+              </div>
             </div>
           </div>
-        </div>
+        ) : (
+          <div className="sidebar-header">
+            <div className="sidebar-header-top">
+              <div className="logo-container" onClick={() => handleMenuClick('welcome')} style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <img src="/gscscl-logo.png" alt="GSCSCL Logo" style={{ height: '36px', objectFit: 'contain' }} />
+                <span className="logo-text">GSCSCL</span>
+              </div>
+              <button className="close-btn" onClick={() => setSidebarOpen(false)} title="Close Sidebar">
+                <Menu size={20} />
+              </button>
+            </div>
+            <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-dim)', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Analytics Portal</span>
+              <div className="version-pill" onClick={() => setShowVersionModal(true)} title="Click to view release notes">
+                <span className="version-dot"></span>
+                {APP_VERSION}
+              </div>
+            </div>
+          </div>
+        )}
         
         <div className="nav-menu">
-          {/* Section 1 */}
+          {isAmulPortal ? (
+            /* Dedicated Amul Portal Navigation - Exact same style and structure as GSCSCL */
+            <>
+              {/* Amul Welcome Dashboard Item */}
+              <div className="nav-section">
+                <div 
+                  className={`nav-item ${(activeReport === 'amul' || activeReport === 'amul-welcome') ? 'active' : ''}`}
+                  onClick={() => handleMenuClick('amul-welcome')}
+                >
+                  <Home className="nav-icon" size={16} />
+                  <span>Welcome Dashboard</span>
+                </div>
+              </div>
+
+              {/* Section: THR Operations */}
+              <div className="nav-section" style={{ marginTop: '12px' }}>
+                <div 
+                  className="nav-section-header" 
+                  onClick={() => setAmulOperationsOpen(!amulOperationsOpen)}
+                >
+                  <span className="nav-section-title">THR Operations</span>
+                  {amulOperationsOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                </div>
+                
+                {amulOperationsOpen && (
+                  <div className="nav-submenu">
+                    <div 
+                      className={`nav-item ${activeReport === 'amul-dashboard' ? 'active' : ''}`}
+                      onClick={() => handleMenuClick('amul-dashboard')}
+                    >
+                      <Layers className="nav-icon" size={16} />
+                      <span>Master KPI Dashboard</span>
+                    </div>
+
+                    <div 
+                      className={`nav-item ${activeReport === 'amul-plants' ? 'active' : ''}`}
+                      onClick={() => handleMenuClick('amul-plants')}
+                    >
+                      <Building2 className="nav-icon" size={16} />
+                      <span>Plant Performance</span>
+                    </div>
+
+                    <div 
+                      className={`nav-item ${activeReport === 'amul-transporters' ? 'active' : ''}`}
+                      onClick={() => handleMenuClick('amul-transporters')}
+                    >
+                      <Truck className="nav-icon" size={16} />
+                      <span>Transporter SLA Scorecard</span>
+                    </div>
+
+                    <div 
+                      className={`nav-item ${activeReport === 'amul-districts' ? 'active' : ''}`}
+                      onClick={() => handleMenuClick('amul-districts')}
+                    >
+                      <MapPin className="nav-icon" size={16} />
+                      <span>District Matrix (40)</span>
+                    </div>
+
+                    <div 
+                      className={`nav-item ${activeReport === 'amul-routes' ? 'active' : ''}`}
+                      onClick={() => handleMenuClick('amul-routes')}
+                    >
+                      <Route className="nav-icon" size={16} />
+                      <span>Route Register (382)</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Section: Settings */}
+              <div className="nav-section" style={{ marginTop: '12px' }}>
+                <div 
+                  className="nav-section-header" 
+                  onClick={() => setAmulDataOpen(!amulDataOpen)}
+                >
+                  <span className="nav-section-title">Settings</span>
+                  {amulDataOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                </div>
+                
+                {amulDataOpen && (
+                  <div className="nav-submenu">
+                    <div 
+                      className={`nav-item ${activeReport === 'amul-customize-columns' ? 'active' : ''}`}
+                      onClick={() => handleMenuClick('amul-customize-columns')}
+                    >
+                      <Settings className="nav-icon" size={16} />
+                      <span>Customize Columns</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </>
+          ) : (
+            /* GSCSCL Navigation Menu - 100% Pure GSCSCL, no Amul buttons */
+            <>
+              {/* Section 1 */}
           <div className="nav-section">
             <div 
               className="nav-section-header" 
@@ -4045,12 +4208,14 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
               </div>
             )}
           </div>
+            </>
+          )}
         </div>
 
         {/* Sidebar Modern Footer */}
         <div className="sidebar-footer">
           <div className="sidebar-footer-text">
-            <span>GSCSCL Engine</span>
+            <span>{isAmulPortal ? 'Amul Engine' : 'GSCSCL Engine'}</span>
           </div>
           <div className="version-pill" onClick={() => setShowVersionModal(true)} title="Click for Release Info">
             <span className="version-dot"></span>
@@ -4070,8 +4235,10 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                 <Menu size={20} />
               </button>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
-                <span className="logo-text" onClick={() => handleMenuClick('welcome')} style={{ fontSize: '1.05rem', cursor: 'pointer', lineHeight: '1.2' }}>GSCSCL Reports</span>
-                <span className="breadcrumb-tag">{reportTitle || 'Dashboard Portal'}</span>
+                <span className="logo-text" onClick={() => handleMenuClick(isAmulPortal ? 'amul-welcome' : 'welcome')} style={{ fontSize: '1.05rem', cursor: 'pointer', lineHeight: '1.2' }}>
+                  {isAmulPortal ? 'Amul Reports' : 'GSCSCL Reports'}
+                </span>
+                <span className="breadcrumb-tag">{isAmulPortal ? 'Take Home Ration Portal' : (reportTitle || 'Dashboard Portal')}</span>
               </div>
             </div>
             <div className="top-header-right">
@@ -5465,6 +5632,28 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
               </div>
             </div>
           </div>
+        )}
+
+        {/* Amul Multi-Portal Views (Persisted state across tabs) */}
+        {(activeReport === 'amul' || activeReport.startsWith('amul-')) && (
+          <AmulDashboard 
+            showToast={showToast} 
+            initialView={
+              activeReport === 'amul' || activeReport === 'amul-welcome' ? 'welcome' :
+              activeReport === 'amul-dashboard' ? 'all' :
+              activeReport === 'amul-customize-columns' ? 'customize-columns' :
+              activeReport.replace('amul-', '')
+            }
+            onTabChange={(targetView) => {
+              const reportKey = targetView === 'welcome' ? 'amul-welcome' :
+                                targetView === 'all' ? 'amul-dashboard' :
+                                targetView === 'customize-columns' ? 'amul-customize-columns' :
+                                'amul-' + targetView;
+              if (activeReport !== reportKey) {
+                handleMenuClick(reportKey);
+              }
+            }}
+          />
         )}
 
         {activeReport === 'sms-template' && (
