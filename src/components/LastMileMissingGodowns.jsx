@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { Search, Building2, CheckCircle2, AlertTriangle, UploadCloud, FileSpreadsheet, FileDown, RotateCcw, Filter, Eye, Layers } from 'lucide-react';
+import { Search, Building2, CheckCircle2, AlertTriangle, UploadCloud, FileSpreadsheet, FileDown, RotateCcw, Filter, Eye, Layers, Edit3, Save } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -146,7 +146,10 @@ export default function LastMileMissingGodowns({
   onUploadMaster, 
   onResetMaster, 
   masterFileName = '',
-  reportTitle = ''
+  reportTitle = '',
+  setReportTitle,
+  onSaveReportTitle,
+  onResetReportTitle
 }) {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDistrict, setSelectedDistrict] = useState('All');
@@ -356,182 +359,137 @@ export default function LastMileMissingGodowns({
     XLSX.writeFile(wb, fileName);
   };
 
-  // Export to PDF (Professional Government Format with KPIs at TOP)
+  // Export to PDF (Matches Exact Format, Colors & Design from Official Last Mile Report)
   const handleExportPDF = () => {
     const doc = new jsPDF('p', 'mm', 'a4');
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
-    const marginX = 12;
-    const availableWidth = pageWidth - (marginX * 2);
 
-    // 1. Department / Company Title
+    // 1. Company Header (Black bold, centered, 20pt)
+    doc.setTextColor(0, 0, 0);
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
     const companyTitleStr = localStorage.getItem('companyTitle');
     const finalCompanyTitle = companyTitleStr === null ? 'FarEye Technologies Pvt. Ltd.' : companyTitleStr;
-
-    let currentY = 13;
     if (finalCompanyTitle.trim() !== '') {
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(14);
-      doc.setTextColor(15, 23, 42);
-      doc.text(finalCompanyTitle, pageWidth / 2, currentY, { align: 'center' });
-      currentY += 7;
+      doc.text(finalCompanyTitle, pageWidth / 2, 17, { align: 'center' });
     }
 
-    // 2. Report Main Title
-    doc.setFont('helvetica', 'bold');
+    // 2. Report Title inside Grey Pill Box (Exact match to official report)
+    const titleToUse = reportTitle || 'GSCSCL \u2013 Missing Godowns from Last Mile Report';
     doc.setFontSize(13);
-    doc.setTextColor(15, 42, 85);
-    const mainTitle = reportTitle || 'GSCSCL – Missing Godowns from Last Mile Report';
-    doc.text(mainTitle, pageWidth / 2, currentY, { align: 'center' });
-    currentY += 5.5;
+    doc.setFont('helvetica', 'bold');
+    const titleWidth = doc.getTextWidth(titleToUse);
+    const padding = 10;
+    const boxHeight = 8;
+    const boxX = (pageWidth - (titleWidth + padding)) / 2;
+    const boxY = 20;
 
-    // 3. Subtitle
-    doc.setFont('helvetica', 'normal');
+    doc.setFillColor(240, 240, 240);
+    doc.rect(boxX, boxY, titleWidth + padding, boxHeight, 'F');
+    doc.setTextColor(0, 0, 0);
+    doc.text(titleToUse, pageWidth / 2, 26, { align: 'center' });
+
+    // Separator line below title
+    doc.setLineWidth(0.5);
+    doc.setDrawColor(200, 200, 200);
+    doc.line(10, 31, pageWidth - 10, 31);
+
+    // 3. Top Summary Strip (Active Master, In Report, Matched, and Missing Godowns)
+    const stripY = 33;
+    const stripHeight = 7;
+    const stripWidth = pageWidth - 20;
+    doc.setFillColor(245, 247, 250);
+    doc.roundedRect(10, stripY, stripWidth, stripHeight, 1, 1, 'F');
+    doc.setDrawColor(210, 220, 230);
+    doc.roundedRect(10, stripY, stripWidth, stripHeight, 1, 1, 'S');
+
     doc.setFontSize(8.5);
-    doc.setTextColor(100, 116, 139);
-    const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
-    doc.text(`Report dated ${dateStr} | Compared with the ${godownMasterList.length} Active Godown Master List`, pageWidth / 2, currentY, { align: 'center' });
-    currentY += 5.5;
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30, 41, 59);
+    const colW = stripWidth / 4;
+    doc.text(`Active Master Godowns: ${godownMasterList.length}`, 14, stripY + 4.8);
+    doc.text(`In Report: ${rawGodownInfo.count}`, 10 + colW + 4, stripY + 4.8);
+    doc.text(`Matched: ${matchedList.length}`, 10 + (colW * 2) + 4, stripY + 4.8);
+    doc.setTextColor(220, 38, 38);
+    doc.text(`Missing Godowns: ${missingList.length}`, 10 + (colW * 3) + 4, stripY + 4.8);
 
-    // 4. TOP 4-KPI SUMMARY BOXES (MISSING PROMINENTLY AT TOP)
-    const cardY = currentY;
-    const cardHeight = 13;
-    const cardGap = 2.5;
-    const cardWidth = (availableWidth - (cardGap * 3)) / 4;
-
-    const kpiCards = [
-      {
-        label: 'ACTIVE MASTER',
-        value: String(godownMasterList.length),
-        bg: [241, 245, 249],
-        border: [203, 213, 225],
-        labelColor: [71, 85, 105],
-        valColor: [15, 23, 42]
-      },
-      {
-        label: 'IN REPORT',
-        value: String(rawGodownInfo.count),
-        bg: [239, 246, 255],
-        border: [191, 219, 254],
-        labelColor: [30, 64, 175],
-        valColor: [29, 78, 216]
-      },
-      {
-        label: 'MATCHED',
-        value: String(matchedList.length),
-        bg: [240, 253, 244],
-        border: [187, 247, 208],
-        labelColor: [22, 101, 52],
-        valColor: [21, 128, 61]
-      },
-      {
-        label: 'MISSING GODOWNS',
-        value: String(missingList.length),
-        bg: [254, 242, 242],
-        border: [248, 113, 113],
-        labelColor: [153, 27, 27],
-        valColor: [220, 38, 38]
-      }
-    ];
-
-    kpiCards.forEach((c, idx) => {
-      const cx = marginX + (idx * (cardWidth + cardGap));
-      // Background
-      doc.setFillColor(c.bg[0], c.bg[1], c.bg[2]);
-      doc.roundedRect(cx, cardY, cardWidth, cardHeight, 1.2, 1.2, 'F');
-      // Border
-      doc.setDrawColor(c.border[0], c.border[1], c.border[2]);
-      doc.setLineWidth(0.3);
-      doc.roundedRect(cx, cardY, cardWidth, cardHeight, 1.2, 1.2, 'S');
-      // Label
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(6.8);
-      doc.setTextColor(c.labelColor[0], c.labelColor[1], c.labelColor[2]);
-      doc.text(c.label, cx + (cardWidth / 2), cardY + 4.3, { align: 'center' });
-      // Value
-      doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11.5);
-      doc.setTextColor(c.valColor[0], c.valColor[1], c.valColor[2]);
-      doc.text(c.value, cx + (cardWidth / 2), cardY + 10.2, { align: 'center' });
-    });
-
-    currentY += cardHeight + 4;
-
-    // Optional Filter Indicator
-    if (selectedDistrict !== 'All') {
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(71, 85, 105);
-      doc.text(`Filtered by District: ${selectedDistrict} (${displayRows.length} Godowns)`, marginX, currentY);
-      currentY += 4;
-    }
-
-    // 5. Table Data & Footer Total Row
+    // 4. District Wise Subtotals Table (Exact blue header, grey district totals, peach grand total)
     const isAllView = viewFilter === 'all';
     const headRow = isAllView 
       ? ['Sr. No.', 'District', 'GSCSCL Godown', 'Status'] 
       : ['Sr. No.', 'District', 'GSCSCL Godown'];
 
-    const tableBody = displayRows.map((r, i) => {
-      if (isAllView) {
-        return [i + 1, r.district, r.destinationGodown, r.isMatched ? 'Matched' : 'Missing'];
-      }
-      return [i + 1, r.district, r.destinationGodown];
+    const districtMap = new Map();
+    displayRows.forEach(row => {
+      const dist = row.district || 'Unknown';
+      if (!districtMap.has(dist)) districtMap.set(dist, []);
+      districtMap.get(dist).push(row);
     });
 
-    const footLabel = viewFilter === 'missing' 
-      ? `Total Missing Godowns: ${displayRows.length}`
-      : (viewFilter === 'matched' ? `Total Matched Godowns: ${displayRows.length}` : `Total Master Godowns: ${displayRows.length}`);
+    let srNo = 1;
+    const tableBody = [];
 
-    const footRow = isAllView
-      ? [{ content: footLabel, colSpan: 4, styles: { halign: 'right', fontStyle: 'bold' } }]
-      : [{ content: footLabel, colSpan: 3, styles: { halign: 'right', fontStyle: 'bold' } }];
+    districtMap.forEach((godowns, district) => {
+      godowns.forEach(g => {
+        if (isAllView) {
+          tableBody.push([srNo++, district, g.destinationGodown, g.isMatched ? 'Matched' : 'Missing']);
+        } else {
+          tableBody.push([srNo++, district, g.destinationGodown]);
+        }
+      });
+
+      // District Subtotal Row (Grey [217, 217, 217])
+      const subtotalColSpan = isAllView ? 3 : 2;
+      tableBody.push([
+        {
+          content: `${district} Total`,
+          colSpan: subtotalColSpan,
+          styles: { fontStyle: 'bold', fillColor: [217, 217, 217], textColor: [0, 0, 0], halign: 'left' }
+        },
+        {
+          content: String(godowns.length),
+          styles: { fontStyle: 'bold', fillColor: [217, 217, 217], textColor: [0, 0, 0], halign: 'center' }
+        }
+      ]);
+    });
+
+    // Grand Total Row (Peach [252, 213, 180])
+    const grandColSpan = isAllView ? 3 : 2;
+    tableBody.push([
+      {
+        content: 'Grand Total',
+        colSpan: grandColSpan,
+        styles: { fontStyle: 'bold', fillColor: [252, 213, 180], textColor: [0, 0, 0], halign: 'center' }
+      },
+      {
+        content: String(displayRows.length),
+        styles: { fontStyle: 'bold', fillColor: [252, 213, 180], textColor: [0, 0, 0], halign: 'center' }
+      }
+    ]);
 
     autoTable(doc, {
-      startY: currentY,
+      startY: 42,
       head: [headRow],
       body: tableBody,
-      foot: [footRow],
       theme: 'grid',
-      headStyles: {
-        fillColor: [15, 42, 85],
-        textColor: [255, 255, 255],
-        fontSize: 9,
-        fontStyle: 'bold',
-        halign: 'left',
-        cellPadding: 3
-      },
-      footStyles: {
-        fillColor: viewFilter === 'missing' ? [254, 242, 242] : [241, 245, 249],
-        textColor: viewFilter === 'missing' ? [185, 28, 28] : [15, 23, 42],
-        fontSize: 8.5,
-        cellPadding: 2.8
-      },
+      styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
+      headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
       columnStyles: isAllView ? {
         0: { cellWidth: 16, halign: 'center' },
         1: { cellWidth: 50, halign: 'left' },
         2: { halign: 'left' },
         3: { cellWidth: 26, halign: 'center' }
       } : {
-        0: { cellWidth: 18, halign: 'center' },
+        0: { cellWidth: 20, halign: 'center' },
         1: { cellWidth: 55, halign: 'left' },
         2: { halign: 'left' }
       },
-      styles: {
-        fontSize: 8.5,
-        cellPadding: 2.7,
-        lineColor: [209, 224, 240],
-        lineWidth: 0.2,
-        textColor: [30, 41, 59]
-      },
-      alternateRowStyles: {
-        fillColor: [248, 250, 252]
-      },
-      margin: { left: marginX, right: marginX, bottom: 15 },
+      margin: { left: 8, right: 8, top: 10, bottom: 15 },
       didDrawPage: (data) => {
-        // Watermark: Subtle centered FarEye watermark
-        doc.setGState(new doc.GState({ opacity: 0.12 }));
-        doc.setFontSize(72);
+        // FarEye Center Watermark
+        doc.setGState(new doc.GState({ opacity: 0.15 }));
+        doc.setFontSize(80);
         doc.setTextColor(150, 150, 150);
         doc.setFont('helvetica', 'bold');
         const defaultWatermark = companyTitleStr === null ? 'FarEye' : (companyTitleStr ? companyTitleStr.split(' ')[0] : '');
@@ -543,20 +501,19 @@ export default function LastMileMissingGodowns({
         }
         doc.setGState(new doc.GState({ opacity: 1.0 }));
 
-        // Footer: Rule line and Page numbering
-        doc.setLineWidth(0.3);
-        doc.setDrawColor(210, 220, 230);
-        doc.line(marginX, pageHeight - 11, pageWidth - marginX, pageHeight - 11);
-        doc.setFontSize(8);
+        // Footer Line and Page Number
+        doc.setLineWidth(0.5);
+        doc.setDrawColor(200, 200, 200);
+        doc.line(14, pageHeight - 15, pageWidth - 14, pageHeight - 15);
+        doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
-        doc.setTextColor(100, 116, 139);
-        doc.text('GSCSCL | Missing Godowns from Last Mile Report', marginX, pageHeight - 6.5);
-        doc.text(`Page ${data.pageNumber}`, pageWidth - marginX, pageHeight - 6.5, { align: 'right' });
+        doc.setTextColor(100, 100, 100);
+        doc.text('Page ' + data.pageNumber, pageWidth - 14, pageHeight - 10, { align: 'right' });
       }
     });
 
     const safeTitle = (reportTitle || 'GSCSCL_Missing_Godowns').replace(/[^a-z0-9]/gi, '_');
-    doc.save(`${safeTitle}_${new Date().toISOString().slice(0, 10)}.pdf`);
+    doc.save(`${safeTitle}.pdf`);
   };
 
   const handleMasterFileChange = (e) => {
@@ -569,6 +526,76 @@ export default function LastMileMissingGodowns({
 
   return (
     <div style={{ marginTop: '8px' }}>
+      {/* Interactive Title Editor Bar so user can easily customize report title */}
+      <div style={{
+        marginBottom: '14px',
+        padding: '10px 16px',
+        borderRadius: '8px',
+        background: 'var(--bg-panel)',
+        border: '1px solid var(--border-color)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        flexWrap: 'wrap'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '320px' }}>
+          <Edit3 size={16} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+          <span style={{ fontSize: '0.82rem', fontWeight: '600', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Report Title:</span>
+          <input
+            type="text"
+            value={reportTitle}
+            onChange={(e) => setReportTitle && setReportTitle(e.target.value)}
+            style={{
+              flex: 1,
+              padding: '6px 12px',
+              fontSize: '0.92rem',
+              fontWeight: '600',
+              color: 'var(--text-main)',
+              background: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '6px',
+              outline: 'none'
+            }}
+            placeholder="GSCSCL – Missing Godowns from Last Mile Report"
+          />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => onSaveReportTitle && onSaveReportTitle()}
+            style={{
+              padding: '6px 12px',
+              fontSize: '0.82rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              borderRadius: '6px',
+              cursor: 'pointer'
+            }}
+            title="Save custom title permanently"
+          >
+            <Save size={14} />
+            Save Title
+          </button>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => onResetReportTitle && onResetReportTitle()}
+            style={{
+              padding: '6px 10px',
+              fontSize: '0.82rem',
+              color: 'var(--text-muted)',
+              borderRadius: '6px',
+              cursor: 'pointer'
+            }}
+            title="Reset title to default template"
+          >
+            <RotateCcw size={14} />
+          </button>
+        </div>
+      </div>
+
       {/* Top Filter Bar Notification & Data Scope Switch */}
       {isTopFilterActive && (
         <div style={{
