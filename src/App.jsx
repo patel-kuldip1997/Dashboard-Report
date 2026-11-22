@@ -3251,6 +3251,8 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
       const doc = new jsPDF('p', 'mm', 'a4');
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
+      const marginX = 8;
+      const availableWidth = pageWidth - (marginX * 2);
 
       // 1. Company Header
       doc.setTextColor(0, 0, 0);
@@ -3263,7 +3265,7 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
       }
 
       // 2. Report Title inside Grey Pill Box
-      const titleToUse = reportTitle || 'GSCSCL \u2013 Missing Godowns from Last Mile Report';
+      const titleToUse = reportTitle && reportTitle.trim() ? reportTitle.trim() : 'GSCSCL \u2013 Missing Godowns from Last Mile Report';
       doc.setFontSize(13);
       doc.setFont('helvetica', 'bold');
       const titleWidth = doc.getTextWidth(titleToUse);
@@ -3281,26 +3283,43 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
       doc.setDrawColor(200, 200, 200);
       doc.line(10, 31, pageWidth - 10, 31);
 
-      // 3. Top Summary Strip
+      // 3. Top Summary KPI Box (Responsive 4-column grid with dividers)
       const stripY = 33;
-      const stripHeight = 7;
-      const stripWidth = pageWidth - 20;
+      const stripHeight = 8;
+      const colW = availableWidth / 4;
+
       doc.setFillColor(245, 247, 250);
-      doc.roundedRect(10, stripY, stripWidth, stripHeight, 1, 1, 'F');
-      doc.setDrawColor(210, 220, 230);
-      doc.roundedRect(10, stripY, stripWidth, stripHeight, 1, 1, 'S');
+      doc.roundedRect(marginX, stripY, availableWidth, stripHeight, 1.2, 1.2, 'F');
+
+      doc.setFillColor(254, 242, 242);
+      doc.roundedRect(marginX + (colW * 3), stripY, colW, stripHeight, 1.2, 1.2, 'F');
+
+      doc.setDrawColor(200, 210, 225);
+      doc.setLineWidth(0.3);
+      doc.roundedRect(marginX, stripY, availableWidth, stripHeight, 1.2, 1.2, 'S');
+
+      doc.setDrawColor(215, 225, 235);
+      doc.setLineWidth(0.25);
+      doc.line(marginX + colW, stripY, marginX + colW, stripY + stripHeight);
+      doc.line(marginX + (colW * 2), stripY, marginX + (colW * 2), stripY + stripHeight);
+      doc.line(marginX + (colW * 3), stripY, marginX + (colW * 3), stripY + stripHeight);
 
       doc.setFontSize(8.5);
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(30, 41, 59);
-      const colW = stripWidth / 4;
-      doc.text(`Active Master Godowns: ${godownMasterList.length}`, 14, stripY + 4.8);
-      doc.text(`In Report: ${uniqueRawGodowns.size}`, 10 + colW + 4, stripY + 4.8);
-      doc.text(`Matched: ${godownMasterList.length - missingRows.length}`, 10 + (colW * 2) + 4, stripY + 4.8);
-      doc.setTextColor(220, 38, 38);
-      doc.text(`Missing Godowns: ${missingRows.length}`, 10 + (colW * 3) + 4, stripY + 4.8);
 
-      // 4. District Wise Subtotals Table (Exact format from 8-page PDF)
+      doc.setTextColor(30, 41, 59);
+      doc.text(`Active Master Godowns: ${godownMasterList.length}`, marginX + (colW * 0.5), stripY + 5.2, { align: 'center' });
+
+      doc.setTextColor(30, 41, 59);
+      doc.text(`In Report: ${uniqueRawGodowns.size}`, marginX + (colW * 1.5), stripY + 5.2, { align: 'center' });
+
+      doc.setTextColor(22, 101, 52);
+      doc.text(`Matched: ${godownMasterList.length - missingRows.length}`, marginX + (colW * 2.5), stripY + 5.2, { align: 'center' });
+
+      doc.setTextColor(220, 38, 38);
+      doc.text(`Missing Godowns: ${missingRows.length}`, marginX + (colW * 3.5), stripY + 5.2, { align: 'center' });
+
+      // 4. District Wise Subtotals Table
       const districtMap = new Map();
       missingRows.forEach(row => {
         const dist = row.district || 'Unknown';
@@ -3318,11 +3337,11 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
           {
             content: `${district} Total`,
             colSpan: 2,
-            styles: { fontStyle: 'bold', fillColor: [217, 217, 217], textColor: [0, 0, 0], halign: 'left' }
+            styles: { fontStyle: 'bold', fillColor: [217, 217, 217], textColor: [0, 0, 0], halign: 'left', cellPadding: 2.5 }
           },
           {
-            content: String(godowns.length),
-            styles: { fontStyle: 'bold', fillColor: [217, 217, 217], textColor: [0, 0, 0], halign: 'center' }
+            content: `${godowns.length} Missing`,
+            styles: { fontStyle: 'bold', fillColor: [217, 217, 217], textColor: [0, 0, 0], halign: 'right', cellPadding: 2.5 }
           }
         ]);
       });
@@ -3331,27 +3350,27 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
         {
           content: 'Grand Total',
           colSpan: 2,
-          styles: { fontStyle: 'bold', fillColor: [252, 213, 180], textColor: [0, 0, 0], halign: 'center' }
+          styles: { fontStyle: 'bold', fillColor: [252, 213, 180], textColor: [0, 0, 0], halign: 'center', cellPadding: 3 }
         },
         {
-          content: String(missingRows.length),
-          styles: { fontStyle: 'bold', fillColor: [252, 213, 180], textColor: [0, 0, 0], halign: 'center' }
+          content: `${missingRows.length} Missing Godowns`,
+          styles: { fontStyle: 'bold', fillColor: [252, 213, 180], textColor: [0, 0, 0], halign: 'right', cellPadding: 3 }
         }
       ]);
 
       autoTable(doc, {
-        startY: 42,
+        startY: 43,
         head: [['Sr. No.', 'District', 'GSCSCL Godown']],
         body: tableBody,
         theme: 'grid',
-        styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
+        styles: { fontSize: 8, cellPadding: 2.2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
         headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
         columnStyles: {
-          0: { cellWidth: 20, halign: 'center' },
-          1: { cellWidth: 55, halign: 'left' },
+          0: { cellWidth: 18, halign: 'center' },
+          1: { cellWidth: 52, halign: 'left' },
           2: { halign: 'left' }
         },
-        margin: { left: 8, right: 8, top: 10, bottom: 15 },
+        margin: { left: marginX, right: marginX, top: 10, bottom: 15 },
         didDrawPage: (data) => {
           doc.setGState(new doc.GState({ opacity: 0.15 }));
           doc.setFontSize(80);
@@ -3376,7 +3395,7 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
         }
       });
 
-      const safeTitle = (reportTitle || 'GSCSCL_Missing_Godowns').replace(/[^a-z0-9]/gi, '_');
+      const safeTitle = (titleToUse).replace(/[^a-z0-9]/gi, '_');
       doc.save(`${safeTitle}.pdf`);
       return;
     }
@@ -5524,6 +5543,7 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                             onUploadMaster={handleUploadGodownMaster}
                             onResetMaster={handleResetGodownMaster}
                             masterFileName={godownMasterFileName}
+                            reportTitle={reportTitle}
                           />
                         ) : activeReport === 'last-mile-epod' && lastMileEpodTab === 'trips-summary' ? (
                           <LastMileTripsSummary data={filteredLastMileData} calculateLastMileGodownTrips={calculateLastMileGodownTrips} visibleColumns={visibleColumns} lrFilterMode={lrFilterMode} setLrFilterMode={setLrFilterMode} />

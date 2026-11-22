@@ -364,6 +364,8 @@ export default function LastMileMissingGodowns({
     const doc = new jsPDF('p', 'mm', 'a4');
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
+    const marginX = 8;
+    const availableWidth = pageWidth - (marginX * 2); // 194mm
 
     // 1. Company Header (Black bold, centered, 20pt)
     doc.setTextColor(0, 0, 0);
@@ -376,7 +378,7 @@ export default function LastMileMissingGodowns({
     }
 
     // 2. Report Title inside Grey Pill Box (Exact match to official report)
-    const titleToUse = reportTitle || 'GSCSCL \u2013 Missing Godowns from Last Mile Report';
+    const titleToUse = reportTitle && reportTitle.trim() ? reportTitle.trim() : 'GSCSCL \u2013 Missing Godowns from Last Mile Report';
     doc.setFontSize(13);
     doc.setFont('helvetica', 'bold');
     const titleWidth = doc.getTextWidth(titleToUse);
@@ -395,26 +397,48 @@ export default function LastMileMissingGodowns({
     doc.setDrawColor(200, 200, 200);
     doc.line(10, 31, pageWidth - 10, 31);
 
-    // 3. Top Summary Strip (Active Master, In Report, Matched, and Missing Godowns)
+    // 3. Top Summary KPI Box (Perfect 4-column responsive grid with dividers and centered text)
     const stripY = 33;
-    const stripHeight = 7;
-    const stripWidth = pageWidth - 20;
-    doc.setFillColor(245, 247, 250);
-    doc.roundedRect(10, stripY, stripWidth, stripHeight, 1, 1, 'F');
-    doc.setDrawColor(210, 220, 230);
-    doc.roundedRect(10, stripY, stripWidth, stripHeight, 1, 1, 'S');
+    const stripHeight = 8;
+    const colW = availableWidth / 4; // 48.5mm each
 
+    // Background
+    doc.setFillColor(245, 247, 250);
+    doc.roundedRect(marginX, stripY, availableWidth, stripHeight, 1.2, 1.2, 'F');
+
+    // Highlight Cell 4 (Missing Godowns) in light red
+    doc.setFillColor(254, 242, 242);
+    doc.roundedRect(marginX + (colW * 3), stripY, colW, stripHeight, 1.2, 1.2, 'F');
+
+    // Outer border
+    doc.setDrawColor(200, 210, 225);
+    doc.setLineWidth(0.3);
+    doc.roundedRect(marginX, stripY, availableWidth, stripHeight, 1.2, 1.2, 'S');
+
+    // Vertical Divider lines
+    doc.setDrawColor(215, 225, 235);
+    doc.setLineWidth(0.25);
+    doc.line(marginX + colW, stripY, marginX + colW, stripY + stripHeight);
+    doc.line(marginX + (colW * 2), stripY, marginX + (colW * 2), stripY + stripHeight);
+    doc.line(marginX + (colW * 3), stripY, marginX + (colW * 3), stripY + stripHeight);
+
+    // Centered labels & counts
     doc.setFontSize(8.5);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(30, 41, 59);
-    const colW = stripWidth / 4;
-    doc.text(`Active Master Godowns: ${godownMasterList.length}`, 14, stripY + 4.8);
-    doc.text(`In Report: ${rawGodownInfo.count}`, 10 + colW + 4, stripY + 4.8);
-    doc.text(`Matched: ${matchedList.length}`, 10 + (colW * 2) + 4, stripY + 4.8);
-    doc.setTextColor(220, 38, 38);
-    doc.text(`Missing Godowns: ${missingList.length}`, 10 + (colW * 3) + 4, stripY + 4.8);
 
-    // 4. District Wise Subtotals Table (Exact blue header, grey district totals, peach grand total)
+    doc.setTextColor(30, 41, 59);
+    doc.text(`Active Master Godowns: ${godownMasterList.length}`, marginX + (colW * 0.5), stripY + 5.2, { align: 'center' });
+
+    doc.setTextColor(30, 41, 59);
+    doc.text(`In Report: ${rawGodownInfo.count}`, marginX + (colW * 1.5), stripY + 5.2, { align: 'center' });
+
+    doc.setTextColor(22, 101, 52); // green
+    doc.text(`Matched: ${matchedList.length}`, marginX + (colW * 2.5), stripY + 5.2, { align: 'center' });
+
+    doc.setTextColor(220, 38, 38); // red
+    doc.text(`Missing Godowns: ${missingList.length}`, marginX + (colW * 3.5), stripY + 5.2, { align: 'center' });
+
+    // 4. District Wise Subtotals Table (Properly adjusted totals and responsive layout)
     const isAllView = viewFilter === 'all';
     const headRow = isAllView 
       ? ['Sr. No.', 'District', 'GSCSCL Godown', 'Status'] 
@@ -439,41 +463,41 @@ export default function LastMileMissingGodowns({
         }
       });
 
-      // District Subtotal Row (Grey [217, 217, 217])
+      // District Subtotal Row (Properly styled and right-aligned count)
       const subtotalColSpan = isAllView ? 3 : 2;
       tableBody.push([
         {
           content: `${district} Total`,
           colSpan: subtotalColSpan,
-          styles: { fontStyle: 'bold', fillColor: [217, 217, 217], textColor: [0, 0, 0], halign: 'left' }
+          styles: { fontStyle: 'bold', fillColor: [217, 217, 217], textColor: [0, 0, 0], halign: 'left', cellPadding: 2.5 }
         },
         {
-          content: String(godowns.length),
-          styles: { fontStyle: 'bold', fillColor: [217, 217, 217], textColor: [0, 0, 0], halign: 'center' }
+          content: `${godowns.length} Missing`,
+          styles: { fontStyle: 'bold', fillColor: [217, 217, 217], textColor: [0, 0, 0], halign: 'right', cellPadding: 2.5 }
         }
       ]);
     });
 
-    // Grand Total Row (Peach [252, 213, 180])
+    // Grand Total Row (Peach [252, 213, 180] with right-aligned total count)
     const grandColSpan = isAllView ? 3 : 2;
     tableBody.push([
       {
         content: 'Grand Total',
         colSpan: grandColSpan,
-        styles: { fontStyle: 'bold', fillColor: [252, 213, 180], textColor: [0, 0, 0], halign: 'center' }
+        styles: { fontStyle: 'bold', fillColor: [252, 213, 180], textColor: [0, 0, 0], halign: 'center', cellPadding: 3 }
       },
       {
-        content: String(displayRows.length),
-        styles: { fontStyle: 'bold', fillColor: [252, 213, 180], textColor: [0, 0, 0], halign: 'center' }
+        content: `${displayRows.length} Missing Godowns`,
+        styles: { fontStyle: 'bold', fillColor: [252, 213, 180], textColor: [0, 0, 0], halign: 'right', cellPadding: 3 }
       }
     ]);
 
     autoTable(doc, {
-      startY: 42,
+      startY: 43,
       head: [headRow],
       body: tableBody,
       theme: 'grid',
-      styles: { fontSize: 8, cellPadding: 2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
+      styles: { fontSize: 8, cellPadding: 2.2, textColor: [0, 0, 0], lineColor: [0, 0, 0], lineWidth: 0.1 },
       headStyles: { fillColor: [180, 198, 231], textColor: [15, 23, 42], fontStyle: 'bold', halign: 'center', valign: 'middle' },
       columnStyles: isAllView ? {
         0: { cellWidth: 16, halign: 'center' },
@@ -481,11 +505,11 @@ export default function LastMileMissingGodowns({
         2: { halign: 'left' },
         3: { cellWidth: 26, halign: 'center' }
       } : {
-        0: { cellWidth: 20, halign: 'center' },
-        1: { cellWidth: 55, halign: 'left' },
+        0: { cellWidth: 18, halign: 'center' },
+        1: { cellWidth: 52, halign: 'left' },
         2: { halign: 'left' }
       },
-      margin: { left: 8, right: 8, top: 10, bottom: 15 },
+      margin: { left: marginX, right: marginX, top: 10, bottom: 15 },
       didDrawPage: (data) => {
         // FarEye Center Watermark
         doc.setGState(new doc.GState({ opacity: 0.15 }));
@@ -512,7 +536,7 @@ export default function LastMileMissingGodowns({
       }
     });
 
-    const safeTitle = (reportTitle || 'GSCSCL_Missing_Godowns').replace(/[^a-z0-9]/gi, '_');
+    const safeTitle = (titleToUse).replace(/[^a-z0-9]/gi, '_');
     doc.save(`${safeTitle}.pdf`);
   };
 
@@ -526,76 +550,6 @@ export default function LastMileMissingGodowns({
 
   return (
     <div style={{ marginTop: '8px' }}>
-      {/* Interactive Title Editor Bar so user can easily customize report title */}
-      <div style={{
-        marginBottom: '14px',
-        padding: '10px 16px',
-        borderRadius: '8px',
-        background: 'var(--bg-panel)',
-        border: '1px solid var(--border-color)',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        flexWrap: 'wrap'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flex: 1, minWidth: '320px' }}>
-          <Edit3 size={16} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
-          <span style={{ fontSize: '0.82rem', fontWeight: '600', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Report Title:</span>
-          <input
-            type="text"
-            value={reportTitle}
-            onChange={(e) => setReportTitle && setReportTitle(e.target.value)}
-            style={{
-              flex: 1,
-              padding: '6px 12px',
-              fontSize: '0.92rem',
-              fontWeight: '600',
-              color: 'var(--text-main)',
-              background: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid var(--border-color)',
-              borderRadius: '6px',
-              outline: 'none'
-            }}
-            placeholder="GSCSCL – Missing Godowns from Last Mile Report"
-          />
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={() => onSaveReportTitle && onSaveReportTitle()}
-            style={{
-              padding: '6px 12px',
-              fontSize: '0.82rem',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              borderRadius: '6px',
-              cursor: 'pointer'
-            }}
-            title="Save custom title permanently"
-          >
-            <Save size={14} />
-            Save Title
-          </button>
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={() => onResetReportTitle && onResetReportTitle()}
-            style={{
-              padding: '6px 10px',
-              fontSize: '0.82rem',
-              color: 'var(--text-muted)',
-              borderRadius: '6px',
-              cursor: 'pointer'
-            }}
-            title="Reset title to default template"
-          >
-            <RotateCcw size={14} />
-          </button>
-        </div>
-      </div>
-
       {/* Top Filter Bar Notification & Data Scope Switch */}
       {isTopFilterActive && (
         <div style={{
