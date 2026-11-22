@@ -1142,7 +1142,7 @@ self.onmessage = async (e) => {
     const lmLrNoKey = resolveKey('LR Number', 'LR No', 'LR No.', 'lr_number', 'lr_no', 'LR', 'LR NO', 'LR NO.', 'lr', 'LR#', 'trip_id', 'trip_no', 'Trip ID', 'Trip No', 'Trip Number', 'trip_number', 'LR_Number', 'LR_No', 'lr_num');
     const lmDcMonthKey = resolveKey('DC Month');
     const lmDcDateKey = resolveKey('DC Creation Date');
-    const lmGodownKey = resolveKey('GSCSCL Godown', 'Godown Name', 'Godown', 'Destination Godown', 'Lifting Location Name', 'godown_name', 'godown', 'Taluka Godown');
+    const lmGodownKey = resolveKey('GSCSCL Godown', 'Godown Name', 'Godown', 'Destination Godown', 'Destination Name', 'Destination', 'Taluka Godown', 'Taluka', 'Taluka Name', 'Lifting Location Name', 'Lifting Location', 'godown_name', 'godown', 'dest_loc', 'dest_name', 'dest_godown');
     const lmTripStatusKey = resolveKey('Trip Status', 'Current Status', 'Driver Status', 'Trip State', 'Stage', 'Delivery Status', 'Trip Current Status');
     const lmTripEndTimeKey = resolveKey('trip_end_datetime', 'Trip End Datetime', 'Trip End Date Time', 'trip_end_date_time', 'end_trip_datetime', 'End Trip Date Time', 'End Trip Date', 'Trip End Time', 'end_trip_time', 'End Date Time', 'Trip End');
     const lmTransporterKey = resolveKey('Transporter Name', 'Transporter', 'DSD Transporter Name');

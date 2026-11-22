@@ -12,6 +12,8 @@ import GpsAnalysisDashboard from './components/GpsAnalysisDashboard';
 import EpodPhotoAnalysisDashboard from './components/EpodPhotoAnalysisDashboard';
 import LastMileTripsSummary from './components/LastMileTripsSummary';
 import LastMileDcSummary from './components/LastMileDcSummary';
+import LastMileMissingGodowns, { findMasterMatch } from './components/LastMileMissingGodowns';
+import { DEFAULT_GODOWN_MASTER } from './data/defaultGodownMaster';
 import LiftingCommoditySummary from './components/LiftingCommoditySummary';
 import AmulDashboard from './components/amul/AmulDashboard';
 import { DEFAULT_REPORT_ATTRIBUTES } from './reportAttributes';
@@ -786,6 +788,76 @@ function App() {
   const [pivotState, setPivotState] = useState({});
   const [roTab, setRoTab] = useState('flat');
   const [lastMileEpodTab, setLastMileEpodTab] = useState('pending');
+  const godownMasterUploadRef = useRef(null);
+  const [godownMasterList, setGodownMasterList] = useState(() => {
+    try {
+      const saved = localStorage.getItem('gscscl_godown_master_custom');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return DEFAULT_GODOWN_MASTER;
+  });
+  const [godownMasterFileName, setGodownMasterFileName] = useState(() => {
+    return localStorage.getItem('gscscl_godown_master_filename') || '';
+  });
+
+  const handleUploadGodownMaster = (file) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const sheetName = wb.SheetNames[0];
+        const rawJson = XLSX.utils.sheet_to_json(wb.Sheets[sheetName]);
+        if (!rawJson || rawJson.length === 0) {
+          showToast('Uploaded master file is empty.', 'error');
+          return;
+        }
+        const cleanS = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+        const parsed = rawJson.map((r, i) => {
+          const gName = String(r['Destination Godown'] || r['GSCSCL Godown'] || r['Godown Name'] || r['Godown'] || r.godown || r.name || '').trim();
+          const dist = String(r['District'] || r['district'] || r['TP District'] || '').trim();
+          const id = String(r['gscscl_godown_id'] || r['godown_id'] || r['Godown ID'] || r.id || '').trim();
+          let finalDist = dist;
+          if (!finalDist || finalDist === 'Unknown') {
+            const defMatch = DEFAULT_GODOWN_MASTER.find(d => cleanS(d.destinationGodown) === cleanS(gName));
+            if (defMatch) finalDist = defMatch.district;
+          }
+          return {
+            srNo: r['Sr. No.'] || r['SrNo'] || (i + 1),
+            destinationGodown: gName,
+            district: finalDist || 'Unknown',
+            godownId: id
+          };
+        }).filter(r => r.destinationGodown !== '');
+
+        if (parsed.length === 0) {
+          showToast('No valid godown names found in file.', 'error');
+          return;
+        }
+
+        setGodownMasterList(parsed);
+        setGodownMasterFileName(file.name);
+        localStorage.setItem('gscscl_godown_master_custom', JSON.stringify(parsed));
+        localStorage.setItem('gscscl_godown_master_filename', file.name);
+        showToast(`GSCSCL Godown Master loaded: ${parsed.length} godowns.`, 'success');
+      } catch (err) {
+        console.error('Error reading master file:', err);
+        showToast('Failed to parse Godown Master file.', 'error');
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const handleResetGodownMaster = () => {
+    setGodownMasterList(DEFAULT_GODOWN_MASTER);
+    setGodownMasterFileName('');
+    localStorage.removeItem('gscscl_godown_master_custom');
+    localStorage.removeItem('gscscl_godown_master_filename');
+    showToast('Restored default 244 Godown Master list.', 'success');
+  };
   const [liftingTab, setLiftingTab] = useState('summary');
   const [vaStartDate, setVaStartDate] = useState('');
   const [vaEndDate, setVaEndDate] = useState('');
@@ -879,6 +951,9 @@ function App() {
       if (tab === 'dc-summary') {
         return "Last Mile Report 21st October'26 ( 00:00-18:00)";
       }
+      if (tab === 'missing-godowns') {
+        return "GSCSCL – Missing Godowns from Last Mile Report";
+      }
       return "Last Mile EPOD Pending Report of Till 30th July'26 ( 00:00-23:59)";
     } else if (reportKey === 'miller-to-godown') {
       return "Miller to Godown Trips";
@@ -927,6 +1002,7 @@ function App() {
        }
 */ if (activeReport === 'last-mile-epod') { if (lastMileEpodTab === 'trips-summary') return `custom_report_title_${activeReport}_trips-summary`;
       if (lastMileEpodTab === 'dc-summary') return `custom_report_title_${activeReport}_dc-summary`;
+      if (lastMileEpodTab === 'missing-godowns') return `custom_report_title_${activeReport}_missing-godowns`;
     }
     if (activeReport === 'lifting-report') {
       if (liftingTab === 'commodity') return `custom_report_title_${activeReport}_commodity`;
@@ -2723,6 +2799,60 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
   };
 
   const exportExcel = () => {
+    if (activeReport === 'last-mile-epod' && lastMileEpodTab === 'missing-godowns') {
+      const dataToUse = (rawData && rawData.length > 0) ? rawData : (filteredLastMileData || []);
+      const matchedMasterKeys = new Set();
+      const uniqueRawGodowns = new Set();
+
+      (dataToUse || []).forEach(row => {
+        const gName = String(row.godown || row.godownName || row['GSCSCL Godown'] || row['Destination Godown'] || row['Godown Name'] || row.destLoc || '').trim();
+        const dist = String(row.district || row.District || row['TP District'] || '').trim();
+        const id = String(row.godownId || row.godown_id || row['gscscl_godown_id'] || '').trim();
+        if (gName && gName !== 'Unknown' && gName !== '(Blank Godown)') {
+          uniqueRawGodowns.add(`${dist}|||${gName}`);
+          const match = findMasterMatch(gName, dist, id, godownMasterList);
+          if (match) {
+            matchedMasterKeys.add(`${match.district}|||${match.destinationGodown}`);
+          }
+        }
+      });
+
+      const missingRows = [];
+      (godownMasterList || []).forEach(m => {
+        const mKey = `${m.district}|||${m.destinationGodown}`;
+        if (!matchedMasterKeys.has(mKey)) {
+          missingRows.push({
+            district: m.district || 'Unknown',
+            destinationGodown: m.destinationGodown
+          });
+        }
+      });
+
+      missingRows.sort((a, b) => a.district.localeCompare(b.district) || a.destinationGodown.localeCompare(b.destinationGodown));
+
+      const titleText = 'GSCSCL – Missing Godowns from Last Mile Report';
+      const subtitleText = `Report generated on ${new Date().toLocaleDateString('en-GB')} compared with the ${godownMasterList.length} Active Godown Master List`;
+      const summaryText = `Active master godowns: ${godownMasterList.length} | Godowns in report: ${uniqueRawGodowns.size} | Matched: ${godownMasterList.length - missingRows.length} | Missing: ${missingRows.length}`;
+
+      const excelRows = missingRows.map((r, i) => ({
+        'Sr. No.': i + 1,
+        'District': r.district,
+        'GSCSCL Godown': r.destinationGodown
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(excelRows, { origin: 'A5' });
+      XLSX.utils.sheet_add_aoa(ws, [
+        [titleText],
+        [subtitleText],
+        [summaryText],
+        []
+      ], { origin: 'A1' });
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Missing Godowns');
+      XLSX.writeFile(wb, `GSCSCL_Missing_Godowns_${new Date().toISOString().slice(0, 10)}.xlsx`);
+      return;
+    }
     if (activeReport === 'last-mile-epod' && (lastMileEpodTab === 'trips-summary' || lastMileEpodTab === 'dc-summary')) {
       if (activeReport !== 'lifting-report' && filteredLastMileData.length === 0) return;
     } else if (activeReport === 'lifting-report' && liftingTab === 'commodity') {
@@ -3087,6 +3217,200 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
   };
 
   const exportPDF = (selectedOrientation) => {
+    if (activeReport === 'last-mile-epod' && lastMileEpodTab === 'missing-godowns') {
+      const dataToUse = (rawData && rawData.length > 0) ? rawData : (filteredLastMileData || []);
+      const matchedMasterKeys = new Set();
+      const uniqueRawGodowns = new Set();
+
+      (dataToUse || []).forEach(row => {
+        const gName = String(row.godown || row.godownName || row['GSCSCL Godown'] || row['Destination Godown'] || row['Godown Name'] || row.destLoc || '').trim();
+        const dist = String(row.district || row.District || row['TP District'] || '').trim();
+        const id = String(row.godownId || row.godown_id || row['gscscl_godown_id'] || '').trim();
+        if (gName && gName !== 'Unknown' && gName !== '(Blank Godown)') {
+          uniqueRawGodowns.add(`${dist}|||${gName}`);
+          const match = findMasterMatch(gName, dist, id, godownMasterList);
+          if (match) {
+            matchedMasterKeys.add(`${match.district}|||${match.destinationGodown}`);
+          }
+        }
+      });
+
+      const missingRows = [];
+      (godownMasterList || []).forEach(m => {
+        const mKey = `${m.district}|||${m.destinationGodown}`;
+        if (!matchedMasterKeys.has(mKey)) {
+          missingRows.push({
+            district: m.district || 'Unknown',
+            destinationGodown: m.destinationGodown
+          });
+        }
+      });
+
+      missingRows.sort((a, b) => a.district.localeCompare(b.district) || a.destinationGodown.localeCompare(b.destinationGodown));
+
+      const doc = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const marginX = 12;
+      const availableWidth = pageWidth - (marginX * 2);
+
+      // 1. Department / Company Title
+      const companyTitleStr = localStorage.getItem('companyTitle');
+      const finalCompanyTitle = companyTitleStr === null ? 'FarEye Technologies Pvt. Ltd.' : companyTitleStr;
+
+      let currentY = 13;
+      if (finalCompanyTitle.trim() !== '') {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(14);
+        doc.setTextColor(15, 23, 42);
+        doc.text(finalCompanyTitle, pageWidth / 2, currentY, { align: 'center' });
+        currentY += 7;
+      }
+
+      // 2. Report Main Title
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.setTextColor(15, 42, 85);
+      const mainTitle = reportTitle || 'GSCSCL – Missing Godowns from Last Mile Report';
+      doc.text(mainTitle, pageWidth / 2, currentY, { align: 'center' });
+      currentY += 5.5;
+
+      // 3. Subtitle
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(100, 116, 139);
+      const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'long', year: 'numeric' });
+      doc.text(`Report dated ${dateStr} | Compared with the ${godownMasterList.length} Active Godown Master List`, pageWidth / 2, currentY, { align: 'center' });
+      currentY += 5.5;
+
+      // 4. TOP 4-KPI SUMMARY BOXES (MISSING PROMINENTLY AT TOP)
+      const cardY = currentY;
+      const cardHeight = 13;
+      const cardGap = 2.5;
+      const cardWidth = (availableWidth - (cardGap * 3)) / 4;
+
+      const kpiCards = [
+        {
+          label: 'ACTIVE MASTER',
+          value: String(godownMasterList.length),
+          bg: [241, 245, 249],
+          border: [203, 213, 225],
+          labelColor: [71, 85, 105],
+          valColor: [15, 23, 42]
+        },
+        {
+          label: 'IN REPORT',
+          value: String(uniqueRawGodowns.size),
+          bg: [239, 246, 255],
+          border: [191, 219, 254],
+          labelColor: [30, 64, 175],
+          valColor: [29, 78, 216]
+        },
+        {
+          label: 'MATCHED',
+          value: String(godownMasterList.length - missingRows.length),
+          bg: [240, 253, 244],
+          border: [187, 247, 208],
+          labelColor: [22, 101, 52],
+          valColor: [21, 128, 61]
+        },
+        {
+          label: 'MISSING GODOWNS',
+          value: String(missingRows.length),
+          bg: [254, 242, 242],
+          border: [248, 113, 113],
+          labelColor: [153, 27, 27],
+          valColor: [220, 38, 38]
+        }
+      ];
+
+      kpiCards.forEach((c, idx) => {
+        const cx = marginX + (idx * (cardWidth + cardGap));
+        doc.setFillColor(c.bg[0], c.bg[1], c.bg[2]);
+        doc.roundedRect(cx, cardY, cardWidth, cardHeight, 1.2, 1.2, 'F');
+        doc.setDrawColor(c.border[0], c.border[1], c.border[2]);
+        doc.setLineWidth(0.3);
+        doc.roundedRect(cx, cardY, cardWidth, cardHeight, 1.2, 1.2, 'S');
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(6.8);
+        doc.setTextColor(c.labelColor[0], c.labelColor[1], c.labelColor[2]);
+        doc.text(c.label, cx + (cardWidth / 2), cardY + 4.3, { align: 'center' });
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(11.5);
+        doc.setTextColor(c.valColor[0], c.valColor[1], c.valColor[2]);
+        doc.text(c.value, cx + (cardWidth / 2), cardY + 10.2, { align: 'center' });
+      });
+
+      currentY += cardHeight + 4;
+
+      const tableBody = missingRows.map((r, i) => [i + 1, r.district, r.destinationGodown]);
+      const footRow = [{ content: `Total Missing Godowns: ${missingRows.length}`, colSpan: 3, styles: { halign: 'right', fontStyle: 'bold' } }];
+
+      autoTable(doc, {
+        startY: currentY,
+        head: [['Sr. No.', 'District', 'GSCSCL Godown']],
+        body: tableBody,
+        foot: [footRow],
+        theme: 'grid',
+        headStyles: {
+          fillColor: [15, 42, 85],
+          textColor: [255, 255, 255],
+          fontSize: 9,
+          fontStyle: 'bold',
+          halign: 'left',
+          cellPadding: 3
+        },
+        footStyles: {
+          fillColor: [254, 242, 242],
+          textColor: [185, 28, 28],
+          fontSize: 8.5,
+          cellPadding: 2.8
+        },
+        columnStyles: {
+          0: { cellWidth: 18, halign: 'center' },
+          1: { cellWidth: 55, halign: 'left' },
+          2: { halign: 'left' }
+        },
+        styles: {
+          fontSize: 8.5,
+          cellPadding: 2.7,
+          lineColor: [209, 224, 240],
+          lineWidth: 0.2,
+          textColor: [30, 41, 59]
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252]
+        },
+        margin: { left: marginX, right: marginX, bottom: 15 },
+        didDrawPage: (data) => {
+          doc.setGState(new doc.GState({ opacity: 0.12 }));
+          doc.setFontSize(72);
+          doc.setTextColor(150, 150, 150);
+          doc.setFont('helvetica', 'bold');
+          const defaultWatermark = companyTitleStr === null ? 'FarEye' : (companyTitleStr ? companyTitleStr.split(' ')[0] : '');
+          if (defaultWatermark.trim() !== '') {
+            const textWidth = doc.getTextWidth(defaultWatermark);
+            const x = (pageWidth - textWidth) / 2;
+            const y = pageHeight / 2;
+            doc.text(defaultWatermark, x, y);
+          }
+          doc.setGState(new doc.GState({ opacity: 1.0 }));
+
+          doc.setLineWidth(0.3);
+          doc.setDrawColor(210, 220, 230);
+          doc.line(marginX, pageHeight - 11, pageWidth - marginX, pageHeight - 11);
+          doc.setFontSize(8);
+          doc.setFont('helvetica', 'normal');
+          doc.setTextColor(100, 116, 139);
+          doc.text('GSCSCL | Missing Godowns from Last Mile Report', marginX, pageHeight - 6.5);
+          doc.text(`Page ${data.pageNumber}`, pageWidth - marginX, pageHeight - 6.5, { align: 'right' });
+        }
+      });
+
+      const safeTitle = (reportTitle || 'GSCSCL_Missing_Godowns').replace(/[^a-z0-9]/gi, '_');
+      doc.save(`${safeTitle}_${new Date().toISOString().slice(0, 10)}.pdf`);
+      return;
+    }
     if (activeReport === 'last-mile-epod' && (lastMileEpodTab === 'trips-summary' || lastMileEpodTab === 'dc-summary')) {
       if (activeReport !== 'lifting-report' && filteredLastMileData.length === 0) return;
     } else if (activeReport === 'lifting-report' && liftingTab === 'commodity') {
@@ -4456,7 +4780,7 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
               </div>
             )}
 
-            {!isLoading && rawData.length === 0 && activeReport !== 'lifting-report' && activeReport !== 'eta-route' && activeReport !== 'last-mile-commodity' && (
+            {!isLoading && rawData.length === 0 && activeReport !== 'lifting-report' && activeReport !== 'eta-route' && activeReport !== 'last-mile-commodity' && activeReport !== 'last-mile-epod' && (
               <div 
                 className={`upload-area ${isDragging ? 'active' : ''} glass-panel`}
                 onDragOver={handleDragOver}
@@ -4476,6 +4800,67 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                 <p className="upload-subtitle">Drag and drop your Excel file here or click to browse</p>
               </div>
             )}
+            {!isLoading && rawData.length === 0 && activeReport === 'last-mile-epod' && (
+              <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap', width: '100%' }}>
+                <div 
+                  className={`upload-area ${isDragging ? 'active' : ''} glass-panel`}
+                  style={{ flex: 1, minWidth: '300px', cursor: 'pointer' }}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, { customConfig: activeReport })}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <input 
+                    type="file" multiple 
+                    ref={fileInputRef} 
+                    onChange={(e) => handleFileUpload(e, { customConfig: activeReport })} 
+                    accept=".xlsx, .xls, .csv" 
+                    style={{ display: 'none' }} 
+                  />
+                  <UploadCloud className="upload-icon" />
+                  <h3 className="upload-title">1. Upload Last Mile Raw Data</h3>
+                  <p className="upload-subtitle">Drag and drop your Last Mile EPOD Excel file here or click to browse</p>
+                </div>
+
+                <div 
+                  className="upload-area glass-panel"
+                  style={{ flex: 1, minWidth: '300px', cursor: 'pointer', borderColor: godownMasterFileName ? 'rgba(16, 185, 129, 0.4)' : undefined }}
+                  onClick={() => godownMasterUploadRef.current?.click()}
+                >
+                  <input 
+                    type="file" 
+                    ref={godownMasterUploadRef} 
+                    onChange={(e) => {
+                      if (e.target.files && e.target.files[0]) {
+                        handleUploadGodownMaster(e.target.files[0]);
+                      }
+                    }} 
+                    accept=".xlsx, .xls, .csv" 
+                    style={{ display: 'none' }} 
+                  />
+                  <Building2 className="upload-icon" style={{ color: godownMasterFileName ? '#10b981' : 'var(--primary-color)' }} />
+                  <h3 className="upload-title">2. GSCSCL Godown Master</h3>
+                  <p className="upload-subtitle" style={{ color: godownMasterFileName ? '#10b981' : 'var(--text-muted)' }}>
+                    {godownMasterFileName ? `Custom Master: ${godownMasterFileName} (${godownMasterList.length} Godowns)` : `Default Master: 244 Active Godowns Preloaded`}
+                  </p>
+                  <div style={{ marginTop: '10px', display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                    <span style={{ fontSize: '0.78rem', padding: '3px 10px', borderRadius: '12px', background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', fontWeight: '500' }}>
+                      Click to upload new Master
+                    </span>
+                    {godownMasterFileName && (
+                      <button 
+                        type="button" 
+                        onClick={(e) => { e.stopPropagation(); handleResetGodownMaster(); }}
+                        style={{ fontSize: '0.78rem', padding: '3px 8px', borderRadius: '12px', background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', border: 'none', cursor: 'pointer' }}
+                      >
+                        Reset Default
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+
             {!isLoading && rawData.length === 0 && activeReport === 'eta-route' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '100%' }}>
                 <div className="glass-panel" style={{ padding: '24px' }}>
@@ -4909,7 +5294,7 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                   })()
                 )}
 
-                {(displayData.length === 0 && !(activeReport === 'last-mile-epod' && (lastMileEpodTab === 'trips-summary' || lastMileEpodTab === 'dc-summary') && filteredLastMileData.length > 0) && !(activeReport === 'lifting-report' && liftingTab === 'commodity' && filteredLiftingData.length > 0)) ? (
+                {(displayData.length === 0 && !(activeReport === 'last-mile-epod' && (lastMileEpodTab === 'trips-summary' || lastMileEpodTab === 'dc-summary' || lastMileEpodTab === 'missing-godowns') && filteredLastMileData.length > 0) && !(activeReport === 'lifting-report' && liftingTab === 'commodity' && filteredLiftingData.length > 0)) ? (
                   <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
                     <AlertCircle size={48} style={{ opacity: 0.3, margin: '0 auto 16px' }} />
                     <p style={{ fontSize: '1.1rem' }}>No trips found for the selected filter.</p>
@@ -5115,6 +5500,19 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                             >
                               Trip summary DC wise Report
                             </button>
+                            <button 
+                              className={`tab-btn ${lastMileEpodTab === 'missing-godowns' ? 'active' : ''}`}
+                              onClick={() => setLastMileEpodTab('missing-godowns')}
+                              style={{
+                                padding: '10px 20px', background: 'none', border: 'none',
+                                borderBottom: lastMileEpodTab === 'missing-godowns' ? '2px solid var(--primary-color)' : '2px solid transparent',
+                                color: lastMileEpodTab === 'missing-godowns' ? 'var(--primary-color)' : 'var(--text-muted)',
+                                fontWeight: lastMileEpodTab === 'missing-godowns' ? '600' : 'normal',
+                                cursor: 'pointer', fontSize: '1rem'
+                              }}
+                            >
+                              GSCSCL – Missing Godowns Report
+                            </button>
                           </div>
                         )}
 
@@ -5149,7 +5547,16 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                           </div>
                         )}
 
-                        {activeReport === 'last-mile-epod' && lastMileEpodTab === 'trips-summary' ? (
+                        {activeReport === 'last-mile-epod' && lastMileEpodTab === 'missing-godowns' ? (
+                          <LastMileMissingGodowns 
+                            rawData={rawData}
+                            filteredData={filteredLastMileData}
+                            godownMasterList={godownMasterList}
+                            onUploadMaster={handleUploadGodownMaster}
+                            onResetMaster={handleResetGodownMaster}
+                            masterFileName={godownMasterFileName}
+                          />
+                        ) : activeReport === 'last-mile-epod' && lastMileEpodTab === 'trips-summary' ? (
                           <LastMileTripsSummary data={filteredLastMileData} calculateLastMileGodownTrips={calculateLastMileGodownTrips} visibleColumns={visibleColumns} lrFilterMode={lrFilterMode} setLrFilterMode={setLrFilterMode} />
                         ) : activeReport === 'last-mile-epod' && lastMileEpodTab === 'dc-summary' ? (
                           <LastMileDcSummary data={filteredLastMileData} calculateLastMileDcSummary={calculateLastMileDcSummary} visibleColumns={visibleColumns} lrFilterMode={lrFilterMode} setLrFilterMode={setLrFilterMode} />
