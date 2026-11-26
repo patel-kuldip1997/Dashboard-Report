@@ -29,6 +29,27 @@ function consonantSkeleton(str) {
   return norm.replace(/[aeiou]/g, '');
 }
 
+function isDistrictMatch(rawDist, masterDist) {
+  if (!rawDist || !masterDist) return false;
+  const rClean = cleanStr(rawDist);
+  const mClean = cleanStr(masterDist);
+  if (rClean === mClean) return true;
+
+  // Strict separation for City vs Rural/Main District (especially AHMEDABAD vs AHMEDABAD CITY)
+  const rHasCity = rClean.includes('city');
+  const mHasCity = mClean.includes('city');
+  if (rHasCity !== mHasCity) {
+    return false; // One is City and the other is not! Never match them!
+  }
+
+  // Same city status, check base match
+  const rBase = rClean.replace(/city|rural|dist|district/g, '');
+  const mBase = mClean.replace(/city|rural|dist|district/g, '');
+  if (rBase && mBase && rBase === mBase) return true;
+
+  return false;
+}
+
 const ALIAS_PAIRS = [
   ['sanganikotda', 'kotdasangani'],
   ['pavijetpur', 'jetpurpavi'],
@@ -182,10 +203,19 @@ export default function LastMileMissingGodowns({
         row['Location Name'] || row['Lifting Location Name'] || row.destLoc || row.dest || row.godown_name || ''
       ).trim();
 
-      const dist = String(
+      let dist = String(
         row.district || row.District || row['District'] || row['TP District'] || 
         row['Godown District'] || row.district_name || row['District Name'] || ''
       ).trim();
+
+      // Normalize Ahmedabad City vs Ahmedabad
+      const cleanD = cleanStr(dist);
+      const cleanG = cleanStr(gName);
+      if (cleanG.startsWith('ahmedabadcity') || cleanD === 'ahmedabadcity') {
+        dist = 'AHMEDABAD CITY';
+      } else if (cleanD === 'ahmedabad') {
+        dist = 'AHMEDABAD';
+      }
 
       const id = String(
         row.godownId || row.godown_id || row['gscscl_godown_id'] || row['godown_id'] || 
@@ -340,6 +370,7 @@ export default function LastMileMissingGodowns({
       'Sr. No.': i + 1,
       'District': r.district,
       'GSCSCL Godown': r.destinationGodown,
+      'Godown ID': r.godownId || '',
       ...(viewFilter === 'all' ? { 'Status': r.isMatched ? 'Matched' : 'Missing' } : {})
     }));
 
@@ -770,7 +801,7 @@ export default function LastMileMissingGodowns({
               className="btn-secondary"
               onClick={onResetMaster}
               style={{ padding: '7px 10px', fontSize: '0.82rem', display: 'flex', alignItems: 'center', gap: '4px' }}
-              title="Reset to default 244 Godown Master list"
+              title="Reset to default GSCSCL Godown Master list"
             >
               <RotateCcw size={13} />
               <span>Reset</span>

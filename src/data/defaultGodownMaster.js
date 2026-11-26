@@ -3,25 +3,25 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 1,
     "destinationGodown": "AHMEDABADCITY1",
     "godownId": "1",
-    "district": "AHMEDABAD"
+    "district": "AHMEDABAD CITY"
   },
   {
     "srNo": 2,
     "destinationGodown": "AHMEDABADCity2",
     "godownId": "202",
-    "district": "AHMEDABAD"
+    "district": "AHMEDABAD CITY"
   },
   {
     "srNo": 3,
     "destinationGodown": "AHMEDABADCity3",
     "godownId": "203",
-    "district": "AHMEDABAD"
+    "district": "AHMEDABAD CITY"
   },
   {
     "srNo": 4,
     "destinationGodown": "AHMEDABADCity4",
     "godownId": "204",
-    "district": "AHMEDABAD"
+    "district": "AHMEDABAD CITY"
   },
   {
     "srNo": 5,
@@ -111,7 +111,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 19,
     "destinationGodown": "BAYAD",
     "godownId": "140",
-    "district": "ARAVALLI"
+    "district": "ARVALLI"
   },
   {
     "srNo": 20,
@@ -123,7 +123,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 21,
     "destinationGodown": "BHABHAR",
     "godownId": "213",
-    "district": "BANASKANTHA"
+    "district": "VAV-THARAD"
   },
   {
     "srNo": 22,
@@ -147,7 +147,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 25,
     "destinationGodown": "BHAVNAGARCITY",
     "godownId": "38",
-    "district": "BHAVNAGAR"
+    "district": "BHAVANAGAR"
   },
   {
     "srNo": 26,
@@ -159,7 +159,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 27,
     "destinationGodown": "BHILODA",
     "godownId": "141",
-    "district": "ARAVALLI"
+    "district": "ARVALLI"
   },
   {
     "srNo": 28,
@@ -177,7 +177,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 30,
     "destinationGodown": "BODELITANDALJA",
     "godownId": "248",
-    "district": "CHHOTA UDEPUR"
+    "district": "CHOTTAUDEPUR"
   },
   {
     "srNo": 31,
@@ -213,7 +213,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 36,
     "destinationGodown": "CHHOTAUDAIPUR",
     "godownId": "176",
-    "district": "CHHOTA UDEPUR"
+    "district": "CHOTTAUDEPUR"
   },
   {
     "srNo": 37,
@@ -225,7 +225,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 38,
     "destinationGodown": "CHITRA",
     "godownId": "40",
-    "district": "BHAVNAGAR"
+    "district": "BHAVANAGAR"
   },
   {
     "srNo": 39,
@@ -243,7 +243,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 41,
     "destinationGodown": "DABHOI",
     "godownId": "177",
-    "district": "VADODARA"
+    "district": "BARODA"
   },
   {
     "srNo": 42,
@@ -309,13 +309,13 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 52,
     "destinationGodown": "DEODAR",
     "godownId": "23",
-    "district": "BANASKANTHA"
+    "district": "VAV-THARAD"
   },
   {
     "srNo": 53,
     "destinationGodown": "DESAR",
     "godownId": "269",
-    "district": "VADODARA"
+    "district": "BARODA"
   },
   {
     "srNo": 54,
@@ -345,7 +345,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 58,
     "destinationGodown": "DHANSURA",
     "godownId": "265",
-    "district": "ARAVALLI"
+    "district": "ARVALLI"
   },
   {
     "srNo": 59,
@@ -435,7 +435,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 73,
     "destinationGodown": "GARIADHAR",
     "godownId": "42",
-    "district": "BHAVNAGAR"
+    "district": "BHAVANAGAR"
   },
   {
     "srNo": 74,
@@ -567,7 +567,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 95,
     "destinationGodown": "Jesar",
     "godownId": "270",
-    "district": "BHAVNAGAR"
+    "district": "BHAVANAGAR"
   },
   {
     "srNo": 96,
@@ -639,7 +639,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 107,
     "destinationGodown": "KARJAN",
     "godownId": "178",
-    "district": "VADODARA"
+    "district": "BARODA"
   },
   {
     "srNo": 108,
@@ -723,13 +723,13 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 121,
     "destinationGodown": "KWAT",
     "godownId": "179",
-    "district": "CHHOTA UDEPUR"
+    "district": "CHOTTAUDEPUR"
   },
   {
     "srNo": 122,
     "destinationGodown": "Lakhani",
     "godownId": "233",
-    "district": "BANASKANTHA"
+    "district": "VAV-THARAD"
   },
   {
     "srNo": 123,
@@ -795,7 +795,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 133,
     "destinationGodown": "MAHUVABhavnagardist",
     "godownId": "43",
-    "district": "BHAVNAGAR"
+    "district": "BHAVANAGAR"
   },
   {
     "srNo": 134,
@@ -813,7 +813,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 136,
     "destinationGodown": "MALPUR",
     "godownId": "145",
-    "district": "ARAVALLI"
+    "district": "ARVALLI"
   },
   {
     "srNo": 137,
@@ -861,7 +861,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 144,
     "destinationGodown": "MEGHRAJ",
     "godownId": "146",
-    "district": "ARAVALLI"
+    "district": "ARVALLI"
   },
   {
     "srNo": 145,
@@ -885,7 +885,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 148,
     "destinationGodown": "MODASA",
     "godownId": "147",
-    "district": "ARAVALLI"
+    "district": "ARVALLI"
   },
   {
     "srNo": 149,
@@ -933,7 +933,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 156,
     "destinationGodown": "NASWADI",
     "godownId": "180",
-    "district": "CHHOTA UDEPUR"
+    "district": "CHOTTAUDEPUR"
   },
   {
     "srNo": 157,
@@ -957,7 +957,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 160,
     "destinationGodown": "PADRA",
     "godownId": "181",
-    "district": "VADODARA"
+    "district": "BARODA"
   },
   {
     "srNo": 161,
@@ -969,7 +969,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 162,
     "destinationGodown": "PALITANA",
     "godownId": "44",
-    "district": "BHAVNAGAR"
+    "district": "BHAVANAGAR"
   },
   {
     "srNo": 163,
@@ -993,7 +993,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 166,
     "destinationGodown": "PAVIJETPUR",
     "godownId": "182",
-    "district": "CHHOTA UDEPUR"
+    "district": "CHOTTAUDEPUR"
   },
   {
     "srNo": 167,
@@ -1113,7 +1113,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 186,
     "destinationGodown": "SANKHEDA",
     "godownId": "183",
-    "district": "CHHOTA UDEPUR"
+    "district": "CHOTTAUDEPUR"
   },
   {
     "srNo": 187,
@@ -1143,7 +1143,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 191,
     "destinationGodown": "SAVLI",
     "godownId": "184",
-    "district": "VADODARA"
+    "district": "BARODA"
   },
   {
     "srNo": 192,
@@ -1161,7 +1161,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 194,
     "destinationGodown": "SHIHOR",
     "godownId": "45",
-    "district": "BHAVNAGAR"
+    "district": "BHAVANAGAR"
   },
   {
     "srNo": 195,
@@ -1173,7 +1173,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 196,
     "destinationGodown": "SHINOR",
     "godownId": "185",
-    "district": "VADODARA"
+    "district": "BARODA"
   },
   {
     "srNo": 197,
@@ -1215,7 +1215,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 203,
     "destinationGodown": "TALAJA",
     "godownId": "46",
-    "district": "BHAVNAGAR"
+    "district": "BHAVANAGAR"
   },
   {
     "srNo": 204,
@@ -1251,7 +1251,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 209,
     "destinationGodown": "THARAD",
     "godownId": "27",
-    "district": "BANASKANTHA"
+    "district": "VAV-THARAD"
   },
   {
     "srNo": 210,
@@ -1317,7 +1317,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 220,
     "destinationGodown": "VADODARACITY",
     "godownId": "186",
-    "district": "VADODARA"
+    "district": "BARODA"
   },
   {
     "srNo": 221,
@@ -1329,7 +1329,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 222,
     "destinationGodown": "VALBHIPURUMRALA",
     "godownId": "47",
-    "district": "BHAVNAGAR"
+    "district": "BHAVANAGAR"
   },
   {
     "srNo": 223,
@@ -1341,7 +1341,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 224,
     "destinationGodown": "Vallabhipur",
     "godownId": "275",
-    "district": "BHAVNAGAR"
+    "district": "BHAVANAGAR"
   },
   {
     "srNo": 225,
@@ -1377,7 +1377,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 230,
     "destinationGodown": "VAV",
     "godownId": "29",
-    "district": "BANASKANTHA"
+    "district": "VAV-THARAD"
   },
   {
     "srNo": 231,
@@ -1449,7 +1449,7 @@ export const DEFAULT_GODOWN_MASTER = [
     "srNo": 242,
     "destinationGodown": "WAGHODIA",
     "godownId": "187",
-    "district": "VADODARA"
+    "district": "BARODA"
   },
   {
     "srNo": 243,

@@ -1382,8 +1382,19 @@ self.onmessage = async (e) => {
       }
 
       if (activeReport === 'last-mile-epod') {
-         const district = (lmDistrictKey && row[lmDistrictKey] !== undefined ? String(row[lmDistrictKey]).trim() : '') || 'Unknown';
+         let district = (lmDistrictKey && row[lmDistrictKey] !== undefined ? String(row[lmDistrictKey]).trim() : '') || 'Unknown';
          if (!district) return;
+
+         const godownName = lmGodownKey && row[lmGodownKey] !== undefined ? String(row[lmGodownKey]).trim() : '';
+
+         // Precise normalization: Never mix Ahmedabad and Ahmedabad City
+         const cleanDist = district.toLowerCase().replace(/[^a-z0-9]/g, '');
+         const cleanGodown = godownName.toLowerCase().replace(/[^a-z0-9]/g, '');
+         if (cleanGodown.startsWith('ahmedabadcity') || cleanDist === 'ahmedabadcity') {
+            district = 'AHMEDABAD CITY';
+         } else if (cleanDist === 'ahmedabad') {
+            district = 'AHMEDABAD';
+         }
 
          const refNo = lmRefNoKey && row[lmRefNoKey] !== undefined ? String(row[lmRefNoKey]).trim() : '';
          const hasRef = refNo.length > 0;
@@ -1407,7 +1418,6 @@ self.onmessage = async (e) => {
          if (lrNo && lrNo !== 'null' && lrNo !== 'undefined' && lrNo !== '-' && lrNo !== '0' && lrNo.toLowerCase() !== '(blank)') {
             uniqueLrNumbers.add(lrNo);
          }
-         const godownName = lmGodownKey && row[lmGodownKey] !== undefined ? String(row[lmGodownKey]).trim() : '';
          const transporter = lmTransporterKey && row[lmTransporterKey] !== undefined ? String(row[lmTransporterKey]).trim() : '';
 
          const rawTripStatus = lmTripStatusKey && row[lmTripStatusKey] !== undefined ? String(row[lmTripStatusKey]).trim() : '';

@@ -792,7 +792,8 @@ function App() {
   const [godownMasterList, setGodownMasterList] = useState(() => {
     try {
       const saved = localStorage.getItem('gscscl_godown_master_custom');
-      if (saved) return JSON.parse(saved);
+      const customFileName = localStorage.getItem('gscscl_godown_master_filename');
+      if (saved && customFileName) return JSON.parse(saved);
     } catch (e) {
       console.error(e);
     }
@@ -856,7 +857,7 @@ function App() {
     setGodownMasterFileName('');
     localStorage.removeItem('gscscl_godown_master_custom');
     localStorage.removeItem('gscscl_godown_master_filename');
-    showToast('Restored default 244 Godown Master list.', 'success');
+    showToast(`Restored default GSCSCL Godown Master list (${DEFAULT_GODOWN_MASTER.length} Godowns).`, 'success');
   };
   const [liftingTab, setLiftingTab] = useState('summary');
   const [vaStartDate, setVaStartDate] = useState('');
@@ -4829,7 +4830,7 @@ if (gtTrips > 0 || gtChallan > 0 || gtTotalTps > 0 || activeReport === 'lifting-
                   <Building2 className="upload-icon" style={{ color: godownMasterFileName ? '#10b981' : 'var(--primary-color)' }} />
                   <h3 className="upload-title">2. GSCSCL Godown Master</h3>
                   <p className="upload-subtitle" style={{ color: godownMasterFileName ? '#10b981' : 'var(--text-muted)' }}>
-                    {godownMasterFileName ? `Custom Master: ${godownMasterFileName} (${godownMasterList.length} Godowns)` : `Default Master: 244 Active Godowns Preloaded`}
+                    {godownMasterFileName ? `Custom Master: ${godownMasterFileName} (${godownMasterList.length} Godowns)` : `Default Master: ${godownMasterList.length} Active Godowns Preloaded`}
                   </p>
                   <div style={{ marginTop: '10px', display: 'flex', gap: '8px', justifyContent: 'center' }}>
                     <span style={{ fontSize: '0.78rem', padding: '3px 10px', borderRadius: '12px', background: 'rgba(59, 130, 246, 0.15)', color: '#3b82f6', fontWeight: '500' }}>
